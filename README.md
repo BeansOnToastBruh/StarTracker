@@ -1,5 +1,3 @@
-<img width="1574" height="712" alt="Screenshot 2026-05-30 013446" src="https://github.com/user-attachments/assets/4debcecf-68c9-485b-b4ac-b440c7397220" />
-<img width="1574" height="712" alt="image" src="https://github.com/user-attachments/assets/92b265c6-46a7-440e-b43f-46e344d980f2" />
 # StarTracker
 StarTracker is an optimized system tray application that hooks your Star Citizen game.log and tracks your activities!
 
@@ -41,3 +39,4 @@ Sessions save to `%APPDATA%\startracker\sessions.json`. Old `%APPDATA%\sc-sessio
 
 I will add suggestions and features if i can as we go! 
 
+<img width="1574" height="712" alt="Screenshot 2026-05-30 013446" src="https://github.com/user-attachments/assets/4debcecf-68c9-485b-b4ac-b440c7397220" />
