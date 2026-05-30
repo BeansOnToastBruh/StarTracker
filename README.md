@@ -40,3 +40,6 @@ Sessions save to `%APPDATA%\startracker\sessions.json`. Old `%APPDATA%\sc-sessio
 I will add suggestions and features if i can as we go! 
 
 <img width="1574" height="712" alt="Screenshot 2026-05-30 013446" src="https://github.com/user-attachments/assets/4debcecf-68c9-485b-b4ac-b440c7397220" />
+
+This hasn't cost me anything other than time! But for those that like the work, use it and wish to support you can! I will be updating and building new things based on suggestion and ability within Star Citizen and maybe other games too! 
+https://ko-fi.com/beansontoastbruh
