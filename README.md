@@ -39,15 +39,3 @@ Sessions save to `%APPDATA%\startracker\sessions.json`. Old `%APPDATA%\sc-sessio
 
 I will add suggestions and features if i can as we go! 
 
-## Maintainers
-
-```bash
-git clone https://github.com/YOUR_USER/YOUR_REPO.git
-cd YOUR_REPO
-npm install
-npm start          # dev
-npm run dist       # installers in dist/
-```
-
-Tag `v*` and push; GitHub Actions (`.github/workflows/release.yml`) attaches the Windows builds to the release.
-
