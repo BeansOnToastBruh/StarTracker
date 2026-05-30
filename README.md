@@ -43,3 +43,5 @@ I will add suggestions and features if i can as we go!
 
 This hasn't cost me anything other than time! But for those that like the work, use it and wish to support you can! I will be updating and building new things based on suggestion and ability within Star Citizen and maybe other games too! 
 https://ko-fi.com/beansontoastbruh
+
+Remember, i am limited by CIG. If they do not have a log feed for it in the Game log, i cannot add it to the tracker. No game files are edited or will be - this is not allowed. So hopefully soon there is more implementation to logs. 
