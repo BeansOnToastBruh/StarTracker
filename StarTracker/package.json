@@ -1,0 +1,70 @@
+{
+  "name": "startracker",
+  "productName": "StarTracker",
+  "version": "1.0.0",
+  "description": "StarTracker: Star Citizen session stats from Game.log, system tray companion",
+  "main": "electron/main.js",
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "prebuild:icon": "node scripts/generate-icon.js",
+    "pack": "npm run prebuild:icon && electron-builder --win --dir --publish never",
+    "dist": "npm run prebuild:icon && electron-builder --win --publish never",
+    "build:win": "npm run dist"
+  },
+  "build": {
+    "appId": "com.startracker.app",
+    "productName": "StarTracker",
+    "executableName": "StarTracker",
+    "copyright": "Copyright © StarTracker",
+    "afterPack": "./scripts/after-pack.js",
+    "afterAllArtifactBuild": "./scripts/after-all-artifact-build.js",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "executableName": "StarTracker",
+      "artifactName": "StarTracker-${version}-${arch}.${ext}",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "StarTracker",
+      "runAfterFinish": false
+    },
+    "portable": {
+      "artifactName": "StarTracker-${version}-portable.exe"
+    }
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8",
+    "rcedit": "^4.0.1"
+  }
+}

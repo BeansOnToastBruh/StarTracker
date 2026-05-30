@@ -1,0 +1,10 @@
+node_modules/
+dist/
+build/icon.png
+.icon-ico/
+.DS_Store
+Thumbs.db
+npm-debug.log*
+
+# Shipping Windows builds (project root after npm run dist)
+StarTracker-*.exe
