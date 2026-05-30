@@ -6,5 +6,3 @@ build/icon.png
 Thumbs.db
 npm-debug.log*
 
-# Shipping Windows builds (project root after npm run dist)
-StarTracker-*.exe
