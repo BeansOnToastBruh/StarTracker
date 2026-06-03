@@ -64,6 +64,12 @@ const TABS = [
     empty: "No payouts logged yet. Finish a contract and watch for the reward popup in-game. That's what we pick up.",
   },
   {
+    id: "blueprints",
+    label: "Blueprints",
+    hint: "Blueprint unlocks from contracts when Game.log includes the name. Generic reward bundles without a name won't appear here.",
+    empty: "No blueprints logged yet. Complete a mission that grants a blueprint. The log must include the blueprint name in the payout text.",
+  },
+  {
     id: "deaths",
     label: "Deaths",
     hint: "Every time you went down and respawned.",
@@ -257,6 +263,8 @@ function tabBadgeCount(tabId, rollup) {
       );
     case "rewards":
       return rollup.rewardEntries?.length || 0;
+    case "blueprints":
+      return rollup.blueprintEntries?.length || 0;
     case "deaths":
       return rollup.deaths?.length || 0;
     case "kills":
@@ -580,6 +588,33 @@ function buildRewards(rollup) {
   return parts.join("");
 }
 
+function buildBlueprints(rollup) {
+  if (!rollup) return emptyPanel(tabById("blueprints"));
+  const entries = rollup.blueprintEntries || [];
+  if (!entries.length) return emptyPanel(tabById("blueprints"));
+
+  return entries
+    .slice()
+    .reverse()
+    .map((bp) => {
+      const unnamed = bp.name === "Blueprint (name not in log)";
+      return entryCard({
+        time: fmtDateTime(bp.at),
+        badge: "Blueprint",
+        badgeClass: "entry-good",
+        title: beautifyContractTitle(bp.name),
+        description: bp.contractTitle
+          ? `Unlocked from ${beautifyContractTitle(bp.contractTitle)}.`
+          : "Blueprint line from Game.log (contract not matched).",
+        extraHtml:
+          unnamed && bp.summary
+            ? `<p class="entry-extra muted">${displayText(bp.summary)}</p>`
+            : "",
+      });
+    })
+    .join("");
+}
+
 function buildDeaths(rollup) {
   if (!rollup?.deaths?.length) return emptyPanel(tabById("deaths"));
   return rollup.deaths
@@ -791,6 +826,7 @@ function applyState(state) {
   setPanelHtml("overview", buildOverview(session));
   setPanelHtml("missions", buildMissions(rollup));
   setPanelHtml("rewards", buildRewards(rollup));
+  setPanelHtml("blueprints", buildBlueprints(rollup));
   setPanelHtml("deaths", buildDeaths(rollup));
   setPanelHtml("kills", buildKills(rollup));
   setPanelHtml("ships", buildShips(rollup));

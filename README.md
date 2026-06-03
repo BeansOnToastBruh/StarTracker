@@ -10,6 +10,7 @@ Tray app for Star Citizen. Watches your `Game.log` and builds session stats whil
 - Deaths
 - Kills you scored (when the log has them)
 - Contracts: accepted, completed, failed, plus rewards (aUEC, rep, bundles)
+- Blueprint unlocks (when Game.log names them)
 - Ships lost
 - Session start/end (connect, spawn, quit)
 

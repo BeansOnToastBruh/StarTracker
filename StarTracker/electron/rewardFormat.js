@@ -63,7 +63,8 @@ function finalizeRewardKind(detail) {
   else if (detail.auec != null) detail.kind = "auec";
   else if (detail.rep != null) detail.kind = "reputation";
   else if (detail.itemCount != null) detail.kind = "reward_bundle";
-  else if (detail.blueprintName || detail.itemName) detail.kind = "item";
+  else if (detail.blueprintName) detail.kind = "blueprint";
+  else if (detail.itemName) detail.kind = "item";
   else if (detail.kind === "other" && (detail.deliveryNote || detail.itemCount)) {
     detail.kind = "reward_bundle";
   }
