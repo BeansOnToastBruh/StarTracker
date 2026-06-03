@@ -25,8 +25,16 @@ Tray app for Star Citizen. Watches your `Game.log` and builds session stats whil
 
 **Linux** (Star Citizen via Wine/Proton)
 
-4. Download `StarTracker-{version}-x64.AppImage`, mark it executable (`chmod +x`), then run it.
-5. StarTracker looks for `Game.log` under common Wine paths (e.g. `~/.wine/drive_c/Program Files/.../LIVE/Game.log`). If yours is elsewhere, set `logPath` in `~/.config/startracker/config.json` (or the path shown in the app).
+4. Open [Releases](https://github.com/BeansOnToastBruh/StarTracker/releases) and pick the latest **`v{version}-linux`** release (Linux only, no Windows installers bundled).
+5. Download the `.AppImage`, mark it executable (`chmod +x`), then run it.
+6. StarTracker looks for `Game.log` under common Wine paths (e.g. `~/.wine/drive_c/Program Files/.../LIVE/Game.log`). If yours is elsewhere, set `logPath` in config (path shown in the app).
+
+**Maintainers:** ship platforms separately:
+
+```bash
+git tag v1.0.3 && git push origin v1.0.3          # Windows only
+git tag v1.0.3-linux && git push origin v1.0.3-linux   # Linux AppImage only
+```
 
 StarTracker sits in the **system tray**. Double-click the icon for the window. Turn on **Auto-track** and it records when you are in the universe and stops when you quit.
 

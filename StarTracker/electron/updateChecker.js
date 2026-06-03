@@ -13,6 +13,7 @@ function userAgent() {
 function parseSemver(version) {
   const parts = String(version)
     .replace(/^v/i, "")
+    .replace(/-linux$/i, "")
     .trim()
     .split(".")
     .map((n) => parseInt(n, 10) || 0);
@@ -76,6 +77,14 @@ function resolveUpdateRepo(cfg = {}) {
   return null;
 }
 
+function isLinuxReleaseTag(tag) {
+  return /-linux$/i.test(String(tag || ""));
+}
+
+function wantsLinuxRelease() {
+  return process.platform === "linux";
+}
+
 function pickDownloadUrl(release) {
   const assets = Array.isArray(release?.assets) ? release.assets : [];
   const name = (a) => a?.name || "";
@@ -117,27 +126,18 @@ function pickDownloadUrl(release) {
     if (portable?.browser_download_url) return portable.browser_download_url;
   }
 
-  const anyExe = assets.find(
-    (a) => a?.browser_download_url && /\.exe$/i.test(name(a))
-  );
-  if (anyExe?.browser_download_url) return anyExe.browser_download_url;
-
-  const anyAppImage = assets.find(
-    (a) => a?.browser_download_url && /\.AppImage$/i.test(name(a))
-  );
-  if (anyAppImage?.browser_download_url) return anyAppImage.browser_download_url;
-
   return release?.html_url || null;
 }
 
 function normalizeTag(tag) {
   return String(tag || "")
     .replace(/^v/i, "")
+    .replace(/-linux$/i, "")
     .trim();
 }
 
-async function fetchLatestRelease(owner, repo) {
-  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/releases/latest`;
+async function fetchReleases(owner, repo) {
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/releases?per_page=40`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -158,11 +158,25 @@ async function fetchLatestRelease(owner, repo) {
   }
 }
 
+/** Latest release for this OS (Windows tags vs v*-linux tags). */
+async function fetchLatestPlatformRelease(owner, repo) {
+  const releases = await fetchReleases(owner, repo);
+  if (!Array.isArray(releases)) return null;
+
+  const wantLinux = wantsLinuxRelease();
+  for (const release of releases) {
+    if (release.draft) continue;
+    const linuxTag = isLinuxReleaseTag(release.tag_name);
+    if (wantLinux === linuxTag) return release;
+  }
+  return null;
+}
+
 async function checkForUpdates(cfg) {
   const repo = resolveUpdateRepo(cfg);
   if (!repo) return null;
 
-  const release = await fetchLatestRelease(repo.owner, repo.repo);
+  const release = await fetchLatestPlatformRelease(repo.owner, repo.repo);
   if (!release?.tag_name) return null;
 
   let currentVersion;
@@ -188,6 +202,7 @@ async function checkForUpdates(cfg) {
     latestVersion,
     releaseUrl: release.html_url || null,
     downloadUrl: pickDownloadUrl(release),
+    platform: wantsLinuxRelease() ? "linux" : "windows",
   };
 }
 
@@ -195,4 +210,6 @@ module.exports = {
   checkForUpdates,
   resolveUpdateRepo,
   semverGreaterThan,
+  isLinuxReleaseTag,
+  normalizeTag,
 };
