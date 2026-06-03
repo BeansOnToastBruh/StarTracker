@@ -755,7 +755,8 @@ function renderUpdateBanner() {
     return;
   }
 
-  text.textContent = `Update available: ${formatVersion(updateInfo.latestVersion)}`;
+  const plat = updateInfo.platformLabel ? ` (${updateInfo.platformLabel})` : "";
+  text.textContent = `Update available${plat}: ${formatVersion(updateInfo.latestVersion)}`;
   banner.classList.remove("hidden");
 }
 

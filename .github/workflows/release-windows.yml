@@ -77,6 +77,14 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: StarTracker ${{ github.ref_name }} (Windows)
+          body: |
+            ## Windows install (download one of these)
+
+            - **StarTracker-*-x64.exe** — installer (recommended)
+            - **StarTracker-*-portable.exe** — portable, no install
+
+            Do **not** use **Source code (zip)** or any `.exe` inside the zip. Those are not this release.
+            The source zip is for developers only (`cd StarTracker`, `npm install`, `npm start`).
           files: release-assets/*
           generate_release_notes: false
           allowUpdates: true

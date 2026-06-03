@@ -1,0 +1,23 @@
+StarTracker — how to install (read this)
+
+WINDOWS (normal users)
+  Download from GitHub Releases Assets:
+    StarTracker-VERSION-x64.exe       (installer)
+    StarTracker-VERSION-portable.exe  (portable)
+
+  Do NOT run:
+    - "Source code (zip)" from the release page
+    - Any StarTracker-1.0.0-*.exe inside a source zip (old files, wrong version)
+
+LINUX
+  Use the v*-linux release only:
+    StarTracker-VERSION-x86_64.AppImage
+  chmod +x, then run the AppImage.
+
+DEVELOPERS (source zip)
+  unzip, then:
+    cd StarTracker
+    npm install
+    npm start
+
+Footer should match the release version (e.g. v1.0.1 on Windows v1.0.1).

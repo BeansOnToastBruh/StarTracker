@@ -18,6 +18,8 @@ Tray app for Star Citizen. Watches your `Game.log` and builds session stats whil
 
 1. Go to [Releases](https://github.com/BeansOnToastBruh/StarTracker/releases) and grab the latest build.
 
+**Do not download "Source code (zip)".** That folder still had old `StarTracker-1.0.0-*.exe` files in the repo and is only for developers. Download **`StarTracker-*-x64.exe`** (Windows) or the **AppImage** (Linux `v*-linux` release).
+
 **Windows**
 
 2. **Recommended:** `StarTracker-{version}-x64.exe` (installer). Run it, then launch StarTracker from Start or the desktop shortcut.

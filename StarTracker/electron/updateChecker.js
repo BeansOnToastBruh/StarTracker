@@ -81,12 +81,38 @@ function isLinuxReleaseTag(tag) {
   return /-linux$/i.test(String(tag || ""));
 }
 
+function isWindowsReleaseTag(tag) {
+  return /^v\d+\.\d+\.\d+$/i.test(String(tag || "").trim());
+}
+
 function wantsLinuxRelease() {
   return process.platform === "linux";
 }
 
+function releaseAssets(release) {
+  return Array.isArray(release?.assets) ? release.assets : [];
+}
+
+function releaseHasWindowsInstaller(release) {
+  return releaseAssets(release).some(
+    (a) =>
+      a?.browser_download_url &&
+      /\.exe$/i.test(a.name || "") &&
+      /StarTracker/i.test(a.name || "")
+  );
+}
+
+function releaseHasLinuxAppImage(release) {
+  return releaseAssets(release).some(
+    (a) =>
+      a?.browser_download_url &&
+      /\.AppImage$/i.test(a.name || "") &&
+      /StarTracker/i.test(a.name || "")
+  );
+}
+
 function pickDownloadUrl(release) {
-  const assets = Array.isArray(release?.assets) ? release.assets : [];
+  const assets = releaseAssets(release);
   const name = (a) => a?.name || "";
 
   if (process.platform === "linux") {
@@ -97,14 +123,7 @@ function pickDownloadUrl(release) {
         /StarTracker/i.test(name(a))
     );
     if (appImage?.browser_download_url) return appImage.browser_download_url;
-
-    const deb = assets.find(
-      (a) =>
-        a?.browser_download_url &&
-        /\.deb$/i.test(name(a)) &&
-        /StarTracker/i.test(name(a))
-    );
-    if (deb?.browser_download_url) return deb.browser_download_url;
+    return null;
   }
 
   if (process.platform === "win32") {
@@ -124,6 +143,8 @@ function pickDownloadUrl(release) {
         /StarTracker/i.test(name(a))
     );
     if (portable?.browser_download_url) return portable.browser_download_url;
+
+    return null;
   }
 
   return release?.html_url || null;
@@ -134,6 +155,12 @@ function normalizeTag(tag) {
     .replace(/^v/i, "")
     .replace(/-linux$/i, "")
     .trim();
+}
+
+function platformReleaseLabel(release) {
+  if (isLinuxReleaseTag(release?.tag_name)) return "Linux";
+  if (releaseHasWindowsInstaller(release)) return "Windows";
+  return "release";
 }
 
 async function fetchReleases(owner, repo) {
@@ -158,16 +185,27 @@ async function fetchReleases(owner, repo) {
   }
 }
 
-/** Latest release for this OS (Windows tags vs v*-linux tags). */
+/** Latest release for this OS (Windows-only tags vs v*-linux). */
 async function fetchLatestPlatformRelease(owner, repo) {
   const releases = await fetchReleases(owner, repo);
   if (!Array.isArray(releases)) return null;
 
-  const wantLinux = wantsLinuxRelease();
+  if (wantsLinuxRelease()) {
+    for (const release of releases) {
+      if (release.draft) continue;
+      if (!isLinuxReleaseTag(release.tag_name)) continue;
+      if (!releaseHasLinuxAppImage(release)) continue;
+      return release;
+    }
+    return null;
+  }
+
   for (const release of releases) {
     if (release.draft) continue;
-    const linuxTag = isLinuxReleaseTag(release.tag_name);
-    if (wantLinux === linuxTag) return release;
+    if (isLinuxReleaseTag(release.tag_name)) continue;
+    if (!isWindowsReleaseTag(release.tag_name)) continue;
+    if (!releaseHasWindowsInstaller(release)) continue;
+    return release;
   }
   return null;
 }
@@ -185,7 +223,9 @@ async function checkForUpdates(cfg) {
   if (!release?.tag_name) {
     return {
       available: false,
-      error: "Could not load releases from GitHub.",
+      error: wantsLinuxRelease()
+        ? "No Linux release found (look for a v*-linux tag with an AppImage)."
+        : "No Windows release found (look for a v* tag with a .exe installer).",
     };
   }
 
@@ -197,12 +237,27 @@ async function checkForUpdates(cfg) {
     return null;
   }
   const latestVersion = normalizeTag(release.tag_name);
+  const downloadUrl = pickDownloadUrl(release);
+  const platformLabel = platformReleaseLabel(release);
 
   if (!latestVersion || !semverGreaterThan(latestVersion, currentVersion)) {
     return {
       available: false,
       currentVersion,
       latestVersion,
+      platformLabel,
+    };
+  }
+
+  if (!downloadUrl) {
+    return {
+      available: true,
+      currentVersion,
+      latestVersion,
+      platformLabel,
+      releaseUrl: release.html_url || null,
+      downloadUrl: null,
+      error: `Update ${latestVersion} exists but no ${platformLabel} installer was found on that release.`,
     };
   }
 
@@ -211,7 +266,8 @@ async function checkForUpdates(cfg) {
     currentVersion,
     latestVersion,
     releaseUrl: release.html_url || null,
-    downloadUrl: pickDownloadUrl(release),
+    downloadUrl,
+    platformLabel,
     platform: wantsLinuxRelease() ? "linux" : "windows",
   };
 }
