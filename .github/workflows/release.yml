@@ -104,14 +104,14 @@ jobs:
         shell: bash
         run: |
           shopt -s nullglob
-          files=(StarTracker/StarTracker-*.AppImage StarTracker/dist/StarTracker-*.AppImage)
+          files=(StarTracker-*.AppImage dist/StarTracker-*.AppImage)
           if [ ${#files[@]} -eq 0 ]; then
-            echo "No AppImage found. Listing StarTracker/:"
-            find StarTracker -maxdepth 2 -type f \( -name '*.AppImage' -o -name '*.deb' \) || true
+            echo "No AppImage found under $(pwd):"
+            find . -maxdepth 3 -type f \( -name '*.AppImage' -o -name '*.deb' \) || true
             exit 1
           fi
-          echo "path=${files[0]}" >> "$GITHUB_OUTPUT"
-          echo "Using ${files[0]}"
+          echo "path=StarTracker/${files[0]}" >> "$GITHUB_OUTPUT"
+          echo "Using StarTracker/${files[0]}"
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
