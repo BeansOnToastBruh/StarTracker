@@ -112,9 +112,7 @@ jobs:
           body: |
             ## Linux install
 
-            Download **StarTracker-*-x86_64.AppImage**, `chmod +x`, run it.
-
-            Do **not** use **Source code (zip)**. Linux builds are only on `v*-linux` releases.
+            Download **StarTracker-*-x86_64.AppImage**, `chmod +x`, then run it.
           files: release-assets/*
           generate_release_notes: false
           allowUpdates: true
