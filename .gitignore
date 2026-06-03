@@ -1,0 +1,6 @@
+# Build outputs must never be committed (CI builds fresh installers per tag)
+StarTracker/StarTracker-*.exe
+StarTracker/StarTracker-*.AppImage
+StarTracker/StarTracker-*.deb
+StarTracker/dist/
+StarTracker/node_modules/

@@ -42,11 +42,17 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Block committed installers in git
+        run: node StarTracker/scripts/verify-repo-hygiene.js
+
       - name: Install dependencies
         run: npm ci
 
       - name: Build Linux AppImage
         run: npm run dist:linux
+
+      - name: Verify AppImage matches tag version
+        run: node scripts/verify-release-assets.js ${{ steps.version.outputs.version }} linux
 
       - name: Locate Linux AppImage
         id: linux_artifact
@@ -80,11 +86,35 @@ jobs:
           name: linux-build
           path: release-assets
 
+      - name: Reject Windows assets in upload
+        shell: bash
+        run: |
+          shopt -s nullglob
+          bad=(release-assets/*.exe)
+          if [ ${#bad[@]} -gt 0 ]; then
+            echo "Windows installers must not ship on Linux release:"
+            printf '  %s\n' "${bad[@]}"
+            exit 1
+          fi
+          imgs=(release-assets/*.AppImage)
+          if [ ${#imgs[@]} -lt 1 ]; then
+            echo "No AppImage to publish"
+            ls -la release-assets || true
+            exit 1
+          fi
+          echo "Publishing: ${imgs[*]}"
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: StarTracker ${{ github.ref_name }} (Linux)
+          body: |
+            ## Linux install
+
+            Download **StarTracker-*-x86_64.AppImage**, `chmod +x`, run it.
+
+            Do **not** use **Source code (zip)**. Linux builds are only on `v*-linux` releases.
           files: release-assets/*
           generate_release_notes: false
           allowUpdates: true

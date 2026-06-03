@@ -44,11 +44,17 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Block committed installers in git
+        run: node StarTracker/scripts/verify-repo-hygiene.js
+
       - name: Install dependencies
         run: npm ci
 
       - name: Build Windows installers
         run: npm run dist:win
+
+      - name: Verify installers match tag version
+        run: node scripts/verify-release-assets.js ${{ steps.version.outputs.version }} windows
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -71,6 +77,24 @@ jobs:
         with:
           name: windows-build
           path: release-assets
+
+      - name: Reject non-Windows assets in upload
+        shell: bash
+        run: |
+          shopt -s nullglob
+          bad=(release-assets/*.AppImage release-assets/*.deb)
+          if [ ${#bad[@]} -gt 0 ]; then
+            echo "Linux artifacts must not ship on Windows release:"
+            printf '  %s\n' "${bad[@]}"
+            exit 1
+          fi
+          exes=(release-assets/*.exe)
+          if [ ${#exes[@]} -lt 1 ]; then
+            echo "No .exe files to publish"
+            ls -la release-assets || true
+            exit 1
+          fi
+          echo "Publishing: ${exes[*]}"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2

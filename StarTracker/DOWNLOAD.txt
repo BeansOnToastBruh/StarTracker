@@ -1,5 +1,7 @@
 StarTracker — how to install (read this)
 
+Official installers are built by GitHub Actions per release tag. They are not included in the source zip.
+
 WINDOWS (normal users)
   Download from GitHub Releases Assets:
     StarTracker-VERSION-x64.exe       (installer)

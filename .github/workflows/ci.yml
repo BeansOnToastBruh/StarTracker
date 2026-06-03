@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Block committed installers / dist
+        run: node StarTracker/scripts/verify-repo-hygiene.js
+
+      - name: package.json version matches app branding
+        shell: bash
+        working-directory: StarTracker
+        run: |
+          V=$(node -p "require('./package.json').version")
+          if ! grep -q "id: \"blueprints\"" renderer/app.js; then
+            echo "Blueprints tab missing from renderer/app.js"
+            exit 1
+          fi
+          echo "CI OK: version $V, blueprints tab present"
