@@ -86,6 +86,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: StarTracker ${{ github.ref_name }} (Linux)
           files: release-assets/*
-          generate_release_notes: true
+          generate_release_notes: false
+          allowUpdates: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
