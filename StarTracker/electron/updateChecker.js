@@ -78,18 +78,54 @@ function resolveUpdateRepo(cfg = {}) {
 
 function pickDownloadUrl(release) {
   const assets = Array.isArray(release?.assets) ? release.assets : [];
-  const installer = assets.find(
-    (a) =>
-      a?.browser_download_url &&
-      /\.exe$/i.test(a.name || "") &&
-      /StarTracker/i.test(a.name || "")
-  );
-  if (installer?.browser_download_url) return installer.browser_download_url;
+  const name = (a) => a?.name || "";
+
+  if (process.platform === "linux") {
+    const appImage = assets.find(
+      (a) =>
+        a?.browser_download_url &&
+        /\.AppImage$/i.test(name(a)) &&
+        /StarTracker/i.test(name(a))
+    );
+    if (appImage?.browser_download_url) return appImage.browser_download_url;
+
+    const deb = assets.find(
+      (a) =>
+        a?.browser_download_url &&
+        /\.deb$/i.test(name(a)) &&
+        /StarTracker/i.test(name(a))
+    );
+    if (deb?.browser_download_url) return deb.browser_download_url;
+  }
+
+  if (process.platform === "win32") {
+    const installer = assets.find(
+      (a) =>
+        a?.browser_download_url &&
+        /-x64\.exe$/i.test(name(a)) &&
+        /StarTracker/i.test(name(a)) &&
+        !/portable/i.test(name(a))
+    );
+    if (installer?.browser_download_url) return installer.browser_download_url;
+
+    const portable = assets.find(
+      (a) =>
+        a?.browser_download_url &&
+        /portable\.exe$/i.test(name(a)) &&
+        /StarTracker/i.test(name(a))
+    );
+    if (portable?.browser_download_url) return portable.browser_download_url;
+  }
 
   const anyExe = assets.find(
-    (a) => a?.browser_download_url && /\.exe$/i.test(a.name || "")
+    (a) => a?.browser_download_url && /\.exe$/i.test(name(a))
   );
   if (anyExe?.browser_download_url) return anyExe.browser_download_url;
+
+  const anyAppImage = assets.find(
+    (a) => a?.browser_download_url && /\.AppImage$/i.test(name(a))
+  );
+  if (anyAppImage?.browser_download_url) return anyAppImage.browser_download_url;
 
   return release?.html_url || null;
 }

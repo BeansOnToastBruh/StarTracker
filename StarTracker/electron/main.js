@@ -52,7 +52,7 @@ function loadConfig() {
       logPath: DEFAULT_LOG,
       autoTrack: true,
       startMinimized: true,
-      updateRepo: "YOUR_USER/startracker",
+      updateRepo: "BeansOnToastBruh/StarTracker",
     };
   }
 }

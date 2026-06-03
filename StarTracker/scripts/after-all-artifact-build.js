@@ -3,11 +3,11 @@
 const fs = require("fs/promises");
 const path = require("path");
 
-/** NSIS installer and portable exe only (not blockmaps or unpacked app). */
-const SHIPPING_EXE = /^StarTracker-.+-(?:x64|portable)\.exe$/;
+/** Shipping installers moved to project root (not blockmaps / unpacked dirs). */
+const SHIPPING_ARTIFACT = /^StarTracker-.+\.(exe|AppImage|deb)$/;
 
 /**
- * Move shipping installers from dist/ to the project root so they are visible
+ * Move shipping builds from dist/ to the project root so they are visible
  * when opening the folder. Intermediate artifacts stay in dist/.
  */
 module.exports = async function afterAllArtifactBuild(buildResult) {
@@ -16,7 +16,7 @@ module.exports = async function afterAllArtifactBuild(buildResult) {
 
   for (const artifactPath of buildResult.artifactPaths) {
     const base = path.basename(artifactPath);
-    if (!SHIPPING_EXE.test(base)) continue;
+    if (!SHIPPING_ARTIFACT.test(base)) continue;
 
     const dest = path.join(projectDir, base);
     if (path.resolve(artifactPath) === dest) continue;

@@ -1,7 +1,7 @@
 {
   "name": "startracker",
   "productName": "StarTracker",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "StarTracker: Star Citizen session stats from Game.log, system tray companion",
   "main": "electron/main.js",
   "author": "",
@@ -10,8 +10,11 @@
     "start": "electron .",
     "prebuild:icon": "node scripts/generate-icon.js",
     "pack": "npm run prebuild:icon && electron-builder --win --dir --publish never",
-    "dist": "npm run prebuild:icon && electron-builder --win --publish never",
-    "build:win": "npm run dist"
+    "dist": "npm run dist:win",
+    "dist:win": "npm run prebuild:icon && electron-builder --win --publish never",
+    "dist:linux": "npm run prebuild:icon && electron-builder --linux --publish never",
+    "build:win": "npm run dist:win",
+    "build:linux": "npm run dist:linux"
   },
   "build": {
     "appId": "com.startracker.app",
@@ -60,6 +63,20 @@
     },
     "portable": {
       "artifactName": "StarTracker-${version}-portable.exe"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "Game",
+      "executableName": "StarTracker",
+      "artifactName": "StarTracker-${version}-${arch}.${ext}",
+      "synopsis": "Star Citizen session stats from Game.log",
+      "description": "Tray companion that tails Game.log for session debrief stats."
     }
   },
   "devDependencies": {
