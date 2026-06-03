@@ -781,11 +781,25 @@ function initUpdateUi() {
 
   $("btnCheckUpdates")?.addEventListener("click", async () => {
     const btn = $("btnCheckUpdates");
+    const status = $("statusLine");
+    const prevStatus = status?.textContent || "";
     if (btn) btn.disabled = true;
     try {
       updateBannerDismissed = false;
       const result = await window.debrief.checkForUpdates();
       applyUpdateStatus(result);
+      if (result?.error && status) {
+        status.textContent = result.error;
+        setTimeout(() => {
+          if (status.textContent === result.error) status.textContent = prevStatus;
+        }, 6000);
+      } else if (result && !result.available && !result.error && status) {
+        status.textContent = `You're on the latest release (${formatVersion(result.currentVersion)}).`;
+        setTimeout(() => {
+          if (status.textContent.startsWith("You're on the latest"))
+            status.textContent = prevStatus;
+        }, 4000);
+      }
     } finally {
       if (btn) btn.disabled = false;
     }

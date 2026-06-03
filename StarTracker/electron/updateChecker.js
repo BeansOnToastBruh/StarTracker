@@ -174,10 +174,20 @@ async function fetchLatestPlatformRelease(owner, repo) {
 
 async function checkForUpdates(cfg) {
   const repo = resolveUpdateRepo(cfg);
-  if (!repo) return null;
+  if (!repo) {
+    return {
+      available: false,
+      error: "Update repo not configured. Set updateRepo in config.json.",
+    };
+  }
 
   const release = await fetchLatestPlatformRelease(repo.owner, repo.repo);
-  if (!release?.tag_name) return null;
+  if (!release?.tag_name) {
+    return {
+      available: false,
+      error: "Could not load releases from GitHub.",
+    };
+  }
 
   let currentVersion;
   try {

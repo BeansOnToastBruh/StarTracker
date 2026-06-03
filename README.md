@@ -38,6 +38,8 @@ git tag v1.0.3-linux && git push origin v1.0.3-linux   # Linux AppImage only
 
 StarTracker sits in the **system tray**. Double-click the icon for the window. Turn on **Auto-track** and it records when you are in the universe and stops when you quit.
 
+**Upgrading from an old build:** uninstall the previous StarTracker in Windows Settings, then install again from the release page. If the footer still shows `v1.0.0`, you are not running the new installer (old shortcut or portable exe).
+
 **You need Star Citizen running** (or at least a `Game.log` on disk). Default path:
 
 `C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log`

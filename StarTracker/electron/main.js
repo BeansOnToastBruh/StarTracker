@@ -44,17 +44,33 @@ let watching = false;
 let autoTrack = true;
 let gameInUniverse = false;
 
+const DEFAULT_UPDATE_REPO = "BeansOnToastBruh/StarTracker";
+
+function defaultConfig() {
+  return {
+    logPath: DEFAULT_LOG,
+    autoTrack: true,
+    startMinimized: true,
+    updateRepo: DEFAULT_UPDATE_REPO,
+  };
+}
+
 function loadConfig() {
+  let cfg;
   try {
-    return JSON.parse(fs.readFileSync(CONFIG_PATH(), "utf8"));
+    cfg = JSON.parse(fs.readFileSync(CONFIG_PATH(), "utf8"));
   } catch {
-    return {
-      logPath: DEFAULT_LOG,
-      autoTrack: true,
-      startMinimized: true,
-      updateRepo: "BeansOnToastBruh/StarTracker",
-    };
+    return defaultConfig();
   }
+
+  let changed = false;
+  const repo = String(cfg.updateRepo || "");
+  if (!repo || /YOUR_USER/i.test(repo)) {
+    cfg.updateRepo = DEFAULT_UPDATE_REPO;
+    changed = true;
+  }
+  if (changed) saveConfig(cfg);
+  return cfg;
 }
 
 function saveConfig(cfg) {
