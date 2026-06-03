@@ -24,6 +24,7 @@ jobs:
         with:
           node-version: "20"
           cache: npm
+          cache-dependency-path: StarTracker/package-lock.json
 
       - name: Set version from tag
         if: startsWith(github.ref, 'refs/tags/v')
@@ -35,6 +36,7 @@ jobs:
       - name: Read package version
         id: version
         shell: bash
+        working-directory: StarTracker
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -51,8 +53,8 @@ jobs:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', steps.version.outputs.version) }}
           name: StarTracker v${{ steps.version.outputs.version }}
           files: |
-            StarTracker-${{ steps.version.outputs.version }}-x64.exe
-            StarTracker-${{ steps.version.outputs.version }}-portable.exe
+            StarTracker/StarTracker-${{ steps.version.outputs.version }}-x64.exe
+            StarTracker/StarTracker-${{ steps.version.outputs.version }}-portable.exe
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
