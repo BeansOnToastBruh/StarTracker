@@ -56,6 +56,9 @@ jobs:
           path: |
             StarTracker/StarTracker-${{ steps.version.outputs.version }}-x64.exe
             StarTracker/StarTracker-${{ steps.version.outputs.version }}-portable.exe
+            StarTracker/dist/StarTracker-${{ steps.version.outputs.version }}-x64.exe
+            StarTracker/dist/StarTracker-${{ steps.version.outputs.version }}-portable.exe
+          if-no-files-found: error
 
   build-linux:
     runs-on: ubuntu-latest
@@ -96,11 +99,26 @@ jobs:
       - name: Build Linux AppImage
         run: npm run dist:linux
 
+      - name: Locate Linux AppImage
+        id: linux_artifact
+        shell: bash
+        run: |
+          shopt -s nullglob
+          files=(StarTracker/StarTracker-*.AppImage StarTracker/dist/StarTracker-*.AppImage)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No AppImage found. Listing StarTracker/:"
+            find StarTracker -maxdepth 2 -type f \( -name '*.AppImage' -o -name '*.deb' \) || true
+            exit 1
+          fi
+          echo "path=${files[0]}" >> "$GITHUB_OUTPUT"
+          echo "Using ${files[0]}"
+
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
           name: linux-build
-          path: StarTracker/StarTracker-${{ steps.version.outputs.version }}-x64.AppImage
+          path: ${{ steps.linux_artifact.outputs.path }}
+          if-no-files-found: error
 
   release:
     needs: [build-windows, build-linux]
