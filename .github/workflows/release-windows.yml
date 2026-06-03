@@ -79,5 +79,6 @@ jobs:
           name: StarTracker ${{ github.ref_name }} (Windows)
           files: release-assets/*
           generate_release_notes: true
+          allowUpdates: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
