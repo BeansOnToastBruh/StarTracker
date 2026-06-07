@@ -6,6 +6,7 @@ const {
   nativeImage,
   ipcMain,
   shell,
+  dialog,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -16,7 +17,7 @@ const {
   endSession,
   snapshot,
 } = require("./session");
-const { resolveLogPath, DEFAULT_LOG } = require("./paths");
+const { resolveLogPath, getLogPathInfo } = require("./paths");
 const { checkForUpdates } = require("./updateChecker");
 
 app.setName("StarTracker");
@@ -48,7 +49,8 @@ const DEFAULT_UPDATE_REPO = "BeansOnToastBruh/StarTracker";
 
 function defaultConfig() {
   return {
-    logPath: DEFAULT_LOG,
+    logPath: null,
+    logPathCustom: false,
     autoTrack: true,
     startMinimized: true,
     updateRepo: DEFAULT_UPDATE_REPO,
@@ -129,11 +131,20 @@ async function runUpdateCheck() {
   }
 }
 
+function logSettingsPayload() {
+  const cfg = loadConfig();
+  const info = getLogPathInfo(cfg);
+  return {
+    logPath: watcher?.path || (info.exists ? info.resolved : null),
+    logPathInfo: info,
+  };
+}
+
 function broadcastState() {
   const payload = {
     watching,
     autoTrack,
-    logPath: watcher?.path,
+    ...logSettingsPayload(),
     current: currentSession ? snapshot(currentSession) : null,
     history: pastSessions.slice(0, 10),
   };
@@ -201,11 +212,17 @@ function updateTrayMenu() {
     },
     { type: "separator" },
     {
-      label: "Open log folder",
+      label: "Choose Game.log…",
       click: () => {
-        const p = resolveLogPath(loadConfig().logPath);
-        shell.showItemInFolder(p);
+        showWindow();
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("focus-log-path");
+        }
       },
+    },
+    {
+      label: "Open log folder",
+      click: () => openLogFolder(),
     },
     {
       label: "Quit",
@@ -326,11 +343,18 @@ function finishSession(endedAt) {
   broadcastState();
 }
 
-async function startWatcher(logPath) {
+function watcherTargetPath() {
+  const cfg = loadConfig();
+  return resolveLogPath(cfg.logPath, { custom: cfg.logPathCustom });
+}
+
+async function startWatcher() {
   await stopWatcher();
-  const resolved = resolveLogPath(logPath);
+  const resolved = watcherTargetPath();
   if (!fs.existsSync(resolved)) {
-    throw new Error(`Couldn't find your Star Citizen log file:\n${resolved}`);
+    throw new Error(
+      `Couldn't find Game.log.\n${resolved}\n\nUse Browse in the app footer to select your Game.log (usually in StarCitizen\\LIVE).`
+    );
   }
   watching = true;
   watcher = new LogWatcher({
@@ -358,8 +382,7 @@ function toggleWatch() {
   if (watching) {
     stopWatcher().then(() => broadcastState());
   } else {
-    const cfg = loadConfig();
-    startWatcher(cfg.logPath).catch((e) => {
+    startWatcher().catch((e) => {
       if (mainWindow) mainWindow.webContents.send("error", e.message);
     });
   }
@@ -379,7 +402,7 @@ app.whenReady().then(async () => {
   updateTrayMenu();
 
   try {
-    await startWatcher(cfg.logPath);
+    await startWatcher();
   } catch (e) {
     if (mainWindow) mainWindow.webContents.send("error", e.message);
   }
@@ -399,7 +422,7 @@ app.on("before-quit", async () => {
 ipcMain.handle("get-state", () => ({
   watching,
   autoTrack,
-  logPath: watcher?.path,
+  ...logSettingsPayload(),
   current: currentSession ? snapshot(currentSession) : null,
   history: pastSessions,
 }));
@@ -423,10 +446,75 @@ ipcMain.handle("set-auto-track", (_, value) => {
   return autoTrack;
 });
 
-ipcMain.handle("open-log", () => {
-  const p = resolveLogPath(loadConfig().logPath);
-  shell.showItemInFolder(p);
-  return p;
+function openLogFolder() {
+  const info = getLogPathInfo(loadConfig());
+  const p = info.resolved;
+  if (info.exists) {
+    shell.showItemInFolder(p);
+    return p;
+  }
+  showWindow();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("focus-log-path");
+  }
+  return null;
+}
+
+ipcMain.handle("open-log", () => openLogFolder());
+
+ipcMain.handle("browse-log-file", async () => {
+  const info = getLogPathInfo(loadConfig());
+  const defaultDir = info.exists
+    ? path.dirname(info.resolved)
+    : info.autoDetected
+      ? path.dirname(info.autoDetected)
+      : app.getPath("home");
+
+  const result = await dialog.showOpenDialog(mainWindow || undefined, {
+    title: "Select Star Citizen Game.log",
+    defaultPath: path.join(defaultDir, "Game.log"),
+    properties: ["openFile"],
+    filters: [{ name: "Star Citizen log", extensions: ["log"] }],
+  });
+
+  if (result.canceled || !result.filePaths?.[0]) {
+    return { canceled: true };
+  }
+  return { canceled: false, path: result.filePaths[0] };
+});
+
+ipcMain.handle("set-log-path", async (_, opts) => {
+  const cfg = loadConfig();
+
+  if (opts?.auto) {
+    cfg.logPathCustom = false;
+    cfg.logPath = null;
+    saveConfig(cfg);
+  } else {
+    const p = typeof opts?.path === "string" ? opts.path.trim() : "";
+    if (!p) return { ok: false, error: "No path selected." };
+    if (!fs.existsSync(p)) {
+      return { ok: false, error: `File not found:\n${p}` };
+    }
+    if (path.basename(p).toLowerCase() !== "game.log") {
+      return {
+        ok: false,
+        error: "Select the Game.log file (usually in StarCitizen\\LIVE\\Game.log).",
+      };
+    }
+    cfg.logPath = p;
+    cfg.logPathCustom = true;
+    saveConfig(cfg);
+  }
+
+  try {
+    await startWatcher();
+    broadcastState();
+    return { ok: true, ...logSettingsPayload() };
+  } catch (e) {
+    broadcastState();
+    return { ok: false, error: e.message, ...logSettingsPayload() };
+  }
 });
 
 ipcMain.handle("get-app-info", () => ({

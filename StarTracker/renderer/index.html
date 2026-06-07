@@ -39,6 +39,10 @@
       <button type="button" id="btnDismissUpdate" class="link update-dismiss">Dismiss</button>
     </div>
 
+    <div id="logBanner" class="log-banner hidden" role="status" aria-live="polite">
+      <span id="logBannerText">Game.log not found. Browse to your file or try auto-detect.</span>
+    </div>
+
     <section class="stats" id="stats" aria-label="Session summary"></section>
 
     <nav class="tabs" id="tabNav" role="tablist" aria-label="Session categories"></nav>
@@ -48,7 +52,19 @@
     </main>
 
     <footer class="foot">
-      <span id="logPath"></span>
+      <div class="log-path-row">
+        <label class="log-path-label" for="logPathInput">Game.log</label>
+        <input
+          type="text"
+          id="logPathInput"
+          class="log-path-input"
+          readonly
+          placeholder="Not found — use Browse"
+          title="Star Citizen Game.log path"
+        />
+        <button type="button" id="btnBrowseLog" class="btn btn-sm">Browse…</button>
+        <button type="button" id="btnAutoLog" class="link">Auto-detect</button>
+      </div>
       <div class="foot-actions">
         <span id="appVersion" class="version-label"></span>
         <button type="button" id="btnCheckUpdates" class="link">Check for updates</button>

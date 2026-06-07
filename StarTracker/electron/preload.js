@@ -6,6 +6,13 @@ contextBridge.exposeInMainWorld("debrief", {
   endSession: () => ipcRenderer.invoke("end-session"),
   setAutoTrack: (v) => ipcRenderer.invoke("set-auto-track", v),
   openLog: () => ipcRenderer.invoke("open-log"),
+  browseLogFile: () => ipcRenderer.invoke("browse-log-file"),
+  setLogPath: (opts) => ipcRenderer.invoke("set-log-path", opts),
+  onFocusLogPath: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on("focus-log-path", handler);
+    return () => ipcRenderer.removeListener("focus-log-path", handler);
+  },
   getAppInfo: () => ipcRenderer.invoke("get-app-info"),
   checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
   openUpdateUrl: (url) => ipcRenderer.invoke("open-update-url", url),

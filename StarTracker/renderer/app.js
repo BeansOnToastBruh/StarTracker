@@ -834,7 +834,7 @@ function applyState(state) {
   }
   $("statusLine").textContent = status;
 
-  if (state.logPath) $("logPath").textContent = state.logPath;
+  applyLogPathState(state);
 
   renderStats(session);
 
@@ -863,6 +863,56 @@ $("autoTrack").addEventListener("change", (e) =>
   window.debrief.setAutoTrack(e.target.checked)
 );
 $("btnLog").addEventListener("click", () => window.debrief.openLog());
+
+function applyLogPathState(state) {
+  const info = state.logPathInfo || {};
+  const input = $("logPathInput");
+  const banner = $("logBanner");
+  const watching = state.watching && !!state.logPath;
+  const displayPath =
+    state.logPath ||
+    info.resolved ||
+    info.autoDetected ||
+    info.defaultGuess ||
+    "";
+
+  input.value = displayPath;
+  input.classList.toggle("log-missing", !watching && !info.exists);
+
+  const modeLabel = info.mode === "custom" ? "Custom path" : "Auto-detect";
+  input.title = info.exists
+    ? `${modeLabel}: ${displayPath}`
+    : `Game.log not found. ${modeLabel} last tried: ${displayPath}`;
+
+  banner.classList.toggle("hidden", watching || info.exists);
+  if (!watching && !info.exists) {
+    $("logBannerText").textContent =
+      "Game.log not found at the usual locations. Use Browse to select your Game.log (StarCitizen\\LIVE), or Auto-detect to scan again.";
+  }
+}
+
+async function browseAndSetLogPath() {
+  const pick = await window.debrief.browseLogFile();
+  if (pick.canceled || !pick.path) return;
+  const result = await window.debrief.setLogPath({ path: pick.path });
+  if (!result.ok && result.error) {
+    $("statusLine").textContent = `Error: ${result.error}`;
+  }
+}
+
+async function autoDetectLogPath() {
+  const result = await window.debrief.setLogPath({ auto: true });
+  if (!result.ok && result.error) {
+    $("statusLine").textContent = `Error: ${result.error}`;
+  }
+}
+
+$("btnBrowseLog").addEventListener("click", () => browseAndSetLogPath());
+$("btnAutoLog").addEventListener("click", () => autoDetectLogPath());
+window.debrief.onFocusLogPath(() => {
+  $("logPathInput").focus();
+  $("btnBrowseLog").click();
+});
 
 window.debrief.getState().then(applyState);
 window.debrief.onState(applyState);
