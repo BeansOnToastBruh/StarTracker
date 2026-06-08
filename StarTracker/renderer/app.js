@@ -44,116 +44,139 @@ function toggleTheme() {
   applyTheme(getTheme() === "dark" ? "light" : "dark", true);
 }
 
-const TABS = [
+const SESSION_TABS = [
   {
     id: "overview",
+    group: "session",
     label: "Overview",
     hint: "A quick snapshot of your session.",
     empty: "Hop in and play. Once you're tracking a session, your summary shows up here.",
   },
   {
     id: "missions",
+    group: "session",
     label: "Missions",
     hint: "Contracts you accepted, completed, failed, or walked away from, with per-objective progress when the log shows it.",
     empty: "No contracts yet. Grab a mission in-game. You'll see Started when you accept, and Complete when you finish.",
   },
   {
     id: "rewards",
+    group: "session",
     label: "Rewards",
     hint: "aUEC from Awarded popups, rep, and loot bundles. Not your wallet balance. Matched to contracts when we can.",
     empty: "No payouts logged yet. Finish a contract and look for Awarded aUEC or You've Earned popups in-game.",
   },
   {
     id: "fines",
+    group: "session",
     label: "Fines",
     hint: "UEC fines from CrimeStat and monitored-space infraction popups.",
     empty: "No fines logged this session.",
   },
   {
     id: "insurance",
+    group: "session",
     label: "Insurance",
     hint: "Ship insurance claims that completed (hull respawn at station).",
     empty: "No insurance claims logged this session.",
   },
   {
     id: "shopping",
+    group: "session",
     label: "Shopping",
     hint: "Items bought at shops and kiosks when the log records your purchase.",
     empty: "No shop purchases logged this session.",
   },
   {
-    id: "catalog-ships",
-    label: "Ship catalog",
-    hint: "Flyable ships with in-game buy and rent prices by station. Data from Star Citizen Wiki and UEX.",
-    empty: "No ship catalog loaded yet. Use Refresh catalog below or wait for the background sync.",
-  },
-  {
-    id: "catalog-weapons",
-    label: "FPS weapons",
-    hint: "Personal weapons and attachments sold at in-game shops, with prices and locations.",
-    empty: "No weapon catalog loaded yet. Use Refresh catalog below.",
-  },
-  {
-    id: "catalog-armor",
-    label: "Armor",
-    hint: "Armor pieces and undersuits for sale at shops, with station and aUEC price.",
-    empty: "No armor catalog loaded yet. Use Refresh catalog below.",
-  },
-  {
-    id: "catalog-ship-weapons",
-    label: "Ship weapons",
-    hint: "Ship guns, turrets, missiles, and racks with shop availability and prices.",
-    empty: "No ship weapon catalog loaded yet. Use Refresh catalog below.",
-  },
-  {
-    id: "catalog-ship-parts",
-    label: "Ship parts",
-    hint: "Coolers, power plants, shields, quantum drives, and utility components for sale.",
-    empty: "No ship parts catalog loaded yet. Use Refresh catalog below.",
-  },
-  {
-    id: "catalog-shops",
-    label: "Shop finder",
-    hint: "Browse shops and stations to see what they sell. Search by location or terminal name.",
-    empty: "No shop data loaded yet. Use Refresh catalog below.",
-  },
-  {
-    id: "catalog-ship-services",
-    label: "Ship services",
-    hint: "Stations, cities, and ports where you can get ship services (refuel, repair, ammo restock). Grouped by star system. Data from UEX.",
-    empty: "No ship service locations loaded yet. Use Refresh catalog below.",
-  },
-  {
     id: "blueprints",
+    group: "session",
     label: "Blueprints",
     hint: "Blueprint unlocks from contracts when Game.log includes the name. Generic reward bundles without a name won't appear here.",
     empty: "No blueprints logged yet. Complete a mission that grants a blueprint. The log must include the blueprint name in the payout text.",
   },
   {
     id: "deaths",
+    group: "session",
     label: "Deaths",
     hint: "Every time you went down and respawned.",
     empty: "No deaths this session. Downed-and-respawn runs and instant ship deaths show up here when they happen.",
   },
   {
     id: "kills",
+    group: "session",
     label: "Kills",
     hint: "Players you killed or neutralized, especially PvP bounty targets when you finish the contract.",
     empty: "No kills tracked yet. Finish a PvP bounty after you neutralize the target and it will show up here.",
   },
   {
     id: "ships",
+    group: "session",
     label: "Ships lost",
     hint: "Your hulls that were destroyed while you were flying or had control. Other players' ships are ignored.",
     empty: "Nothing lost yet. A ship shows up here when a hull you were flying gets destroyed.",
   },
   {
     id: "history",
+    group: "session",
     label: "Log archive",
     hint: "Game.log backups since patch 4.8. Click one to view everything we can parse from that file.",
     empty: "No log archives found. Set your Game.log path to the StarCitizen LIVE folder (logbackups lives beside it).",
   },
 ];
+
+const CATALOG_TABS = [
+  {
+    id: "catalog-ships",
+    group: "catalog",
+    label: "Ships",
+    hint: "Flyable ships with in-game buy and rent prices by station. Data from Star Citizen Wiki and UEX.",
+    empty: "No ship catalog loaded yet. Use Refresh catalog below or wait for the background sync.",
+  },
+  {
+    id: "catalog-weapons",
+    group: "catalog",
+    label: "FPS weapons",
+    hint: "Personal weapons and attachments sold at in-game shops, with prices and locations.",
+    empty: "No weapon catalog loaded yet. Use Refresh catalog below.",
+  },
+  {
+    id: "catalog-armor",
+    group: "catalog",
+    label: "Armor",
+    hint: "Armor pieces and undersuits for sale at shops, with station and aUEC price.",
+    empty: "No armor catalog loaded yet. Use Refresh catalog below.",
+  },
+  {
+    id: "catalog-ship-weapons",
+    group: "catalog",
+    label: "Ship weapons",
+    hint: "Ship guns, turrets, missiles, and racks with shop availability and prices.",
+    empty: "No ship weapon catalog loaded yet. Use Refresh catalog below.",
+  },
+  {
+    id: "catalog-ship-parts",
+    group: "catalog",
+    label: "Ship parts",
+    hint: "Coolers, power plants, shields, quantum drives, and utility components for sale.",
+    empty: "No ship parts catalog loaded yet. Use Refresh catalog below.",
+  },
+  {
+    id: "catalog-shops",
+    group: "catalog",
+    label: "Shops",
+    hint: "Browse shops and stations to see what they sell. Search by location or terminal name.",
+    empty: "No shop data loaded yet. Use Refresh catalog below.",
+  },
+  {
+    id: "catalog-ship-services",
+    group: "catalog",
+    label: "Ship services",
+    hint: "Stations, cities, and ports where you can get ship services (refuel, repair, ammo restock). Grouped by star system. Data from UEX.",
+    empty: "No ship service locations loaded yet. Use Refresh catalog below.",
+  },
+];
+
+const TABS = [...SESSION_TABS, ...CATALOG_TABS];
 
 let activeTab = "overview";
 /** Last session snapshot used when main briefly sends current:null (stale log replay). */
@@ -323,18 +346,40 @@ function initStats() {
   ).join("");
 }
 
+function tabButtonHtml(tab) {
+  const selected = tab.id === activeTab;
+  const groupClass = tab.group === "catalog" ? " tab-btn-catalog" : "";
+  return `<button type="button" class="tab-btn${groupClass} ${selected ? "is-active" : ""}" role="tab" id="tab-${tab.id}" data-tab="${tab.id}" aria-selected="${selected}" aria-controls="panel-${tab.id}"><span class="tab-label">${escapeHtml(tab.label)}</span><span class="tab-count" aria-hidden="true"></span></button>`;
+}
+
 function initTabs() {
   const nav = $("tabNav");
   const panels = $("tabPanels");
-  nav.innerHTML = TABS.map(
-    (t) =>
-      `<button type="button" class="tab-btn ${t.id === activeTab ? "is-active" : ""}" role="tab" id="tab-${t.id}" data-tab="${t.id}" aria-selected="${t.id === activeTab}" aria-controls="panel-${t.id}"><span class="tab-label">${escapeHtml(t.label)}</span><span class="tab-count" aria-hidden="true"></span></button>`
-  ).join("");
+  const sessionButtons = SESSION_TABS.map(tabButtonHtml).join("");
+  const catalogButtons = CATALOG_TABS.map(tabButtonHtml).join("");
+  nav.innerHTML = `<div class="tabs-scroll">
+    <div class="tabs-group tabs-group-session" role="presentation">${sessionButtons}</div>
+    <span class="tabs-divider" role="presentation" aria-hidden="true"></span>
+    <div class="tabs-group tabs-group-catalog" role="presentation">${catalogButtons}</div>
+  </div>`;
   panels.innerHTML = TABS.map((t) => panelShell(t, emptyPanel(t))).join("");
 
   nav.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
   });
+}
+
+function scrollActiveTabIntoView() {
+  const btn = document.getElementById(`tab-${activeTab}`);
+  const scroller = document.querySelector(".tabs-scroll");
+  if (!btn || !scroller) return;
+  const btnLeft = btn.offsetLeft;
+  const btnRight = btnLeft + btn.offsetWidth;
+  const viewLeft = scroller.scrollLeft;
+  const viewRight = viewLeft + scroller.clientWidth;
+  if (btnLeft < viewLeft || btnRight > viewRight) {
+    btn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+  }
 }
 
 function tabBadgeCount(tabId, rollup) {
@@ -411,6 +456,7 @@ function setActiveTab(id) {
     if (on) panel.removeAttribute("hidden");
     else panel.setAttribute("hidden", "");
   });
+  scrollActiveTabIntoView();
 }
 
 function setPanelHtml(tabId, html) {
