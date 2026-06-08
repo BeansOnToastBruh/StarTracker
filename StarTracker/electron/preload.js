@@ -40,8 +40,11 @@ contextBridge.exposeInMainWorld("debrief", {
     ipcRenderer.invoke("catalog-query-items", options),
   catalogQueryShops: (options) =>
     ipcRenderer.invoke("catalog-query-shops", options),
+  catalogQueryPlaces: (options) =>
+    ipcRenderer.invoke("catalog-query-places", options),
   catalogItemDetail: (key) => ipcRenderer.invoke("catalog-item-detail", key),
   catalogShopDetail: (key) => ipcRenderer.invoke("catalog-shop-detail", key),
+  catalogPlaceDetail: (key) => ipcRenderer.invoke("catalog-place-detail", key),
   catalogRefresh: () => ipcRenderer.invoke("catalog-refresh"),
   onCatalogSync: (cb) => {
     const handler = (_, data) => cb(data);

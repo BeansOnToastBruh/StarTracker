@@ -8,9 +8,10 @@ const {
   compactWikiItem,
   compactWikiVehicle,
   compactTerminal,
+  buildPlacesFromTerminals,
 } = require("./catalogSections");
 
-const SYNC_VERSION = 1;
+const SYNC_VERSION = 2;
 const WIKI_PAGE_SIZE = 50;
 const FETCH_GAP_MS = 350;
 
@@ -253,6 +254,7 @@ async function syncCatalog(onProgress) {
   }
 
   const shopIndex = buildShopIndex([...catalogItems, ...vehicles]);
+  const places = buildPlacesFromTerminals(terminals);
 
   const meta = {
     version: SYNC_VERSION,
@@ -263,6 +265,7 @@ async function syncCatalog(onProgress) {
       items: catalogItems.length,
       terminals: terminals.length,
       shopsWithStock: Object.keys(shopIndex.byTerminal).length,
+      places: places.length,
     },
     sources: ["api.star-citizen.wiki", "api.uexcorp.space"],
   };
@@ -273,6 +276,7 @@ async function syncCatalog(onProgress) {
     vehicles,
     items: catalogItems,
     shopIndex,
+    places,
   };
 }
 

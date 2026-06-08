@@ -193,9 +193,135 @@ function compactTerminal(row) {
     type: row.type || null,
     location: formatLocation(row),
     system: row.star_system_name || null,
+    displayName: row.displayname || null,
+    planet: row.planet_name || null,
+    moon: row.moon_name || null,
+    station: row.space_station_name || null,
+    city: row.city_name || null,
+    outpost: row.outpost_name || null,
+    orbit: row.orbit_name || null,
+    services: {
+      refuel: Boolean(row.is_refuel),
+      repair: Boolean(row.is_repair),
+      restock: Boolean(row.is_shop_fps),
+      vehicleShop: Boolean(row.is_shop_vehicle),
+      food: Boolean(row.is_food),
+      medical: Boolean(row.is_medical),
+      refinery: Boolean(row.is_refinery),
+      cargo: Boolean(row.is_cargo_center),
+      fuel: row.type === "fuel",
+    },
     isShopFps: Boolean(row.is_shop_fps),
     isShopVehicle: Boolean(row.is_shop_vehicle),
   };
+}
+
+function placeLabelFromTerminal(row) {
+  return (
+    row.displayName ||
+    row.city ||
+    row.station ||
+    row.moon ||
+    row.outpost ||
+    row.orbit ||
+    row.planet ||
+    row.name ||
+    "Unknown"
+  );
+}
+
+function placeKindFromTerminal(row) {
+  if (row.city) return "City";
+  if (row.station) return "Station";
+  if (row.moon) return "Moon";
+  if (row.outpost) return "Outpost";
+  if (row.orbit && !row.planet) return "Orbit";
+  if (row.type === "fuel") return "Fuel depot";
+  return "Location";
+}
+
+function mergeServiceFlags(target, source) {
+  for (const [key, value] of Object.entries(source || {})) {
+    if (value) target[key] = true;
+  }
+}
+
+function normalizeTerminal(terminal) {
+  if (!terminal) return terminal;
+  if (terminal.services) return terminal;
+  return {
+    ...terminal,
+    services: {
+      refuel: false,
+      repair: false,
+      restock: Boolean(terminal.isShopFps),
+      vehicleShop: Boolean(terminal.isShopVehicle),
+      food: false,
+      medical: false,
+      refinery: false,
+      cargo: false,
+      fuel: terminal.type === "fuel",
+    },
+  };
+}
+
+function buildPlacesFromTerminals(terminals) {
+  const byKey = new Map();
+  for (const terminal of (terminals || []).map(normalizeTerminal)) {
+    const placeName = placeLabelFromTerminal(terminal);
+    const key = [
+      terminal.system || "unknown",
+      placeName,
+      terminal.planet || "",
+      terminal.moon || "",
+    ].join("|");
+
+    if (!byKey.has(key)) {
+      byKey.set(key, {
+        key,
+        name: placeName,
+        system: terminal.system || null,
+        planet: terminal.planet || null,
+        moon: terminal.moon || null,
+        station: terminal.station || null,
+        city: terminal.city || null,
+        outpost: terminal.outpost || null,
+        orbit: terminal.orbit || null,
+        kind: placeKindFromTerminal(terminal),
+        location: terminal.location || placeName,
+        services: {
+          refuel: false,
+          repair: false,
+          restock: false,
+          vehicleShop: false,
+          food: false,
+          medical: false,
+          refinery: false,
+          cargo: false,
+          fuel: false,
+        },
+        terminals: [],
+      });
+    }
+
+    const place = byKey.get(key);
+    mergeServiceFlags(place.services, terminal.services);
+    place.terminals.push({
+      id: terminal.id,
+      name: terminal.name,
+      code: terminal.code,
+      type: terminal.type,
+      services: terminal.services,
+    });
+  }
+
+  return [...byKey.values()]
+    .filter((place) =>
+      Object.values(place.services).some(Boolean)
+    )
+    .sort((a, b) =>
+      `${a.system} ${a.name}`.localeCompare(`${b.system} ${b.name}`)
+    );
 }
 
 module.exports = {
@@ -210,5 +336,8 @@ module.exports = {
   compactWikiItem,
   compactWikiVehicle,
   compactTerminal,
+  buildPlacesFromTerminals,
+  normalizeTerminal,
+  placeLabelFromTerminal,
   formatLocation,
 };

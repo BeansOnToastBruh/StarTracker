@@ -1,7 +1,11 @@
 const fs = require("fs");
 const path = require("path");
 const { syncCatalog, SYNC_VERSION } = require("./catalogSync");
-const { UEX_CATEGORY_GROUPS, WIKI_ITEM_GROUPS } = require("./catalogSections");
+const {
+  UEX_CATEGORY_GROUPS,
+  WIKI_ITEM_GROUPS,
+  buildPlacesFromTerminals,
+} = require("./catalogSections");
 
 let dbDir = null;
 let bundledDir = null;
@@ -15,6 +19,7 @@ const EMPTY_CATALOG = {
   vehicles: [],
   items: [],
   shopIndex: { byTerminal: {}, byItemKey: {} },
+  places: [],
 };
 
 function emitProgress(payload) {
@@ -46,11 +51,23 @@ function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
 
+function ensurePlacesIndex(catalogData) {
+  if (!catalogData) return catalogData;
+  if (Array.isArray(catalogData.places) && catalogData.places.length) {
+    return catalogData;
+  }
+  catalogData.places = buildPlacesFromTerminals(catalogData.terminals || []);
+  if (catalogData.meta?.counts) {
+    catalogData.meta.counts.places = catalogData.places.length;
+  }
+  return catalogData;
+}
+
 function loadCatalog() {
   const userPath = catalogPath();
   if (userPath && fs.existsSync(userPath)) {
     try {
-      catalog = readJson(userPath);
+      catalog = ensurePlacesIndex(readJson(userPath));
       return catalog;
     } catch {
       catalog = null;
@@ -60,10 +77,10 @@ function loadCatalog() {
   const bundledPath = path.join(bundledDir, "catalog.json");
   if (fs.existsSync(bundledPath)) {
     try {
-      catalog = readJson(bundledPath);
+      catalog = ensurePlacesIndex(readJson(bundledPath));
       if (userPath) {
         ensureDbDir();
-        fs.copyFileSync(bundledPath, userPath);
+        fs.writeFileSync(userPath, JSON.stringify(catalog), "utf8");
       }
       return catalog;
     } catch {
@@ -97,6 +114,7 @@ function getStats() {
     vehicleCount: c.vehicles?.length || 0,
     terminalCount: c.terminals?.length || 0,
     shopCount: Object.keys(c.shopIndex?.byTerminal || {}).length,
+    placeCount: c.places?.length || 0,
   };
 }
 
@@ -231,6 +249,47 @@ function getShopDetail(terminalKey) {
   return c.shopIndex?.byTerminal?.[String(terminalKey)] || null;
 }
 
+function placeMatchesServices(place, services = []) {
+  const wanted = (services || []).filter(Boolean);
+  if (!wanted.length) return true;
+  return wanted.every((svc) => place.services?.[svc]);
+}
+
+function queryPlaces(options = {}) {
+  const c = getCatalog();
+  const q = normalizeQuery(options.query);
+  const services = options.services || [];
+  let rows = (c.places || []).filter((place) => {
+    if (!placeMatchesServices(place, services)) return false;
+    if (!q) return true;
+    const hay = [
+      place.name,
+      place.system,
+      place.planet,
+      place.moon,
+      place.station,
+      place.city,
+      place.outpost,
+      place.kind,
+      place.location,
+      ...place.terminals.map((t) => t.name),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return hay.includes(q);
+  });
+  rows.sort((a, b) =>
+    `${a.system || ""} ${a.name}`.localeCompare(`${b.system || ""} ${b.name}`)
+  );
+  return paginate(rows, options);
+}
+
+function getPlaceDetail(key) {
+  const c = getCatalog();
+  return (c.places || []).find((p) => p.key === key) || null;
+}
+
 function getItemDetail(key) {
   const c = getCatalog();
   const item = c.shopIndex?.byItemKey?.[String(key)] || null;
@@ -303,7 +362,9 @@ module.exports = {
   queryVehicles,
   queryItems,
   queryShops,
+  queryPlaces,
   getShopDetail,
+  getPlaceDetail,
   getItemDetail,
   refreshCatalog,
   onSyncProgress,

@@ -118,6 +118,12 @@ const TABS = [
     empty: "No shop data loaded yet. Use Refresh catalog below.",
   },
   {
+    id: "catalog-places",
+    label: "Places",
+    hint: "Planets, stations, and ports with refuel, ship repair, and FPS restock services. Data from UEX terminal records.",
+    empty: "No place data loaded yet. Use Refresh catalog below.",
+  },
+  {
     id: "blueprints",
     label: "Blueprints",
     hint: "Blueprint unlocks from contracts when Game.log includes the name. Generic reward bundles without a name won't appear here.",
@@ -174,6 +180,7 @@ const catalogQueryByTab = {
   "catalog-ship-weapons": { query: "", offset: 0, section: "ship_weapons" },
   "catalog-ship-parts": { query: "", offset: 0, section: "ship_components" },
   "catalog-shops": { query: "", offset: 0 },
+  "catalog-places": { query: "", offset: 0, services: [] },
 };
 let catalogDetailKey = null;
 
@@ -367,6 +374,8 @@ function tabBadgeCount(tabId, rollup) {
       return catalogStats?.itemCount || 0;
     case "catalog-shops":
       return catalogStats?.shopCount || 0;
+    case "catalog-places":
+      return catalogStats?.placeCount || 0;
     default:
       return 0;
   }
@@ -1064,14 +1073,37 @@ function catalogMetaLine() {
   return `<p class="catalog-meta muted small">Last synced ${escapeHtml(when)}. ${escapeHtml(counts)}.${catalogSyncMessage ? ` ${escapeHtml(catalogSyncMessage)}` : ""}</p>`;
 }
 
+const PLACE_SERVICE_FILTERS = [
+  { id: "refuel", label: "Refuel" },
+  { id: "repair", label: "Ship repair" },
+  { id: "restock", label: "FPS restock" },
+  { id: "vehicleShop", label: "Ship shop" },
+  { id: "food", label: "Food" },
+  { id: "medical", label: "Medical" },
+];
+
+function serviceBadge(on, label) {
+  const cls = on ? "svc-yes" : "svc-no";
+  return `<span class="svc-badge ${cls}">${escapeHtml(label)}</span>`;
+}
+
 function catalogToolbar(tabId) {
   const q = catalogQueryByTab[tabId]?.query || "";
   const busy = catalogSyncBusy ? " disabled" : "";
+  const serviceFilters =
+    tabId === "catalog-places"
+      ? `<div class="catalog-service-filters" role="group" aria-label="Service filters">${PLACE_SERVICE_FILTERS.map(
+          (f) => {
+            const on = (catalogQueryByTab[tabId]?.services || []).includes(f.id);
+            return `<label class="catalog-filter-chip"><input type="checkbox" data-catalog-service="${escapeAttr(f.id)}" data-catalog-service-tab="${escapeAttr(tabId)}"${on ? " checked" : ""} /><span>${escapeHtml(f.label)}</span></label>`;
+          }
+        ).join("")}</div>`
+      : "";
   return `<div class="catalog-toolbar">
-    <input type="search" class="catalog-search" data-catalog-search="${escapeAttr(tabId)}" placeholder="Search name, class, manufacturer, location…" value="${escapeAttr(q)}" />
+    <input type="search" class="catalog-search" data-catalog-search="${escapeAttr(tabId)}" placeholder="${tabId === "catalog-places" ? "Search system, planet, station, city…" : "Search name, class, manufacturer, location…"}" value="${escapeAttr(q)}" />
     <button type="button" class="btn btn-sm btn-ghost" data-catalog-search-btn="${escapeAttr(tabId)}">Search</button>
     <button type="button" class="btn btn-sm" data-catalog-refresh${busy}>Refresh catalog</button>
-  </div>`;
+  </div>${serviceFilters}`;
 }
 
 function listingSummary(listings) {
@@ -1142,6 +1174,35 @@ function renderCatalogShipRows(rows) {
       .join("")}</tbody></table></div>`;
 }
 
+function renderCatalogPlaceRows(rows) {
+  if (!rows.length) return emptyPanel(tabById("catalog-places"));
+  return `<div class="catalog-table-wrap"><table class="catalog-table">
+    <thead><tr>
+      <th>Place</th><th>System</th><th>Type</th><th>Refuel</th><th>Repair</th><th>Restock</th><th>More</th>
+    </tr></thead>
+    <tbody>${rows
+      .map((row) => {
+        const svc = row.services || {};
+        const more = [
+          svc.vehicleShop ? "Ship shop" : null,
+          svc.food ? "Food" : null,
+          svc.medical ? "Medical" : null,
+          svc.refinery ? "Refinery" : null,
+          svc.fuel ? "Fuel depot" : null,
+        ].filter(Boolean);
+        return `<tr class="catalog-row" data-catalog-place="${escapeAttr(row.key)}">
+          <td><button type="button" class="catalog-link" data-catalog-place="${escapeAttr(row.key)}">${displayText(row.name)}</button><div class="muted small">${displayText(row.location || "")}</div></td>
+          <td>${displayText(row.system || "")}</td>
+          <td>${displayText(row.kind || "")}</td>
+          <td>${serviceBadge(svc.refuel, svc.refuel ? "Yes" : "n/a")}</td>
+          <td>${serviceBadge(svc.repair, svc.repair ? "Yes" : "n/a")}</td>
+          <td>${serviceBadge(svc.restock, svc.restock ? "Yes" : "n/a")}</td>
+          <td class="muted small">${escapeHtml(more.join(", ") || EMPTY_DISPLAY)}</td>
+        </tr>`;
+      })
+      .join("")}</tbody></table></div>`;
+}
+
 function renderCatalogShopRows(rows) {
   if (!rows.length) return emptyPanel(tabById("catalog-shops"));
   return `<div class="catalog-table-wrap"><table class="catalog-table">
@@ -1173,8 +1234,41 @@ function renderCatalogPager(tabId, result) {
   </div>`;
 }
 
+function renderPlaceDetail(detail) {
+  if (!detail) return "";
+  const svc = detail.services || {};
+  const svcLine = PLACE_SERVICE_FILTERS.map((f) =>
+    serviceBadge(svc[f.id], f.label)
+  ).join(" ");
+  const terminals = (detail.terminals || [])
+    .map((t) => {
+      const bits = PLACE_SERVICE_FILTERS.filter((f) => t.services?.[f.id]).map(
+        (f) => f.label
+      );
+      return `<tr>
+        <td>${displayText(t.name)}</td>
+        <td>${displayText(t.type || "")}</td>
+        <td class="muted small">${escapeHtml(bits.join(", ") || EMPTY_DISPLAY)}</td>
+      </tr>`;
+    })
+    .join("");
+  return `<article class="catalog-detail">
+    <header class="catalog-detail-head">
+      <h3>${displayText(detail.name)}</h3>
+      <button type="button" class="link" data-catalog-detail-close>Close</button>
+    </header>
+    <p class="muted small">${displayText(detail.location || "")} · ${displayText(detail.system || "")}</p>
+    <div class="catalog-service-line">${svcLine}</div>
+    <div class="catalog-table-wrap"><table class="catalog-table">
+      <thead><tr><th>Terminal</th><th>Type</th><th>Services</th></tr></thead>
+      <tbody>${terminals || `<tr><td colspan="3" class="muted">No terminals listed</td></tr>`}</tbody>
+    </table></div>
+  </article>`;
+}
+
 function renderCatalogDetail(detail, kind) {
   if (!detail) return "";
+  if (kind === "place") return renderPlaceDetail(detail);
   const listings = detail.listings || detail.items || [];
   const title = detail.name || detail.terminal || "Details";
   const rows =
@@ -1252,6 +1346,17 @@ async function loadCatalogTab(tabId, options = {}) {
         tabId,
         `${catalogMetaLine()}${catalogToolbar(tabId)}${renderCatalogShopRows(result.rows)}${renderCatalogPager(tabId, result)}`
       );
+    } else if (tabId === "catalog-places") {
+      result = await window.debrief.catalogQueryPlaces({
+        query: state.query,
+        offset: state.offset,
+        limit: 60,
+        services: state.services || [],
+      });
+      setPanelHtml(
+        tabId,
+        `${catalogMetaLine()}${catalogToolbar(tabId)}${renderCatalogPlaceRows(result.rows)}${renderCatalogPager(tabId, result)}`
+      );
     } else {
       result = await window.debrief.catalogQueryItems({
         query: state.query,
@@ -1266,7 +1371,13 @@ async function loadCatalogTab(tabId, options = {}) {
       );
     }
     if (catalogDetailKey) {
-      await showCatalogDetail(catalogDetailKey, tabId === "catalog-shops" ? "shop" : "item");
+      const kind =
+        tabId === "catalog-shops"
+          ? "shop"
+          : tabId === "catalog-places"
+            ? "place"
+            : "item";
+      await showCatalogDetail(catalogDetailKey, kind);
     }
   } catch (e) {
     setPanelHtml(
@@ -1283,7 +1394,9 @@ async function showCatalogDetail(key, kind) {
   const detail =
     kind === "shop"
       ? await window.debrief.catalogShopDetail(key)
-      : await window.debrief.catalogItemDetail(key);
+      : kind === "place"
+        ? await window.debrief.catalogPlaceDetail(key)
+        : await window.debrief.catalogItemDetail(key);
   const existing = panel.querySelector(".catalog-detail");
   if (existing) existing.remove();
   panel.insertAdjacentHTML("beforeend", renderCatalogDetail(detail, kind));
@@ -1344,7 +1457,12 @@ function initCatalogUi() {
       const dir = pageBtn.dataset.catalogDir;
       const state = catalogQueryByTab[tabId];
       if (!state) return;
-      const step = tabId === "catalog-ships" ? 60 : tabId === "catalog-shops" ? 50 : 80;
+      const step =
+        tabId === "catalog-ships" || tabId === "catalog-places"
+          ? 60
+          : tabId === "catalog-shops"
+            ? 50
+            : 80;
       state.offset = Math.max(
         0,
         state.offset + (dir === "next" ? step : -step)
@@ -1362,6 +1480,12 @@ function initCatalogUi() {
     const shopBtn = e.target.closest("[data-catalog-shop]");
     if (shopBtn) {
       await showCatalogDetail(shopBtn.dataset.catalogShop, "shop");
+      return;
+    }
+
+    const placeBtn = e.target.closest("[data-catalog-place]");
+    if (placeBtn) {
+      await showCatalogDetail(placeBtn.dataset.catalogPlace, "place");
       return;
     }
 
@@ -1386,6 +1510,20 @@ function initCatalogUi() {
     const tabId = input.dataset.catalogSearch;
     if (!catalogQueryByTab[tabId]) return;
     catalogQueryByTab[tabId].query = input.value;
+  });
+
+  $("tabPanels")?.addEventListener("change", (e) => {
+    const box = e.target.closest("[data-catalog-service]");
+    if (!box) return;
+    const tabId = box.dataset.catalogServiceTab;
+    const state = catalogQueryByTab[tabId];
+    if (!state) return;
+    const svc = box.dataset.catalogService;
+    const set = new Set(state.services || []);
+    if (box.checked) set.add(svc);
+    else set.delete(svc);
+    state.services = [...set];
+    loadCatalogTab(tabId, { resetOffset: true });
   });
 }
 

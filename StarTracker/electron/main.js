@@ -656,12 +656,20 @@ ipcMain.handle("catalog-query-shops", (_, options) =>
   gameDatabase.queryShops(options || {})
 );
 
+ipcMain.handle("catalog-query-places", (_, options) =>
+  gameDatabase.queryPlaces(options || {})
+);
+
 ipcMain.handle("catalog-item-detail", (_, key) =>
   gameDatabase.getItemDetail(key)
 );
 
 ipcMain.handle("catalog-shop-detail", (_, terminalKey) =>
   gameDatabase.getShopDetail(terminalKey)
+);
+
+ipcMain.handle("catalog-place-detail", (_, placeKey) =>
+  gameDatabase.getPlaceDetail(placeKey)
 );
 
 ipcMain.handle("catalog-refresh", async () => gameDatabase.refreshCatalog());
