@@ -8,6 +8,16 @@ function parseNumber(s) {
   return Number.isFinite(n) ? n : null;
 }
 
+function parseAwardedAuec(text) {
+  const m = String(text || "").match(/^Awarded\s+([\d,.]+)\s*aUEC/i);
+  return m ? parseNumber(m[1]) : null;
+}
+
+function parseFinedUec(text) {
+  const m = String(text || "").match(/^Fined\s+([\d,.]+)\s*UEC/i);
+  return m ? parseNumber(m[1]) : null;
+}
+
 function applyRewardPatterns(detail, text) {
   const auecM = text.match(/([\d,.]+)\s*aUEC/i);
   if (auecM) detail.auec = parseNumber(auecM[1]);
@@ -183,4 +193,7 @@ module.exports = {
   buildRewardDisplayLines,
   rewardSummaryFromDetail,
   aggregateRewards,
+  parseAwardedAuec,
+  parseFinedUec,
+  parseNumber,
 };

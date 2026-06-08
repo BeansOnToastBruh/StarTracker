@@ -26,6 +26,8 @@ const ZERO_MISSION = "00000000-0000-0000-0000-000000000000";
 const {
   enrichRewardDetail,
   rewardSummaryFromDetail,
+  parseAwardedAuec,
+  parseFinedUec,
 } = require("./rewardFormat");
 const {
   onActorStateDead,
@@ -115,6 +117,112 @@ function isNoiseNotification(text) {
   return NOISE_PREFIXES.some((p) => text.startsWith(p));
 }
 
+function queueCompletedContract(ctx, missionId, title, at) {
+  if (!ctx.completedContractQueue) ctx.completedContractQueue = [];
+  if (!missionId || missionId === ZERO_MISSION) return;
+  ctx.completedContractQueue.push({ missionId, title, at });
+  if (ctx.completedContractQueue.length > 48) {
+    ctx.completedContractQueue.shift();
+  }
+}
+
+function popLinkedContract(ctx) {
+  if (ctx.completedContractQueue?.length) {
+    return ctx.completedContractQueue.shift();
+  }
+  if (ctx.lastCompletedMissionId && ctx.lastCompletedMissionId !== ZERO_MISSION) {
+    return {
+      missionId: ctx.lastCompletedMissionId,
+      title: ctx.lastCompletedContractTitle || null,
+      at: ctx.lastCompletedAt || null,
+      linkedFromRecentContract: true,
+    };
+  }
+  return null;
+}
+
+function buildAwardedAuecReward(text, missionId, ctx) {
+  const auec = parseAwardedAuec(text);
+  if (auec == null) return null;
+  const linked = popLinkedContract(ctx);
+  const detail = enrichRewardDetail(
+    {
+      missionId: linked?.missionId || missionId || null,
+      raw: text,
+      kind: "auec",
+      auec,
+      rep: null,
+      faction: null,
+      itemCount: null,
+      itemName: null,
+      itemQuantity: null,
+      blueprintName: null,
+      deliveryNote: null,
+      contractTitle: linked?.title || null,
+      linkedFromRecentContract: !!linked,
+    },
+    text
+  );
+  return {
+    type: "reward",
+    at: null,
+    summary: `Earned: ${auec.toLocaleString()} aUEC`,
+    detail,
+  };
+}
+
+function buildFineEvent(text) {
+  const amount = parseFinedUec(text);
+  if (amount == null) return null;
+  return {
+    type: "fine",
+    summary: `Fined ${amount.toLocaleString()} UEC`,
+    detail: { amount, currency: "UEC", raw: text },
+  };
+}
+
+function appendCommerceEvents(body, at, ctx, out) {
+  const shopBuyM = body.match(
+    /SShopBuyRequest.*playerId\[(\d+)\].*shopName\[([^\]]+)\].*client_price\[([\d.]+)\].*itemName\[([^\]]+)\]/gi
+  );
+  if (shopBuyM) {
+    for (const match of shopBuyM) {
+      const parts = match.match(
+        /SShopBuyRequest.*playerId\[(\d+)\].*shopName\[([^\]]+)\].*client_price\[([\d.]+)\].*itemName\[([^\]]+)\]/i
+      );
+      if (!parts) continue;
+      const [, playerId, shopName, priceRaw, itemName] = parts;
+      if (!ctx.playerGEID) ctx.playerGEID = playerId;
+      if (playerId !== ctx.playerGEID) continue;
+      const price = Number(priceRaw);
+      if (!Number.isFinite(price) || price <= 0) continue;
+      emit(out, {
+        type: "shop_purchase",
+        at,
+        summary: `Bought ${beautifyName(itemName)} for ${Math.round(price).toLocaleString()} aUEC`,
+        detail: {
+          shop: beautifyName(shopName),
+          item: beautifyName(itemName),
+          price,
+          playerId,
+        },
+      });
+    }
+  }
+
+  if (
+    /CWallet::RmMulticastOnProcessClaimCallback/i.test(body) &&
+    /Claim Complete/i.test(body)
+  ) {
+    emit(out, {
+      type: "insurance",
+      at,
+      summary: "Insurance claim completed",
+      detail: { action: "claim_complete", raw: body.slice(0, 240) },
+    });
+  }
+}
+
 function parseEarnedBody(text, missionId, ctx) {
   let inner = text
     .replace(/^You(?:'ve| have) [Ee]arned:\s*/i, "")
@@ -180,6 +288,18 @@ function parseHudContinuation(line, ctx) {
     };
   }
 
+  const awarded = buildAwardedAuecReward(text, null, ctx);
+  if (awarded) {
+    awarded.at = at;
+    return awarded;
+  }
+
+  const fine = buildFineEvent(text);
+  if (fine) {
+    fine.at = at;
+    return fine;
+  }
+
   return null;
 }
 
@@ -198,8 +318,16 @@ function parseLine(line, ctx = {}) {
   const at = extractTimestamp(line);
   const body = stripTimestamp(line);
 
+  appendCommerceEvents(body, at, ctx, out);
+
   const geidM = body.match(/playerGEID=(\d+)/);
   if (geidM && !ctx.playerGEID) ctx.playerGEID = geidM[1];
+
+  if (ctx.playerNick && !ctx.playerGEID) {
+    const nickEsc = ctx.playerNick.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const nickGeidM = body.match(new RegExp(`'${nickEsc}' \\[(\\d+)\\]`, "i"));
+    if (nickGeidM) ctx.playerGEID = nickGeidM[1];
+  }
 
   ingestVehicleSignals(body, ctx, ctx.playerNick, ctx.playerGEID, at);
   const shipLost = tryEmitShipDestruction(
@@ -260,11 +388,15 @@ function parseLine(line, ctx = {}) {
   }
 
   if (PATTERNS.connectStarted.test(body)) {
-    return { type: "game", at, summary: "Connecting to Star Citizen…" };
+    return finish(
+      emit(out, { type: "game", at, summary: "Connecting to Star Citizen…" })
+    );
   }
 
   if (PATTERNS.connected.test(body)) {
-    return { type: "game", at, summary: "Connected to server" };
+    return finish(
+      emit(out, { type: "game", at, summary: "Connected to server" })
+    );
   }
 
   if (PATTERNS.spawned.test(body)) {
@@ -291,16 +423,20 @@ function parseLine(line, ctx = {}) {
   }
 
   if (PATTERNS.quitLobby.test(body) || PATTERNS.systemQuit.test(body)) {
-    return { type: "session_end", at, summary: "Game session ended" };
+    return finish(
+      emit(out, { type: "session_end", at, summary: "Game session ended" })
+    );
   }
 
   if (PATTERNS.contractBroker.test(body)) {
-    return {
-      type: "meta",
-      at,
-      summary: "Contract manager online",
-      detail: { inUniverse: true },
-    };
+    return finish(
+      emit(out, {
+        type: "meta",
+        at,
+        summary: "Contract manager online",
+        detail: { inUniverse: true },
+      })
+    );
   }
 
   const endMissionM = body.match(
@@ -346,7 +482,7 @@ function parseLine(line, ctx = {}) {
   }
 
   if (/UpdateNotificationItem> Notification /.test(body)) {
-    return null;
+    return finish(out);
   }
 
   let m = body.match(PATTERNS.actorDeath);
@@ -389,34 +525,40 @@ function parseLine(line, ctx = {}) {
   if (m?.groups) {
     const text = m.groups.text.trim().replace(/\s+/g, " ");
     let missionId = m.groups.missionId;
-    if (isNoiseNotification(text)) return null;
+    if (isNoiseNotification(text)) return finish(out);
 
     if (/^Journal Entry Added:/i.test(text)) {
       const title = text.replace(/^Journal Entry Added:\s*/i, "").replace(/:\s*$/, "").trim();
-      return {
-        type: "journal",
-        at,
-        summary: `Journal: ${title}`,
-        detail: { title },
-      };
+      return finish(
+        emit(out, {
+          type: "journal",
+          at,
+          summary: `Journal: ${title}`,
+          detail: { title },
+        })
+      );
     }
 
     if (/^Contract Accepted:/i.test(text)) {
       const title = text.replace(/^Contract Accepted:\s*/i, "").trim();
-      return {
-        type: "contract",
-        at,
-        summary: `Accepted: ${title}`,
-        detail: { action: "accepted", title, missionId },
-      };
+      return finish(
+        emit(out, {
+          type: "contract",
+          at,
+          summary: `Accepted: ${title}`,
+          detail: { action: "accepted", title, missionId },
+        })
+      );
     }
     if (/^Contract Complete:/i.test(text)) {
       const title = text.replace(/^Contract Complete:\s*/i, "").trim();
       if (missionId && missionId !== ZERO_MISSION) {
         emit(out, tryBountyKill(ctx, missionId, at, title, beautifyName));
+        queueCompletedContract(ctx, missionId, title, at);
       }
       ctx.lastCompletedMissionId = missionId;
       ctx.lastCompletedContractTitle = title;
+      ctx.lastCompletedAt = at;
       emit(out, {
         type: "contract",
         at,
@@ -427,30 +569,46 @@ function parseLine(line, ctx = {}) {
     }
     if (/^Contract Failed:/i.test(text)) {
       const title = text.replace(/^Contract Failed:\s*/i, "").trim();
-      return {
-        type: "contract",
-        at,
-        summary: `Failed: ${title}`,
-        detail: { action: "failed", title, missionId },
-      };
+      return finish(
+        emit(out, {
+          type: "contract",
+          at,
+          summary: `Failed: ${title}`,
+          detail: { action: "failed", title, missionId },
+        })
+      );
     }
     if (/^Contract Abandoned:/i.test(text)) {
       const title = text.replace(/^Contract Abandoned:\s*/i, "").trim();
-      return {
-        type: "contract",
-        at,
-        summary: `Abandoned: ${title}`,
-        detail: { action: "abandoned", title, missionId },
-      };
+      return finish(
+        emit(out, {
+          type: "contract",
+          at,
+          summary: `Abandoned: ${title}`,
+          detail: { action: "abandoned", title, missionId },
+        })
+      );
     }
     if (/^You've Earned:/i.test(text) || /^You have earned:/i.test(text)) {
       const detail = parseEarnedBody(text, missionId, ctx);
-      return {
-        type: "reward",
-        at,
-        summary: `Earned: ${rewardSummaryFromDetail(detail, text)}`,
-        detail,
-      };
+      return finish(
+        emit(out, {
+          type: "reward",
+          at,
+          summary: `Earned: ${rewardSummaryFromDetail(detail, text)}`,
+          detail,
+        })
+      );
+    }
+    const awarded = buildAwardedAuecReward(text, missionId, ctx);
+    if (awarded) {
+      awarded.at = at;
+      return finish(emit(out, awarded));
+    }
+    const fine = buildFineEvent(text);
+    if (fine) {
+      fine.at = at;
+      return finish(emit(out, fine));
     }
     if (/^Incapacitated:/i.test(text)) {
       onIncapacitated(ctx, at, ctx.playerNick);
@@ -496,23 +654,27 @@ function parseLine(line, ctx = {}) {
     if (/blueprint/i.test(text)) {
       const detail = parseRewardDetail(text, missionId);
       detail.kind = "blueprint";
-      return {
-        type: "blueprint",
-        at,
-        summary: text,
-        detail,
-      };
+      return finish(
+        emit(out, {
+          type: "blueprint",
+          at,
+          summary: text,
+          detail,
+        })
+      );
     }
 
     if (missionId && missionId !== "00000000-0000-0000-0000-000000000000") {
       if (/aUEC|reputation|earned|reward/i.test(text)) {
         const detail = parseEarnedBody(text, missionId, ctx);
-        return {
-          type: "reward",
-          at,
-          summary: `Earned: ${rewardSummaryFromDetail(detail, text)}`,
-          detail,
-        };
+        return finish(
+          emit(out, {
+            type: "reward",
+            at,
+            summary: `Earned: ${rewardSummaryFromDetail(detail, text)}`,
+            detail,
+          })
+        );
       }
     }
   }

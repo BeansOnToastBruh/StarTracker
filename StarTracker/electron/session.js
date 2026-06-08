@@ -23,6 +23,11 @@ function createSession(overrides = {}) {
       quantumJumps: 0,
       rewards: 0,
       flightKmEstimate: 0,
+      finesTotal: 0,
+      fineCount: 0,
+      insuranceClaims: 0,
+      shopSpend: 0,
+      shopPurchases: 0,
     },
     ...overrides,
   };
@@ -55,6 +60,17 @@ function bumpStats(session, event) {
       break;
     case "reward":
       s.rewards += 1;
+      break;
+    case "fine":
+      s.fineCount += 1;
+      if (event.detail?.amount) s.finesTotal += event.detail.amount;
+      break;
+    case "insurance":
+      if (event.detail?.action === "claim_complete") s.insuranceClaims += 1;
+      break;
+    case "shop_purchase":
+      s.shopPurchases += 1;
+      if (event.detail?.price) s.shopSpend += event.detail.price;
       break;
     default:
       break;
@@ -126,6 +142,37 @@ function snapshot(session) {
   return base;
 }
 
+const IMPORT_MAX_EVENTS = 8000;
+
+function importEvents(session, events) {
+  for (const event of events) {
+    if (!event) continue;
+    if (event.type === "meta") {
+      applyMeta(session, event);
+      continue;
+    }
+    if (event.type === "travel" && event.detail?.fromSystem && event.detail?.toSystem) {
+      const { estimateJumpKm } = require("./travelEstimate");
+      event.detail.estimatedKm = estimateJumpKm(
+        event.detail.fromSystem,
+        event.detail.toSystem
+      );
+    }
+    if (event.type === "spawn") {
+      session.spawnCount += 1;
+      if (session.spawnCount >= 2 || session.inUniverse) {
+        session.inUniverse = true;
+      }
+    }
+    bumpStats(session, event);
+    session.events.push(event);
+  }
+  if (session.events.length > IMPORT_MAX_EVENTS) {
+    session.events = session.events.slice(-IMPORT_MAX_EVENTS);
+  }
+  return session;
+}
+
 module.exports = {
   createSession,
   pushEvent,
@@ -133,5 +180,7 @@ module.exports = {
   snapshot,
   formatDuration,
   sessionDurationMs,
+  importEvents,
   MAX_EVENTS,
+  IMPORT_MAX_EVENTS,
 };

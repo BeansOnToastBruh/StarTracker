@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld("debrief", {
   getAppInfo: () => ipcRenderer.invoke("get-app-info"),
   checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
   openUpdateUrl: (url) => ipcRenderer.invoke("open-update-url", url),
+  listLogArchives: () => ipcRenderer.invoke("list-log-archives"),
+  parseLogArchive: (id) => ipcRenderer.invoke("parse-log-archive", id),
   onState: (cb) => {
     const handler = (_, data) => cb(data);
     ipcRenderer.on("state", handler);

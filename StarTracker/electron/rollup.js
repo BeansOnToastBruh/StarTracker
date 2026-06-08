@@ -208,6 +208,9 @@ function buildRollup(session) {
   const quantumJumps = [];
   const blueprints = [];
   const otherRewards = [];
+  const fines = [];
+  const insuranceClaims = [];
+  const shopPurchases = [];
 
   for (const e of session.events) {
     switch (e.type) {
@@ -352,6 +355,31 @@ function buildRollup(session) {
           raw: e.detail?.raw,
         });
         break;
+      case "fine":
+        fines.push({
+          at: e.at,
+          amount: e.detail?.amount ?? 0,
+          currency: e.detail?.currency || "UEC",
+          summary: e.summary,
+        });
+        break;
+      case "insurance":
+        if (e.detail?.action === "claim_complete") {
+          insuranceClaims.push({
+            at: e.at,
+            summary: e.summary,
+          });
+        }
+        break;
+      case "shop_purchase":
+        shopPurchases.push({
+          at: e.at,
+          shop: e.detail?.shop || "Unknown shop",
+          item: e.detail?.item || "Unknown item",
+          price: e.detail?.price ?? 0,
+          summary: e.summary,
+        });
+        break;
       default:
         break;
     }
@@ -399,6 +427,8 @@ function buildRollup(session) {
   );
 
   const totalFlightKm = quantumJumps.reduce((s, j) => s + j.estimatedKm, 0);
+  const finesTotal = fines.reduce((s, f) => s + (f.amount || 0), 0);
+  const shopSpendTotal = shopPurchases.reduce((s, p) => s + (p.price || 0), 0);
 
   return {
     durationLabel: formatDuration(sessionDurationMs(session)),
@@ -420,6 +450,11 @@ function buildRollup(session) {
     totalFlightKm,
     totalFlightLabel: formatKm(totalFlightKm),
     flightIsEstimate: true,
+    fines,
+    finesTotal,
+    insuranceClaims,
+    shopPurchases,
+    shopSpendTotal,
     stats: { ...session.stats },
   };
 }

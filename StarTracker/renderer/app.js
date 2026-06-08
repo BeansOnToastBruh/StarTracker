@@ -60,8 +60,26 @@ const TABS = [
   {
     id: "rewards",
     label: "Rewards",
-    hint: "aUEC, rep, and loot from payout popups when the game shows amounts. Not your wallet balance. Matched to contracts when we can.",
-    empty: "No payouts logged yet. Finish a contract and watch for the reward popup in-game. That's what we pick up.",
+    hint: "aUEC from Awarded popups, rep, and loot bundles. Not your wallet balance. Matched to contracts when we can.",
+    empty: "No payouts logged yet. Finish a contract and look for Awarded aUEC or You've Earned popups in-game.",
+  },
+  {
+    id: "fines",
+    label: "Fines",
+    hint: "UEC fines from CrimeStat and monitored-space infraction popups.",
+    empty: "No fines logged this session.",
+  },
+  {
+    id: "insurance",
+    label: "Insurance",
+    hint: "Ship insurance claims that completed (hull respawn at station).",
+    empty: "No insurance claims logged this session.",
+  },
+  {
+    id: "shopping",
+    label: "Shopping",
+    hint: "Items bought at shops and kiosks when the log records your purchase.",
+    empty: "No shop purchases logged this session.",
   },
   {
     id: "blueprints",
@@ -89,15 +107,20 @@ const TABS = [
   },
   {
     id: "history",
-    label: "History",
-    hint: "Your past sessions, saved when you end a session.",
-    empty: "Past sessions land here after you click End session.",
+    label: "Log archive",
+    hint: "Game.log backups since patch 4.8. Click one to view everything we can parse from that file.",
+    empty: "No log archives found. Set your Game.log path to the StarCitizen LIVE folder (logbackups lives beside it).",
   },
 ];
 
 let activeTab = "overview";
 /** Last session snapshot used when main briefly sends current:null (stale log replay). */
 let lastDisplaySession = null;
+/** Full parse of a selected log archive (replaces live session in UI). */
+let archiveViewSession = null;
+let archiveViewMeta = null;
+let logArchiveList = [];
+let logArchiveLoading = false;
 /** Latest update check result from main process. */
 let updateInfo = null;
 let updateBannerDismissed = false;
@@ -141,6 +164,10 @@ function escapeHtml(s) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+function escapeAttr(s) {
+  return escapeHtml(s).replace(/"/g, "&quot;");
 }
 
 function displayText(s) {
@@ -271,6 +298,14 @@ function tabBadgeCount(tabId, rollup) {
       return rollup.kills?.length || 0;
     case "ships":
       return rollup.shipsLost?.length || 0;
+    case "fines":
+      return rollup.fines?.length || 0;
+    case "insurance":
+      return rollup.insuranceClaims?.length || 0;
+    case "shopping":
+      return rollup.shopPurchases?.length || 0;
+    case "history":
+      return logArchiveList.length;
     default:
       return 0;
   }
@@ -289,6 +324,9 @@ function updateTabCounts(rollup) {
 function setActiveTab(id) {
   if (!TABS.some((t) => t.id === id)) return;
   activeTab = id;
+  if (id === "history" && !archiveViewSession) {
+    refreshLogArchiveList();
+  }
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     const on = btn.dataset.tab === id;
     btn.classList.toggle("is-active", on);
@@ -395,6 +433,7 @@ function buildOverview(session) {
     `<li><strong>${s.deaths}</strong> death${s.deaths === 1 ? "" : "s"} · <strong>${s.kills}</strong> kill${s.kills === 1 ? "" : "s"} · <strong>${s.vehiclesLost}</strong> ship${s.vehiclesLost === 1 ? "" : "s"} lost</li>`,
     `<li><strong>${s.rewards}</strong> payout popup${s.rewards === 1 ? "" : "s"} logged</li>`,
     `<li>aUEC earned: <strong>${(t?.totalAuec ?? 0).toLocaleString()}</strong></li>`,
+    `<li>Fines: <strong>${(r.finesTotal ?? 0).toLocaleString()}</strong> UEC · Insurance claims: <strong>${r.insuranceClaims?.length ?? 0}</strong> · Shop spend: <strong>${Math.round(r.shopSpendTotal ?? 0).toLocaleString()}</strong> aUEC</li>`,
   ];
   if (t?.repByFaction?.length) {
     for (const { faction, rep } of t.repByFaction) {
@@ -410,7 +449,7 @@ function buildOverview(session) {
   }
   lines.push(
     `</ul>`,
-    `<p class="overview-foot muted">Use the tabs above for the full breakdown. <strong>Rewards</strong> sums aUEC from payout popups when the game shows an amount. This is not your wallet balance. Game.log does not log wallet totals. Some bounties pay out without a detailed popup. You may still have received everything in-game.</p>`
+    `<p class="overview-foot muted">Use the tabs above for the full breakdown. <strong>Rewards</strong> includes <strong>Awarded aUEC</strong> popups and item bundles. This is not your wallet balance. Game.log does not log wallet totals.</p>`
   );
 
   if (session.status === "active") {
@@ -691,22 +730,179 @@ function buildShips(rollup) {
     .join("");
 }
 
-function buildHistory(history) {
-  if (!history?.length) return emptyPanel(tabById("history"));
-  return history
-    .slice(0, 12)
-    .map((s) => {
-      const r = s.rollup;
-      const st = s.stats || r?.stats || {};
-      return entryCard({
-        time: fmtDateTime(s.startedAt),
-        badge: "Ended",
-        badgeClass: "",
-        title: s.durationLabel || "Session",
-        description: `${st.contractsCompleted ?? 0} contracts completed · ${st.deaths ?? 0} deaths · ${st.kills ?? 0} kills · ${st.vehiclesLost ?? 0} ships lost`,
-      });
+function formatArchiveSize(bytes) {
+  if (!bytes) return "";
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function buildHistoryArchives() {
+  const tab = tabById("history");
+  if (logArchiveLoading) {
+    return `<div class="overview-prose"><p>Scanning logbackups since 4.8…</p></div>`;
+  }
+  if (!logArchiveList.length) return emptyPanel(tab);
+  return `<div class="archive-list">${logArchiveList
+    .map((a) => {
+      const kind =
+        a.kind === "live" ? "Live" : a.build ? `Build ${a.build}` : "Backup";
+      return `<button type="button" class="archive-row" data-archive-id="${escapeAttr(a.id)}">
+        <span class="archive-row-main">
+          <strong>${escapeHtml(a.label)}</strong>
+          <span class="muted">${escapeHtml(kind)} · ${escapeHtml(formatArchiveSize(a.sizeBytes))}</span>
+        </span>
+        <span class="archive-row-meta muted">${escapeHtml(fmtDateTime(a.mtime))}</span>
+      </button>`;
     })
+    .join("")}</div>
+    <p class="overview-foot muted">Archives are parsed in full when you open one. Use other tabs to see contracts, rewards, fines, and more from that log file.</p>`;
+}
+
+function buildFines(rollup) {
+  if (!rollup?.fines?.length) return emptyPanel(tabById("fines"));
+  const total = rollup.finesTotal ?? 0;
+  const head = `<p class="panel-summary">Total fined: <strong>${total.toLocaleString()} UEC</strong></p>`;
+  const rows = rollup.fines
+    .slice()
+    .reverse()
+    .map((f) =>
+      entryCard({
+        time: fmtDateTime(f.at),
+        badge: "Fine",
+        badgeClass: "entry-warn",
+        title: `${f.amount.toLocaleString()} ${f.currency || "UEC"}`,
+        description: "Monitored-space or CrimeStat fine popup from Game.log.",
+      })
+    )
     .join("");
+  return head + rows;
+}
+
+function buildInsurance(rollup) {
+  if (!rollup?.insuranceClaims?.length) return emptyPanel(tabById("insurance"));
+  return rollup.insuranceClaims
+    .slice()
+    .reverse()
+    .map((c) =>
+      entryCard({
+        time: fmtDateTime(c.at),
+        badge: "Claim",
+        badgeClass: "",
+        title: "Insurance claim completed",
+        description: "Your ship insurance claim finished (hull back at station).",
+      })
+    )
+    .join("");
+}
+
+function buildShopping(rollup) {
+  if (!rollup?.shopPurchases?.length) return emptyPanel(tabById("shopping"));
+  const total = Math.round(rollup.shopSpendTotal ?? 0);
+  const head = `<p class="panel-summary">Shop spend logged: <strong>${total.toLocaleString()} aUEC</strong></p>`;
+  const rows = rollup.shopPurchases
+    .slice()
+    .reverse()
+    .map((p) =>
+      entryCard({
+        time: fmtDateTime(p.at),
+        badge: "Purchase",
+        badgeClass: "",
+        title: p.item,
+        description: `${Math.round(p.price).toLocaleString()} aUEC at ${displayText(p.shop)}.`,
+      })
+    )
+    .join("");
+  return head + rows;
+}
+
+async function refreshLogArchiveList() {
+  logArchiveLoading = true;
+  if (activeTab === "history") {
+    setPanelHtml("history", buildHistoryArchives());
+  }
+  try {
+    logArchiveList = (await window.debrief.listLogArchives()) || [];
+  } catch {
+    logArchiveList = [];
+  }
+  logArchiveLoading = false;
+  updateTabCounts(getViewRollup());
+  if (activeTab === "history" && !archiveViewSession) {
+    setPanelHtml("history", buildHistoryArchives());
+  }
+}
+
+async function openLogArchive(archiveId) {
+  const status = $("statusLine");
+  const prev = status?.textContent || "";
+  if (status) status.textContent = "Parsing log archive…";
+  try {
+    const result = await window.debrief.parseLogArchive(archiveId);
+    if (!result.ok) {
+      if (status) status.textContent = `Error: ${result.error}`;
+      return;
+    }
+    archiveViewSession = result.session;
+    archiveViewMeta = result.archive;
+    renderArchiveBanner();
+    setActiveTab("overview");
+    renderAllPanels(null);
+    if (status) {
+      status.textContent = `Viewing archive: ${archiveViewMeta.label}`;
+    }
+  } catch (e) {
+    if (status) status.textContent = `Error: ${e.message || e}`;
+  }
+}
+
+function clearArchiveView() {
+  archiveViewSession = null;
+  archiveViewMeta = null;
+  renderArchiveBanner();
+  if (activeTab === "history") {
+    setPanelHtml("history", buildHistoryArchives());
+  }
+}
+
+function renderArchiveBanner() {
+  const banner = $("archiveBanner");
+  const text = $("archiveBannerText");
+  if (!banner || !text) return;
+  if (!archiveViewSession || !archiveViewMeta) {
+    banner.classList.add("hidden");
+    return;
+  }
+  text.textContent = `Viewing log archive: ${archiveViewMeta.label}. Other tabs show parsed data from this file.`;
+  banner.classList.remove("hidden");
+}
+
+function getViewSession(state) {
+  if (archiveViewSession) return archiveViewSession;
+  return resolveDisplaySession(state);
+}
+
+function getViewRollup(state) {
+  return getViewSession(state)?.rollup || archiveViewSession?.rollup || null;
+}
+
+function renderAllPanels(state) {
+  const session = archiveViewSession || getViewSession(state);
+  const rollup = session?.rollup;
+  renderStats(session);
+  setPanelHtml("overview", buildOverview(session));
+  setPanelHtml("missions", buildMissions(rollup));
+  setPanelHtml("rewards", buildRewards(rollup));
+  setPanelHtml("blueprints", buildBlueprints(rollup));
+  setPanelHtml("fines", buildFines(rollup));
+  setPanelHtml("insurance", buildInsurance(rollup));
+  setPanelHtml("shopping", buildShopping(rollup));
+  setPanelHtml("deaths", buildDeaths(rollup));
+  setPanelHtml("kills", buildKills(rollup));
+  setPanelHtml("ships", buildShips(rollup));
+  if (!archiveViewSession) {
+    setPanelHtml("history", buildHistoryArchives());
+  }
+  updateTabCounts(rollup);
 }
 
 function resolveDisplaySession(state) {
@@ -813,41 +1009,45 @@ function applyState(state) {
   const liveSession = state.current;
   const session = resolveDisplaySession(state);
   const active = liveSession?.status === "active";
-  const rollup = session?.rollup;
 
   $("autoTrack").checked = state.autoTrack;
-  $("btnEnd").disabled = !active;
+  $("btnEnd").disabled = !active || !!archiveViewSession;
 
-  let status = state.watching ? "Tracking session" : "Tracking paused";
-  if (active) {
-    status += ` · Recording (${liveSession.events.length} events)`;
-  } else if (liveSession?.status === "ended" || session?.status === "ended") {
-    status += " · Last session ended";
-  } else if (
-    session?.status === "active" &&
-    state.watching &&
-    !liveSession
-  ) {
-    status += ` · Recording (${session.events.length} events)`;
-  } else if (state.autoTrack) {
-    status += " · Auto-track on";
+  if (!archiveViewSession) {
+    let status = state.watching ? "Tracking session" : "Tracking paused";
+    if (active) {
+      status += ` · Recording (${liveSession.events.length} events)`;
+    } else if (liveSession?.status === "ended" || session?.status === "ended") {
+      status += " · Last session ended";
+    } else if (
+      session?.status === "active" &&
+      state.watching &&
+      !liveSession
+    ) {
+      status += ` · Recording (${session.events.length} events)`;
+    } else if (state.autoTrack) {
+      status += " · Auto-track on";
+    }
+    $("statusLine").textContent = status;
   }
-  $("statusLine").textContent = status;
 
   applyLogPathState(state);
+  renderAllPanels(state);
+}
 
-  renderStats(session);
+function initArchiveUi() {
+  $("btnArchiveBack")?.addEventListener("click", () => {
+    clearArchiveView();
+    window.debrief.getState().then(applyState);
+  });
 
-  setPanelHtml("overview", buildOverview(session));
-  setPanelHtml("missions", buildMissions(rollup));
-  setPanelHtml("rewards", buildRewards(rollup));
-  setPanelHtml("blueprints", buildBlueprints(rollup));
-  setPanelHtml("deaths", buildDeaths(rollup));
-  setPanelHtml("kills", buildKills(rollup));
-  setPanelHtml("ships", buildShips(rollup));
-  setPanelHtml("history", buildHistory(state.history));
+  $("tabPanels")?.addEventListener("click", (e) => {
+    const row = e.target.closest("[data-archive-id]");
+    if (!row) return;
+    openLogArchive(row.dataset.archiveId);
+  });
 
-  updateTabCounts(rollup);
+  refreshLogArchiveList();
 }
 
 initTheme();
@@ -855,6 +1055,7 @@ initStats();
 initTabs();
 initAppInfo();
 initUpdateUi();
+initArchiveUi();
 
 $("btnTheme").addEventListener("click", toggleTheme);
 $("btnNew").addEventListener("click", () => window.debrief.startSession());
@@ -897,6 +1098,8 @@ async function browseAndSetLogPath() {
   const result = await window.debrief.setLogPath({ path: pick.path });
   if (!result.ok && result.error) {
     $("statusLine").textContent = `Error: ${result.error}`;
+  } else {
+    refreshLogArchiveList();
   }
 }
 
@@ -904,6 +1107,8 @@ async function autoDetectLogPath() {
   const result = await window.debrief.setLogPath({ auto: true });
   if (!result.ok && result.error) {
     $("statusLine").textContent = `Error: ${result.error}`;
+  } else {
+    refreshLogArchiveList();
   }
 }
 

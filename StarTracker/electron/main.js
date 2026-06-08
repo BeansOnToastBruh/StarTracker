@@ -18,6 +18,8 @@ const {
   snapshot,
 } = require("./session");
 const { resolveLogPath, getLogPathInfo } = require("./paths");
+const { listLogArchives } = require("./logArchive");
+const { parseLogFileToSession } = require("./logImporter");
 const { checkForUpdates } = require("./updateChecker");
 
 app.setName("StarTracker");
@@ -527,4 +529,35 @@ ipcMain.handle("open-update-url", (_, url) => {
   if (typeof url !== "string" || !/^https?:\/\//i.test(url)) return false;
   shell.openExternal(url);
   return true;
+});
+
+ipcMain.handle("list-log-archives", () => {
+  const live = watcherTargetPath();
+  const info = getLogPathInfo(loadConfig());
+  const pathForList = fs.existsSync(live) ? live : info.resolved;
+  return listLogArchives(pathForList);
+});
+
+ipcMain.handle("parse-log-archive", (_, archiveId) => {
+  if (!archiveId || typeof archiveId !== "string") {
+    return { ok: false, error: "No archive selected." };
+  }
+  const live = watcherTargetPath();
+  const info = getLogPathInfo(loadConfig());
+  const pathForList = fs.existsSync(live) ? live : info.resolved;
+  const archives = listLogArchives(pathForList);
+  const row = archives.find((a) => a.id === archiveId);
+  if (!row?.path || !fs.existsSync(row.path)) {
+    return { ok: false, error: "Log file not found." };
+  }
+  try {
+    const session = parseLogFileToSession(row.path);
+    return {
+      ok: true,
+      archive: row,
+      session,
+    };
+  } catch (e) {
+    return { ok: false, error: e.message || String(e) };
+  }
 });
