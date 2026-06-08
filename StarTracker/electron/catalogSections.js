@@ -249,12 +249,6 @@ function placeKindFromTerminal(row) {
   return "Location";
 }
 
-function mergeServiceFlags(target, source) {
-  for (const [key, value] of Object.entries(source || {})) {
-    if (value) target[key] = true;
-  }
-}
-
 function normalizeTerminal(terminal) {
   if (!terminal) return terminal;
   const name = String(terminal.name || terminal.fullname || "");
@@ -295,29 +289,23 @@ function buildPlacesFromTerminals(terminals) {
         orbit: terminal.orbit || null,
         kind: placeKindFromTerminal(terminal),
         location: terminal.location || placeName,
-        services: {
-          refuel: false,
-          repair: false,
-          shipAmmo: false,
-        },
+        shipServices: true,
         terminals: [],
       });
     }
 
     const place = byKey.get(key);
     if (!hasShipService(terminal.services)) continue;
-    mergeServiceFlags(place.services, terminal.services);
     place.terminals.push({
       id: terminal.id,
       name: terminal.name,
       code: terminal.code,
       type: terminal.type,
-      services: terminal.services,
     });
   }
 
   return [...byKey.values()]
-    .filter((place) => hasShipService(place.services))
+    .filter((place) => place.terminals.length > 0)
     .sort((a, b) =>
       `${a.system} ${a.name}`.localeCompare(`${b.system} ${b.name}`)
     );

@@ -118,10 +118,10 @@ const TABS = [
     empty: "No shop data loaded yet. Use Refresh catalog below.",
   },
   {
-    id: "catalog-places",
-    label: "Places",
-    hint: "Planets, stations, and ports with ship services: refuel, repair, and ship ammo restock. Data from UEX terminal records.",
-    empty: "No place data loaded yet. Use Refresh catalog below.",
+    id: "catalog-ship-services",
+    label: "Ship services",
+    hint: "Stations, cities, and ports where you can get ship services (refuel, repair, ammo restock). Grouped by star system. Data from UEX.",
+    empty: "No ship service locations loaded yet. Use Refresh catalog below.",
   },
   {
     id: "blueprints",
@@ -180,7 +180,7 @@ const catalogQueryByTab = {
   "catalog-ship-weapons": { query: "", offset: 0, section: "ship_weapons" },
   "catalog-ship-parts": { query: "", offset: 0, section: "ship_components" },
   "catalog-shops": { query: "", offset: 0 },
-  "catalog-places": { query: "", offset: 0, services: [] },
+  "catalog-ship-services": { query: "", offset: 0 },
 };
 let catalogDetailKey = null;
 
@@ -374,7 +374,7 @@ function tabBadgeCount(tabId, rollup) {
       return catalogStats?.itemCount || 0;
     case "catalog-shops":
       return catalogStats?.shopCount || 0;
-    case "catalog-places":
+    case "catalog-ship-services":
       return catalogStats?.placeCount || 0;
     default:
       return 0;
@@ -1073,34 +1073,18 @@ function catalogMetaLine() {
   return `<p class="catalog-meta muted small">Last synced ${escapeHtml(when)}. ${escapeHtml(counts)}.${catalogSyncMessage ? ` ${escapeHtml(catalogSyncMessage)}` : ""}</p>`;
 }
 
-const PLACE_SERVICE_FILTERS = [
-  { id: "refuel", label: "Refuel" },
-  { id: "repair", label: "Ship repair" },
-  { id: "shipAmmo", label: "Ship ammo" },
-];
-
-function serviceBadge(on, label) {
-  const cls = on ? "svc-yes" : "svc-no";
-  return `<span class="svc-badge ${cls}">${escapeHtml(label)}</span>`;
-}
-
 function catalogToolbar(tabId) {
   const q = catalogQueryByTab[tabId]?.query || "";
   const busy = catalogSyncBusy ? " disabled" : "";
-  const serviceFilters =
-    tabId === "catalog-places"
-      ? `<div class="catalog-service-filters" role="group" aria-label="Service filters">${PLACE_SERVICE_FILTERS.map(
-          (f) => {
-            const on = (catalogQueryByTab[tabId]?.services || []).includes(f.id);
-            return `<label class="catalog-filter-chip"><input type="checkbox" data-catalog-service="${escapeAttr(f.id)}" data-catalog-service-tab="${escapeAttr(tabId)}"${on ? " checked" : ""} /><span>${escapeHtml(f.label)}</span></label>`;
-          }
-        ).join("")}</div>`
-      : "";
+  const searchPlaceholder =
+    tabId === "catalog-ship-services"
+      ? "Search system, planet, station, city…"
+      : "Search name, class, manufacturer, location…";
   return `<div class="catalog-toolbar">
-    <input type="search" class="catalog-search" data-catalog-search="${escapeAttr(tabId)}" placeholder="${tabId === "catalog-places" ? "Search system, planet, station, city…" : "Search name, class, manufacturer, location…"}" value="${escapeAttr(q)}" />
+    <input type="search" class="catalog-search" data-catalog-search="${escapeAttr(tabId)}" placeholder="${searchPlaceholder}" value="${escapeAttr(q)}" />
     <button type="button" class="btn btn-sm btn-ghost" data-catalog-search-btn="${escapeAttr(tabId)}">Search</button>
     <button type="button" class="btn btn-sm" data-catalog-refresh${busy}>Refresh catalog</button>
-  </div>${serviceFilters}`;
+  </div>`;
 }
 
 function listingSummary(listings) {
@@ -1171,25 +1155,24 @@ function renderCatalogShipRows(rows) {
       .join("")}</tbody></table></div>`;
 }
 
-function renderCatalogPlaceRows(rows) {
-  if (!rows.length) return emptyPanel(tabById("catalog-places"));
-  return `<div class="catalog-table-wrap"><table class="catalog-table">
-    <thead><tr>
-      <th>Place</th><th>System</th><th>Type</th><th>Refuel</th><th>Repair</th><th>Ship ammo</th>
-    </tr></thead>
-    <tbody>${rows
-      .map((row) => {
-        const svc = row.services || {};
-        return `<tr class="catalog-row" data-catalog-place="${escapeAttr(row.key)}">
-          <td><button type="button" class="catalog-link" data-catalog-place="${escapeAttr(row.key)}">${displayText(row.name)}</button><div class="muted small">${displayText(row.location || "")}</div></td>
-          <td>${displayText(row.system || "")}</td>
-          <td>${displayText(row.kind || "")}</td>
-          <td>${serviceBadge(svc.refuel, svc.refuel ? "Yes" : "n/a")}</td>
-          <td>${serviceBadge(svc.repair, svc.repair ? "Yes" : "n/a")}</td>
-          <td>${serviceBadge(svc.shipAmmo, svc.shipAmmo ? "Yes" : "n/a")}</td>
-        </tr>`;
-      })
-      .join("")}</tbody></table></div>`;
+function renderCatalogShipServiceRows(rows) {
+  if (!rows.length) return emptyPanel(tabById("catalog-ship-services"));
+  let body = "";
+  let lastSystem = null;
+  for (const row of rows) {
+    if (row.system !== lastSystem) {
+      lastSystem = row.system;
+      body += `<tr class="catalog-system-row"><td colspan="3"><span class="catalog-system-label">${displayText(row.system || "Unknown system")}</span></td></tr>`;
+    }
+    body += `<tr class="catalog-row" data-catalog-place="${escapeAttr(row.key)}">
+      <td><button type="button" class="catalog-link" data-catalog-place="${escapeAttr(row.key)}">${displayText(row.name)}</button></td>
+      <td class="muted small">${displayText(row.location || "")}</td>
+      <td>${displayText(row.kind || "")}</td>
+    </tr>`;
+  }
+  return `<div class="catalog-table-wrap"><table class="catalog-table catalog-ship-services-table">
+    <thead><tr><th>Place</th><th>Location</th><th>Type</th></tr></thead>
+    <tbody>${body}</tbody></table></div>`;
 }
 
 function renderCatalogShopRows(rows) {
@@ -1225,32 +1208,24 @@ function renderCatalogPager(tabId, result) {
 
 function renderPlaceDetail(detail) {
   if (!detail) return "";
-  const svc = detail.services || {};
-  const svcLine = PLACE_SERVICE_FILTERS.map((f) =>
-    serviceBadge(Boolean(svc[f.id]), f.label)
-  ).join(" ");
   const terminals = (detail.terminals || [])
-    .map((t) => {
-      const bits = PLACE_SERVICE_FILTERS.filter((f) => t.services?.[f.id]).map(
-        (f) => f.label
-      );
-      return `<tr>
+    .map(
+      (t) => `<tr>
         <td>${displayText(t.name)}</td>
         <td>${displayText(t.type || "")}</td>
-        <td class="muted small">${escapeHtml(bits.join(", ") || EMPTY_DISPLAY)}</td>
-      </tr>`;
-    })
+      </tr>`
+    )
     .join("");
   return `<article class="catalog-detail">
     <header class="catalog-detail-head">
       <h3>${displayText(detail.name)}</h3>
       <button type="button" class="link" data-catalog-detail-close>Close</button>
     </header>
-    <p class="muted small">${displayText(detail.location || "")} · ${displayText(detail.system || "")}</p>
-    <div class="catalog-service-line">${svcLine}</div>
+    <p class="muted small">${displayText(detail.system || "")} · ${displayText(detail.location || "")}</p>
+    <p class="muted small">Ship services pad and shop terminals at this location.</p>
     <div class="catalog-table-wrap"><table class="catalog-table">
-      <thead><tr><th>Terminal</th><th>Type</th><th>Services</th></tr></thead>
-      <tbody>${terminals || `<tr><td colspan="3" class="muted">No terminals listed</td></tr>`}</tbody>
+      <thead><tr><th>Terminal</th><th>Type</th></tr></thead>
+      <tbody>${terminals || `<tr><td colspan="2" class="muted">No terminals listed</td></tr>`}</tbody>
     </table></div>
   </article>`;
 }
@@ -1335,16 +1310,15 @@ async function loadCatalogTab(tabId, options = {}) {
         tabId,
         `${catalogMetaLine()}${catalogToolbar(tabId)}${renderCatalogShopRows(result.rows)}${renderCatalogPager(tabId, result)}`
       );
-    } else if (tabId === "catalog-places") {
+    } else if (tabId === "catalog-ship-services") {
       result = await window.debrief.catalogQueryPlaces({
         query: state.query,
         offset: state.offset,
-        limit: 60,
-        services: state.services || [],
+        limit: 80,
       });
       setPanelHtml(
         tabId,
-        `${catalogMetaLine()}${catalogToolbar(tabId)}${renderCatalogPlaceRows(result.rows)}${renderCatalogPager(tabId, result)}`
+        `${catalogMetaLine()}${catalogToolbar(tabId)}${renderCatalogShipServiceRows(result.rows)}${renderCatalogPager(tabId, result)}`
       );
     } else {
       result = await window.debrief.catalogQueryItems({
@@ -1363,7 +1337,7 @@ async function loadCatalogTab(tabId, options = {}) {
       const kind =
         tabId === "catalog-shops"
           ? "shop"
-          : tabId === "catalog-places"
+          : tabId === "catalog-ship-services"
             ? "place"
             : "item";
       await showCatalogDetail(catalogDetailKey, kind);
@@ -1447,8 +1421,8 @@ function initCatalogUi() {
       const state = catalogQueryByTab[tabId];
       if (!state) return;
       const step =
-        tabId === "catalog-ships" || tabId === "catalog-places"
-          ? 60
+        tabId === "catalog-ships" || tabId === "catalog-ship-services"
+          ? 80
           : tabId === "catalog-shops"
             ? 50
             : 80;
@@ -1501,19 +1475,6 @@ function initCatalogUi() {
     catalogQueryByTab[tabId].query = input.value;
   });
 
-  $("tabPanels")?.addEventListener("change", (e) => {
-    const box = e.target.closest("[data-catalog-service]");
-    if (!box) return;
-    const tabId = box.dataset.catalogServiceTab;
-    const state = catalogQueryByTab[tabId];
-    if (!state) return;
-    const svc = box.dataset.catalogService;
-    const set = new Set(state.services || []);
-    if (box.checked) set.add(svc);
-    else set.delete(svc);
-    state.services = [...set];
-    loadCatalogTab(tabId, { resetOffset: true });
-  });
 }
 
 function renderAllPanels(state) {

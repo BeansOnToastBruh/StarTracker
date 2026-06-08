@@ -246,18 +246,10 @@ function getShopDetail(terminalKey) {
   return c.shopIndex?.byTerminal?.[String(terminalKey)] || null;
 }
 
-function placeMatchesServices(place, services = []) {
-  const wanted = (services || []).filter(Boolean);
-  if (!wanted.length) return true;
-  return wanted.every((svc) => place.services?.[svc]);
-}
-
 function queryPlaces(options = {}) {
   const c = getCatalog();
   const q = normalizeQuery(options.query);
-  const services = options.services || [];
   let rows = (c.places || []).filter((place) => {
-    if (!placeMatchesServices(place, services)) return false;
     if (!q) return true;
     const hay = [
       place.name,

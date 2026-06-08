@@ -972,53 +972,22 @@ html[data-theme="dark"] .tab-panels {
   font-size: 0.72rem;
 }
 
-.catalog-service-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin: 0 0 0.75rem;
+.catalog-system-row td {
+  background: var(--panel-elevated);
+  border-bottom: 1px solid var(--border);
+  padding-top: 0.65rem;
+  padding-bottom: 0.35rem;
 }
 
-.catalog-filter-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.25rem 0.5rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: 999px;
-  font-size: 0.74rem;
-  background: var(--panel);
-  cursor: pointer;
+.catalog-system-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.02em;
 }
 
-.catalog-filter-chip input {
-  accent-color: var(--accent);
-}
-
-.catalog-service-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin: 0.5rem 0 0.75rem;
-}
-
-.svc-badge {
-  display: inline-block;
-  padding: 0.12rem 0.45rem;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  border: 1px solid var(--border-subtle);
-}
-
-.svc-badge.svc-yes {
-  color: var(--good);
-  border-color: var(--good-border);
-  background: var(--good-bg);
-}
-
-.svc-badge.svc-no {
-  color: var(--muted);
-  background: var(--neutral-bg);
+.catalog-ship-services-table .catalog-system-row:first-child td {
+  padding-top: 0.45rem;
 }
 
 @media (max-width: 640px) {
