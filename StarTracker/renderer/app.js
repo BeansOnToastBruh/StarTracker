@@ -832,15 +832,24 @@ function buildInsurance(rollup) {
   return rollup.insuranceClaims
     .slice()
     .reverse()
-    .map((c) =>
-      entryCard({
+    .map((c) => {
+      const ship = c.shipName || null;
+      const title = ship ? ship : "Insurance claim completed";
+      const bits = ["Hull respawned at station."];
+      if (c.location) bits.push(`Location: ${c.location}.`);
+      if (!ship) {
+        bits.push(
+          "Ship name was not in this log line. Game.log usually only logs an entitlement ID for claims."
+        );
+      }
+      return entryCard({
         time: fmtDateTime(c.at),
         badge: "Claim",
         badgeClass: "",
-        title: "Insurance claim completed",
-        description: "Your ship insurance claim finished (hull back at station).",
-      })
-    )
+        title,
+        description: bits.join(" "),
+      });
+    })
     .join("");
 }
 
@@ -851,15 +860,23 @@ function buildShopping(rollup) {
   const rows = rollup.shopPurchases
     .slice()
     .reverse()
-    .map((p) =>
-      entryCard({
+    .map((p) => {
+      const badge =
+        p.category === "ship"
+          ? "Ship"
+          : p.category === "equipment"
+            ? "Equipment"
+            : "Purchase";
+      const qty =
+        p.quantity > 1 ? ` · Qty ${p.quantity}` : "";
+      return entryCard({
         time: fmtDateTime(p.at),
-        badge: "Purchase",
+        badge,
         badgeClass: "",
         title: p.item,
-        description: `${Math.round(p.price).toLocaleString()} aUEC at ${displayText(p.shop)}.`,
-      })
-    )
+        description: `${Math.round(p.price).toLocaleString()} aUEC at ${displayText(p.shop)}${qty}.`,
+      });
+    })
     .join("");
   return head + rows;
 }

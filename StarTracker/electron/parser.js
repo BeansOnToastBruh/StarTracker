@@ -45,6 +45,13 @@ const {
   tryEmitShipDestruction,
   tryEmitCollisionAfterActorDead,
 } = require("./vehicleContext");
+const {
+  formatShopItemName,
+  formatShopName,
+  formatVehicleLabel,
+  formatLocationLabel,
+  shopItemCategory,
+} = require("./commerceFormat");
 
 function emit(events, event) {
   if (!event) return events;
@@ -198,44 +205,126 @@ function buildFineEvent(text) {
   };
 }
 
-function appendCommerceEvents(body, at, ctx, out) {
-  const shopBuyM = body.match(
-    /SShopBuyRequest.*playerId\[(\d+)\].*shopName\[([^\]]+)\].*client_price\[([\d.]+)\].*itemName\[([^\]]+)\]/gi
+function ingestInsuranceVehicleHint(body, at, ctx) {
+  const spawnM = body.match(
+    /\[VEHICLE SPAWN\].*\(([^)]+)\)\s+by player\s+(\d+)/
   );
-  if (shopBuyM) {
-    for (const match of shopBuyM) {
-      const parts = match.match(
-        /SShopBuyRequest.*playerId\[(\d+)\].*shopName\[([^\]]+)\].*client_price\[([\d.]+)\].*itemName\[([^\]]+)\]/i
-      );
-      if (!parts) continue;
-      const [, playerId, shopName, priceRaw, itemName] = parts;
+  if (spawnM) {
+    if (!ctx.playerGEID) ctx.playerGEID = spawnM[2];
+    if (spawnM[2] === ctx.playerGEID) {
+      ctx.lastInsuranceVehicleHint = {
+        at,
+        name: formatVehicleLabel(spawnM[1]),
+      };
+    }
+    return;
+  }
+
+  const navM = body.match(
+    /NOT AUTH\s*\|\s*([A-Z]+(?:_[A-Za-z]+)+)_\d+\[/
+  );
+  if (navM) {
+    ctx.lastInsuranceVehicleHint = {
+      at,
+      name: formatVehicleLabel(navM[1]),
+    };
+    return;
+  }
+
+  const vehM = body.match(
+    /Vehicle:\s*([A-Z]+(?:_[A-Za-z]+)+)_\d+\s*\[/
+  );
+  if (vehM) {
+    ctx.lastInsuranceVehicleHint = {
+      at,
+      name: formatVehicleLabel(vehM[1]),
+    };
+  }
+}
+
+function insuranceHintForClaim(ctx, at) {
+  const hint = ctx.lastInsuranceVehicleHint;
+  if (!hint?.name || !hint.at || !at) return null;
+  const dt = new Date(at).getTime() - new Date(hint.at).getTime();
+  if (dt < -5000 || dt > 45000) return null;
+  return hint.name;
+}
+
+function appendCommerceEvents(body, at, ctx, out) {
+  ingestInsuranceVehicleHint(body, at, ctx);
+
+  const shopBuyRe =
+    /SShopBuyRequest.*?playerId\[(\d+)\].*?shopName\[([^\]]+)\].*?client_price\[([\d.]+)\].*?itemName\[([^\]]+)\](?:.*?quantity\[(\d+)\])?/gis;
+  let shopMatch;
+  while ((shopMatch = shopBuyRe.exec(body)) !== null) {
+      const [, playerId, shopName, priceRaw, itemName, qtyRaw] = shopMatch;
       if (!ctx.playerGEID) ctx.playerGEID = playerId;
       if (playerId !== ctx.playerGEID) continue;
       const price = Number(priceRaw);
       if (!Number.isFinite(price) || price <= 0) continue;
+      const quantity = qtyRaw ? Number(qtyRaw) : 1;
+      const itemLabel = formatShopItemName(itemName, quantity);
+      const shopLabel = formatShopName(shopName);
+      const category = shopItemCategory(itemName, price);
       emit(out, {
         type: "shop_purchase",
         at,
-        summary: `Bought ${beautifyName(itemName)} for ${Math.round(price).toLocaleString()} aUEC`,
+        summary: `Bought ${itemLabel} for ${Math.round(price).toLocaleString()} aUEC`,
         detail: {
-          shop: beautifyName(shopName),
-          item: beautifyName(itemName),
+          shop: shopLabel,
+          item: itemLabel,
+          itemRaw: itemName,
           price,
+          quantity,
+          category,
           playerId,
         },
       });
-    }
   }
 
-  if (
-    /CWallet::RmMulticastOnProcessClaimCallback/i.test(body) &&
-    /Claim Complete/i.test(body)
-  ) {
+  const claimRequestM = body.match(
+    /CWallet::ProcessClaimToNextStep> New Insurance Claim Request - entitlementURN: (urn:[^\s,]+).*?requestId\s*:\s*(\d+)/i
+  );
+  if (claimRequestM) {
+    if (!ctx.insuranceClaimHints) ctx.insuranceClaimHints = new Map();
+    const urn = claimRequestM[1];
+    const requestId = claimRequestM[2];
+    const shipName = insuranceHintForClaim(ctx, at);
+    let location = null;
+    const atcM = body.match(/ATC Location:\s*([A-Za-z0-9_]+)/i);
+    if (atcM) location = formatLocationLabel(atcM[1]);
+    ctx.insuranceClaimHints.set(`${urn}|${requestId}`, {
+      shipName,
+      location,
+      requestedAt: at,
+    });
+  }
+
+  const claimCompleteM = body.match(
+    /CWallet::RmMulticastOnProcessClaimCallback> Claim Complete - entitlementURN: (urn:[^\s,]+).*?requestId:\s*(\d+)/i
+  );
+  if (claimCompleteM) {
+    const urn = claimCompleteM[1];
+    const requestId = claimCompleteM[2];
+    const hint = ctx.insuranceClaimHints?.get(`${urn}|${requestId}`);
+    const shipName =
+      hint?.shipName || insuranceHintForClaim(ctx, at) || null;
+    const location = hint?.location || null;
+    const title = shipName
+      ? `Insurance claim: ${shipName}`
+      : "Insurance claim completed";
     emit(out, {
       type: "insurance",
       at,
-      summary: "Insurance claim completed",
-      detail: { action: "claim_complete", raw: body.slice(0, 240) },
+      summary: title,
+      detail: {
+        action: "claim_complete",
+        shipName,
+        location,
+        entitlementUrn: urn,
+        requestId: Number(requestId),
+        raw: body.slice(0, 240),
+      },
     });
   }
 }

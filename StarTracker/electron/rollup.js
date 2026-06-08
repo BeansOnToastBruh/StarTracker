@@ -368,6 +368,9 @@ function buildRollup(session) {
           insuranceClaims.push({
             at: e.at,
             summary: e.summary,
+            shipName: e.detail?.shipName || null,
+            location: e.detail?.location || null,
+            entitlementUrn: e.detail?.entitlementUrn || null,
           });
         }
         break;
@@ -376,6 +379,9 @@ function buildRollup(session) {
           at: e.at,
           shop: e.detail?.shop || "Unknown shop",
           item: e.detail?.item || "Unknown item",
+          itemRaw: e.detail?.itemRaw || null,
+          quantity: e.detail?.quantity ?? 1,
+          category: e.detail?.category || "item",
           price: e.detail?.price ?? 0,
           summary: e.summary,
         });
