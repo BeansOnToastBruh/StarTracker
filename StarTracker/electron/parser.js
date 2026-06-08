@@ -207,6 +207,8 @@ function buildFineEvent(text) {
 
 const ASOP_WINDOW_MS = 120000;
 const INSURANCE_BATCH_FLUSH_GAP_MS = 5000;
+const MODERN_CLAIM_DELIVERY_MS = 90000;
+const NON_SHIP_HOST_RE = /^(QTNK|HTNK|FuelPod|Default_|ui_entity)/i;
 
 function extendAsopSession(ctx, at, geid) {
   if (geid && !ctx.playerGEID) ctx.playerGEID = geid;
@@ -240,7 +242,27 @@ function isInsuranceClaimLine(body) {
   );
 }
 
+function noteAsopVehicleList(ctx, at, geid) {
+  extendAsopSession(ctx, at, geid);
+  const t = new Date(at).getTime();
+  if (Number.isFinite(t)) {
+    ctx.asopFetchCompletedAt = t;
+    ctx.lastAsopVehicleListAt = t;
+  }
+}
+
 function trackAsopSignals(body, at, ctx) {
+  const vehicleListM = body.match(
+    /VehicleListQuery> Fetching vehicle list for player (\d+) completed/
+  );
+  if (vehicleListM) {
+    ctx.insuranceBatchTainted = false;
+    ctx.insuranceCompleteBatch = [];
+    ctx.staleClaimUrns = new Set();
+    noteAsopVehicleList(ctx, at, vehicleListM[1]);
+    return;
+  }
+
   const entitlementsM = body.match(
     /Getting player insured entitlements for player (\d+)/
   );
@@ -258,9 +280,95 @@ function trackAsopSignals(body, at, ctx) {
     /Fetching vehicle list for player (\d+) completed/
   );
   if (fetchDoneM && (!ctx.playerGEID || fetchDoneM[1] === ctx.playerGEID)) {
-    const t = new Date(at).getTime();
-    if (Number.isFinite(t)) ctx.asopFetchCompletedAt = t;
+    noteAsopVehicleList(ctx, at, fetchDoneM[1]);
   }
+}
+
+function isLikelyShipHost(classPrefix) {
+  if (!classPrefix || NON_SHIP_HOST_RE.test(classPrefix)) return false;
+  const parts = classPrefix.split("_");
+  return parts.length >= 2 && parts[0].length >= 2 && parts[0].length <= 6;
+}
+
+function emitModernInsuranceClaim(ctx, at, shipRaw, out) {
+  const shipName = labelForClassName(shipRaw);
+  const location = ctx.lastInsuranceLocation || null;
+  emit(out, {
+    type: "insurance",
+    at,
+    summary: shipName
+      ? `Insurance claim: ${shipName}`
+      : "Insurance claim completed",
+    detail: {
+      action: "claim_complete",
+      shipName,
+      shipRaw,
+      verified: isVerified(shipRaw),
+      location,
+      entitlementUrn: null,
+      requestId: null,
+      raw: shipRaw,
+      source: "modern_asop",
+    },
+  });
+}
+
+function handleModernInsuranceSignals(body, at, ctx, out) {
+  const locInvM = body.match(
+    /RequestLocationInventory> Player\[[^\]]+\] requested inventory for Location\[([^\]]+)\]/
+  );
+  if (locInvM) {
+    ctx.lastInsuranceLocation = formatLocationLabel(locInvM[1]);
+  }
+
+  const atcLocM = body.match(/ATC Location:\s*([A-Za-z0-9_]+)/i);
+  if (atcLocM) {
+    ctx.lastInsuranceLocation = formatLocationLabel(atcLocM[1]);
+  }
+
+  if (/Claim Failed>|\[CLAIM FAILED\]/i.test(body)) {
+    ctx.pendingModernClaim = null;
+    invalidateInsuranceBatch(ctx);
+    return;
+  }
+
+  if (
+    /LoadingPlatformManager_ShipElevator/i.test(body) &&
+    /LoweringPlatform/.test(body) &&
+    isAsopActive(ctx, at) &&
+    ctx.lastAsopVehicleListAt
+  ) {
+    const t = new Date(at).getTime();
+    if (
+      Number.isFinite(t) &&
+      t - ctx.lastAsopVehicleListAt <= MODERN_CLAIM_DELIVERY_MS
+    ) {
+      ctx.pendingModernClaim = { at, startedAt: t };
+    }
+    return;
+  }
+
+  if (!ctx.pendingModernClaim) return;
+
+  const hostM = body.match(/Host\s*:([A-Za-z0-9_]+_\d+)/);
+  if (!hostM) return;
+
+  const shipRaw = hostM[1];
+  const classPrefix = shipRaw.replace(/_\d+$/, "");
+  if (!isLikelyShipHost(classPrefix)) return;
+
+  const t = new Date(at).getTime();
+  const started = ctx.pendingModernClaim.startedAt;
+  if (
+    !Number.isFinite(t) ||
+    !Number.isFinite(started) ||
+    t - started > MODERN_CLAIM_DELIVERY_MS
+  ) {
+    return;
+  }
+
+  ctx.pendingModernClaim = null;
+  emitModernInsuranceClaim(ctx, at, shipRaw, out);
 }
 
 function invalidateInsuranceBatch(ctx) {
@@ -328,6 +436,7 @@ function insuranceHintForClaim(ctx, at) {
 function appendCommerceEvents(body, at, ctx, out) {
   maybeFlushInsuranceBatch(body, at, ctx, out);
   trackAsopSignals(body, at, ctx);
+  handleModernInsuranceSignals(body, at, ctx, out);
   ingestInsuranceVehicleHint(body, at, ctx);
 
   if (/PayExpeditedProcessingFee failed/i.test(body)) {

@@ -59,6 +59,11 @@ const may02 = path.join(
   logDir,
   "Game Build(11715810) 02 May 26 (23 29 59).log"
 );
+const jun07 = path.join(
+  logDir,
+  "Game Build(11952564) 07 Jun 26 (03 10 48).log"
+);
+const MODERN_GEID = "204771992619";
 
 if (!fs.existsSync(may01) || !fs.existsSync(may02)) {
   console.error("Game.log backups not found; skipping log verification.");
@@ -85,6 +90,19 @@ assert(
 console.log("\nAll insurance events in May 02 log:", may02Claims.length);
 for (const c of may02Claims) {
   console.log(`  ${c.at} requestId=${c.requestId} ship=${c.shipName || "(unknown)"}`);
+}
+
+if (fs.existsSync(jun07)) {
+  const jun07Claims = parseLogFile(jun07, MODERN_GEID);
+  const jun07_0926 = jun07Claims.filter((c) => c.at?.startsWith("2026-06-07T09:26"));
+  assert(
+    jun07_0926.length >= 1,
+    `Jun 07 modern log 09:26 window: expected at least 1 claim, got ${jun07_0926.length} (${JSON.stringify(jun07_0926)})`
+  );
+  assert(
+    jun07_0926.some((c) => /Starfarer|Gemini/i.test(c.shipName || "")),
+    "Jun 07 09:26 claim should include Starfarer Gemini"
+  );
 }
 
 process.exit(process.exitCode || 0);
