@@ -46,12 +46,12 @@ const {
   tryEmitCollisionAfterActorDead,
 } = require("./vehicleContext");
 const {
-  formatShopItemName,
   formatShopName,
   formatVehicleLabel,
   formatLocationLabel,
   shopItemCategory,
 } = require("./commerceFormat");
+const { labelForClassName, isVerified } = require("./sessionEnrichment");
 
 function emit(events, event) {
   if (!event) return events;
@@ -212,10 +212,11 @@ function ingestInsuranceVehicleHint(body, at, ctx) {
   if (spawnM) {
     if (!ctx.playerGEID) ctx.playerGEID = spawnM[2];
     if (spawnM[2] === ctx.playerGEID) {
-      ctx.lastInsuranceVehicleHint = {
-        at,
-        name: formatVehicleLabel(spawnM[1]),
-      };
+    ctx.lastInsuranceVehicleHint = {
+      at,
+      raw: spawnM[1],
+      name: formatVehicleLabel(spawnM[1]),
+    };
     }
     return;
   }
@@ -226,6 +227,7 @@ function ingestInsuranceVehicleHint(body, at, ctx) {
   if (navM) {
     ctx.lastInsuranceVehicleHint = {
       at,
+      raw: navM[1],
       name: formatVehicleLabel(navM[1]),
     };
     return;
@@ -237,6 +239,7 @@ function ingestInsuranceVehicleHint(body, at, ctx) {
   if (vehM) {
     ctx.lastInsuranceVehicleHint = {
       at,
+      raw: vehM[1],
       name: formatVehicleLabel(vehM[1]),
     };
   }
@@ -263,7 +266,7 @@ function appendCommerceEvents(body, at, ctx, out) {
       const price = Number(priceRaw);
       if (!Number.isFinite(price) || price <= 0) continue;
       const quantity = qtyRaw ? Number(qtyRaw) : 1;
-      const itemLabel = formatShopItemName(itemName, quantity);
+      const itemLabel = labelForClassName(itemName, { quantity });
       const shopLabel = formatShopName(shopName);
       const category = shopItemCategory(itemName, price);
       emit(out, {
@@ -274,6 +277,7 @@ function appendCommerceEvents(body, at, ctx, out) {
           shop: shopLabel,
           item: itemLabel,
           itemRaw: itemName,
+          verified: isVerified(itemName),
           price,
           quantity,
           category,
@@ -295,6 +299,7 @@ function appendCommerceEvents(body, at, ctx, out) {
     if (atcM) location = formatLocationLabel(atcM[1]);
     ctx.insuranceClaimHints.set(`${urn}|${requestId}`, {
       shipName,
+      shipRaw: ctx.lastInsuranceVehicleHint?.raw || null,
       location,
       requestedAt: at,
     });
@@ -307,8 +312,13 @@ function appendCommerceEvents(body, at, ctx, out) {
     const urn = claimCompleteM[1];
     const requestId = claimCompleteM[2];
     const hint = ctx.insuranceClaimHints?.get(`${urn}|${requestId}`);
-    const shipName =
-      hint?.shipName || insuranceHintForClaim(ctx, at) || null;
+    const shipRaw =
+      hint?.shipRaw || ctx.lastInsuranceVehicleHint?.raw || null;
+    let shipName =
+      (shipRaw ? labelForClassName(shipRaw) : null) ||
+      hint?.shipName ||
+      insuranceHintForClaim(ctx, at) ||
+      null;
     const location = hint?.location || null;
     const title = shipName
       ? `Insurance claim: ${shipName}`
@@ -320,6 +330,8 @@ function appendCommerceEvents(body, at, ctx, out) {
       detail: {
         action: "claim_complete",
         shipName,
+        shipRaw,
+        verified: !!(shipRaw && isVerified(shipRaw)),
         location,
         entitlementUrn: urn,
         requestId: Number(requestId),

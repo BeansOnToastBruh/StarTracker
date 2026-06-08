@@ -1,0 +1,52 @@
+{
+  "GLSN_Shiv": {
+    "type": "vehicle",
+    "name": "Grey's Market Shiv",
+    "displayName": "Shiv",
+    "manufacturer": "Grey's Market",
+    "className": "GLSN_Shiv",
+    "source": "seed"
+  },
+  "none_rifle_multi_01_mag": {
+    "type": "item",
+    "name": "Killshot Rifle Magazine (45 Cap)",
+    "className": "none_rifle_multi_01_mag",
+    "source": "seed"
+  },
+  "none_smg_energy_01_mag": {
+    "type": "item",
+    "name": "P8-SC SMG Magazine (100 Cap)",
+    "className": "none_smg_energy_01_mag",
+    "source": "seed"
+  },
+  "ksar_rifle_energy_01_mag": {
+    "type": "item",
+    "name": "Karna Rifle Magazine (45 Cap)",
+    "className": "ksar_rifle_energy_01_mag",
+    "source": "seed"
+  },
+  "grin_tractor_01": {
+    "type": "vehicle",
+    "name": "Greycat Industrial PT",
+    "displayName": "PT",
+    "manufacturer": "Greycat Industrial",
+    "className": "grin_tractor_01",
+    "source": "seed"
+  },
+  "CRUS_Intrepid": {
+    "type": "vehicle",
+    "name": "Crusader Industries Intrepid",
+    "displayName": "Intrepid",
+    "manufacturer": "Crusader Industries",
+    "className": "CRUS_Intrepid",
+    "source": "seed"
+  },
+  "ESPR_Prowler_Utility": {
+    "type": "vehicle",
+    "name": "Esperia Prowler Utility",
+    "displayName": "Prowler Utility",
+    "manufacturer": "Esperia",
+    "className": "ESPR_Prowler_Utility",
+    "source": "seed"
+  }
+}

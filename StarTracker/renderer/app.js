@@ -837,10 +837,14 @@ function buildInsurance(rollup) {
       const title = ship ? ship : "Insurance claim completed";
       const bits = ["Hull respawned at station."];
       if (c.location) bits.push(`Location: ${c.location}.`);
-      if (!ship) {
+      if (c.verified) {
+        bits.push("Name verified from Star Citizen game data.");
+      } else if (!ship) {
         bits.push(
           "Ship name was not in this log line. Game.log usually only logs an entitlement ID for claims."
         );
+      } else {
+        bits.push("Name estimated from log text (not yet verified online).");
       }
       return entryCard({
         time: fmtDateTime(c.at),
@@ -869,12 +873,15 @@ function buildShopping(rollup) {
             : "Purchase";
       const qty =
         p.quantity > 1 ? ` · Qty ${p.quantity}` : "";
+      const verifyNote = p.verified
+        ? "Verified from Star Citizen game data."
+        : "Name estimated until looked up online.";
       return entryCard({
         time: fmtDateTime(p.at),
         badge,
         badgeClass: "",
         title: p.item,
-        description: `${Math.round(p.price).toLocaleString()} aUEC at ${displayText(p.shop)}${qty}.`,
+        description: `${Math.round(p.price).toLocaleString()} aUEC at ${displayText(p.shop)}${qty}. ${verifyNote}`,
       });
     })
     .join("");

@@ -8,7 +8,7 @@ const MANUFACTURER_LABELS = {
   CRUS: "Crusader",
   CNST: "Consolidated Outland",
   CNOU: "Crusader",
-  GLSN: "Gallaban",
+  GLSN: "Grey's Market",
   MRAI: "Mirai",
   ARGO: "Argo",
   XIAN: "Xi'an",

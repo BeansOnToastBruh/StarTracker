@@ -369,6 +369,8 @@ function buildRollup(session) {
             at: e.at,
             summary: e.summary,
             shipName: e.detail?.shipName || null,
+            shipRaw: e.detail?.shipRaw || null,
+            verified: !!e.detail?.verified,
             location: e.detail?.location || null,
             entitlementUrn: e.detail?.entitlementUrn || null,
           });
@@ -382,6 +384,7 @@ function buildRollup(session) {
           itemRaw: e.detail?.itemRaw || null,
           quantity: e.detail?.quantity ?? 1,
           category: e.detail?.category || "item",
+          verified: !!e.detail?.verified,
           price: e.detail?.price ?? 0,
           summary: e.summary,
         });

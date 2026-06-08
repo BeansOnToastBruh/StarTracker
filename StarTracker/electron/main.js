@@ -21,6 +21,11 @@ const { resolveLogPath, getLogPathInfo } = require("./paths");
 const { listLogArchives, quickScanAwardedAuec } = require("./logArchive");
 const { parseLogFileToSession } = require("./logImporter");
 const { checkForUpdates } = require("./updateChecker");
+const gameData = require("./gameDataResolver");
+const {
+  enrichSession,
+  applyLabelsToSession,
+} = require("./sessionEnrichment");
 
 app.setName("StarTracker");
 if (process.platform === "win32") {
@@ -37,6 +42,8 @@ app.setPath(
 
 const CONFIG_PATH = () => path.join(app.getPath("userData"), "config.json");
 const HISTORY_PATH = () => path.join(app.getPath("userData"), "sessions.json");
+const GAME_DATA_CACHE_PATH = () =>
+  path.join(app.getPath("userData"), "game-data-cache.json");
 
 let tray = null;
 let mainWindow = null;
@@ -333,7 +340,23 @@ function handleLogEvent(event) {
   }
 
   pushEvent(currentSession, event);
+  maybeRefreshGameLabels(event);
   broadcastState();
+}
+
+function maybeRefreshGameLabels(event) {
+  const raw =
+    event?.type === "shop_purchase"
+      ? event.detail?.itemRaw
+      : event?.type === "insurance"
+        ? event.detail?.shipRaw
+        : null;
+  if (!raw || event.detail?.verified) return;
+  gameData.ensureResolved(raw).then(() => {
+    if (!currentSession) return;
+    applyLabelsToSession(currentSession);
+    broadcastState();
+  });
 }
 
 function applyMetaToSession(event) {
@@ -414,6 +437,7 @@ function toggleWatch() {
 }
 
 app.whenReady().then(async () => {
+  gameData.init({ cachePath: GAME_DATA_CACHE_PATH() });
   loadHistory();
   const cfg = loadConfig();
   autoTrack = cfg.autoTrack !== false;
@@ -582,7 +606,7 @@ ipcMain.handle("list-log-archives", () => {
   }
 });
 
-ipcMain.handle("parse-log-archive", (_, archiveId) => {
+ipcMain.handle("parse-log-archive", async (_, archiveId) => {
   if (!archiveId || typeof archiveId !== "string") {
     return { ok: false, error: "No archive selected." };
   }
@@ -593,11 +617,13 @@ ipcMain.handle("parse-log-archive", (_, archiveId) => {
     return { ok: false, error: "Log file not found." };
   }
   try {
-    const session = parseLogFileToSession(row.path);
+    let session = parseLogFileToSession(row.path);
+    session = await enrichSession(session, { timeoutMs: 15000 });
     return {
       ok: true,
       archive: row,
       session,
+      gameData: gameData.getStats(),
     };
   } catch (e) {
     return { ok: false, error: e.message || String(e) };
