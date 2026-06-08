@@ -116,11 +116,14 @@ const TABS = [
 let activeTab = "overview";
 /** Last session snapshot used when main briefly sends current:null (stale log replay). */
 let lastDisplaySession = null;
+/** Latest state from main process (for safe tab counts during async archive scan). */
+let lastKnownState = null;
 /** Full parse of a selected log archive (replaces live session in UI). */
 let archiveViewSession = null;
 let archiveViewMeta = null;
 let logArchiveList = [];
 let logArchiveLoading = false;
+let logArchiveError = null;
 /** Latest update check result from main process. */
 let updateInfo = null;
 let updateBannerDismissed = false;
@@ -365,6 +368,20 @@ function deathBadge(d) {
   return "Combat death";
 }
 
+function sumAuecFromEvents(session) {
+  const events = session?.events;
+  if (!events?.length) return null;
+  let sum = 0;
+  let found = false;
+  for (const e of events) {
+    if (e.type === "reward" && e.detail?.auec != null) {
+      sum += e.detail.auec;
+      found = true;
+    }
+  }
+  return found ? sum : null;
+}
+
 function renderStats(session) {
   if (!session) {
     for (const { key } of STAT_KEYS) {
@@ -395,7 +412,7 @@ function renderStats(session) {
     deaths: s?.deaths ?? 0,
     ships: s?.vehiclesLost ?? 0,
     kills: s?.kills ?? 0,
-    auec: (t?.totalAuec ?? 0).toLocaleString(),
+    auec: (t?.totalAuec ?? s?.auecEarned ?? sumAuecFromEvents(session) ?? 0).toLocaleString(),
     earn: s?.rewards ?? 0,
   };
   for (const { key } of STAT_KEYS) {
@@ -741,6 +758,9 @@ function buildHistoryArchives() {
   if (logArchiveLoading) {
     return `<div class="overview-prose"><p>Scanning logbackups since 4.8…</p></div>`;
   }
+  if (logArchiveError) {
+    return `<div class="overview-prose"><p class="entry-warn">Could not scan log archives: ${escapeHtml(logArchiveError)}</p></div>`;
+  }
   if (!logArchiveList.length) return emptyPanel(tab);
   return `<div class="archive-list">${logArchiveList
     .map((a) => {
@@ -817,18 +837,35 @@ function buildShopping(rollup) {
 
 async function refreshLogArchiveList() {
   logArchiveLoading = true;
+  logArchiveError = null;
   if (activeTab === "history") {
     setPanelHtml("history", buildHistoryArchives());
   }
   try {
-    logArchiveList = (await window.debrief.listLogArchives()) || [];
-  } catch {
+    const result = await window.debrief.listLogArchives();
+    if (result && typeof result === "object" && "ok" in result) {
+      if (result.ok) {
+        logArchiveList = result.archives || [];
+      } else {
+        logArchiveList = [];
+        logArchiveError = result.error || "Failed to scan log archives.";
+      }
+    } else {
+      logArchiveList = result || [];
+    }
+  } catch (e) {
     logArchiveList = [];
-  }
-  logArchiveLoading = false;
-  updateTabCounts(getViewRollup());
-  if (activeTab === "history" && !archiveViewSession) {
-    setPanelHtml("history", buildHistoryArchives());
+    logArchiveError = e.message || String(e);
+  } finally {
+    logArchiveLoading = false;
+    try {
+      updateTabCounts(getViewRollup(lastKnownState));
+    } catch {
+      updateTabCounts(getViewRollup(null));
+    }
+    if (activeTab === "history" && !archiveViewSession) {
+      setPanelHtml("history", buildHistoryArchives());
+    }
   }
 }
 
@@ -878,6 +915,7 @@ function renderArchiveBanner() {
 
 function getViewSession(state) {
   if (archiveViewSession) return archiveViewSession;
+  if (!state) return lastDisplaySession;
   return resolveDisplaySession(state);
 }
 
@@ -899,13 +937,14 @@ function renderAllPanels(state) {
   setPanelHtml("deaths", buildDeaths(rollup));
   setPanelHtml("kills", buildKills(rollup));
   setPanelHtml("ships", buildShips(rollup));
-  if (!archiveViewSession) {
+  if (!archiveViewSession && !logArchiveLoading) {
     setPanelHtml("history", buildHistoryArchives());
   }
   updateTabCounts(rollup);
 }
 
 function resolveDisplaySession(state) {
+  if (!state) return lastDisplaySession;
   const current = state.current;
   if (current) {
     lastDisplaySession = current;
@@ -1006,6 +1045,7 @@ function initUpdateUi() {
 }
 
 function applyState(state) {
+  lastKnownState = state;
   const liveSession = state.current;
   const session = resolveDisplaySession(state);
   const active = liveSession?.status === "active";

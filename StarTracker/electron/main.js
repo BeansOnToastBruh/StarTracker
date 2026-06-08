@@ -297,6 +297,7 @@ function handleLogEvent(event) {
     const shouldStart =
       event.detail?.inUniverse ||
       event.type === "contract" ||
+      (event.type === "reward" && event.detail?.auec) ||
       (event.type === "spawn" && gameInUniverse);
     if (shouldStart) startSession(false, { firstEventAt: event.at });
   }
@@ -531,20 +532,35 @@ ipcMain.handle("open-update-url", (_, url) => {
   return true;
 });
 
-ipcMain.handle("list-log-archives", () => {
+function resolvePathForLogArchives() {
+  const cfg = loadConfig();
+  const info = getLogPathInfo(cfg);
   const live = watcherTargetPath();
-  const info = getLogPathInfo(loadConfig());
-  const pathForList = fs.existsSync(live) ? live : info.resolved;
-  return listLogArchives(pathForList);
+  if (fs.existsSync(live)) return live;
+  if (info.resolved && fs.existsSync(info.resolved)) return info.resolved;
+  if (info.autoDetected && fs.existsSync(info.autoDetected)) return info.autoDetected;
+  return live || info.resolved || info.autoDetected || null;
+}
+
+ipcMain.handle("list-log-archives", () => {
+  const pathForList = resolvePathForLogArchives();
+  try {
+    const archives = listLogArchives(pathForList);
+    return { ok: true, archives, logPath: pathForList };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e.message || String(e),
+      archives: [],
+    };
+  }
 });
 
 ipcMain.handle("parse-log-archive", (_, archiveId) => {
   if (!archiveId || typeof archiveId !== "string") {
     return { ok: false, error: "No archive selected." };
   }
-  const live = watcherTargetPath();
-  const info = getLogPathInfo(loadConfig());
-  const pathForList = fs.existsSync(live) ? live : info.resolved;
+  const pathForList = resolvePathForLogArchives();
   const archives = listLogArchives(pathForList);
   const row = archives.find((a) => a.id === archiveId);
   if (!row?.path || !fs.existsSync(row.path)) {
