@@ -11,7 +11,7 @@ const {
   buildPlacesFromTerminals,
 } = require("./catalogSections");
 
-const SYNC_VERSION = 2;
+const SYNC_VERSION = 3;
 const WIKI_PAGE_SIZE = 50;
 const FETCH_GAP_MS = 350;
 

@@ -184,6 +184,25 @@ function compactWikiVehicle(row) {
   };
 }
 
+const SHIP_AMMO_NAME_RE = /live fire weapons|ship weapons|ship weapon/i;
+
+function isShipAmmoTerminal(row) {
+  const name = String(row?.name || row?.fullname || "");
+  return SHIP_AMMO_NAME_RE.test(name);
+}
+
+function shipServicesFromTerminal(row) {
+  return {
+    refuel: Boolean(row?.is_refuel),
+    repair: Boolean(row?.is_repair),
+    shipAmmo: isShipAmmoTerminal(row),
+  };
+}
+
+function hasShipService(services) {
+  return Boolean(services?.refuel || services?.repair || services?.shipAmmo);
+}
+
 function compactTerminal(row) {
   return {
     id: row.id,
@@ -200,17 +219,7 @@ function compactTerminal(row) {
     city: row.city_name || null,
     outpost: row.outpost_name || null,
     orbit: row.orbit_name || null,
-    services: {
-      refuel: Boolean(row.is_refuel),
-      repair: Boolean(row.is_repair),
-      restock: Boolean(row.is_shop_fps),
-      vehicleShop: Boolean(row.is_shop_vehicle),
-      food: Boolean(row.is_food),
-      medical: Boolean(row.is_medical),
-      refinery: Boolean(row.is_refinery),
-      cargo: Boolean(row.is_cargo_center),
-      fuel: row.type === "fuel",
-    },
+    services: shipServicesFromTerminal(row),
     isShopFps: Boolean(row.is_shop_fps),
     isShopVehicle: Boolean(row.is_shop_vehicle),
   };
@@ -248,19 +257,16 @@ function mergeServiceFlags(target, source) {
 
 function normalizeTerminal(terminal) {
   if (!terminal) return terminal;
-  if (terminal.services) return terminal;
+  const name = String(terminal.name || terminal.fullname || "");
+  const legacy = terminal.services || {};
   return {
     ...terminal,
     services: {
-      refuel: false,
-      repair: false,
-      restock: Boolean(terminal.isShopFps),
-      vehicleShop: Boolean(terminal.isShopVehicle),
-      food: false,
-      medical: false,
-      refinery: false,
-      cargo: false,
-      fuel: terminal.type === "fuel",
+      refuel: Boolean(legacy.refuel),
+      repair: Boolean(legacy.repair),
+      shipAmmo:
+        Boolean(legacy.shipAmmo) ||
+        isShipAmmoTerminal({ name, fullname: terminal.fullname }),
     },
   };
 }
@@ -292,19 +298,14 @@ function buildPlacesFromTerminals(terminals) {
         services: {
           refuel: false,
           repair: false,
-          restock: false,
-          vehicleShop: false,
-          food: false,
-          medical: false,
-          refinery: false,
-          cargo: false,
-          fuel: false,
+          shipAmmo: false,
         },
         terminals: [],
       });
     }
 
     const place = byKey.get(key);
+    if (!hasShipService(terminal.services)) continue;
     mergeServiceFlags(place.services, terminal.services);
     place.terminals.push({
       id: terminal.id,
@@ -316,9 +317,7 @@ function buildPlacesFromTerminals(terminals) {
   }
 
   return [...byKey.values()]
-    .filter((place) =>
-      Object.values(place.services).some(Boolean)
-    )
+    .filter((place) => hasShipService(place.services))
     .sort((a, b) =>
       `${a.system} ${a.name}`.localeCompare(`${b.system} ${b.name}`)
     );
@@ -337,7 +336,10 @@ module.exports = {
   compactWikiVehicle,
   compactTerminal,
   buildPlacesFromTerminals,
+  hasShipService,
+  isShipAmmoTerminal,
   normalizeTerminal,
   placeLabelFromTerminal,
+  shipServicesFromTerminal,
   formatLocation,
 };

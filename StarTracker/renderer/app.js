@@ -120,7 +120,7 @@ const TABS = [
   {
     id: "catalog-places",
     label: "Places",
-    hint: "Planets, stations, and ports with refuel, ship repair, and FPS restock services. Data from UEX terminal records.",
+    hint: "Planets, stations, and ports with ship services: refuel, repair, and ship ammo restock. Data from UEX terminal records.",
     empty: "No place data loaded yet. Use Refresh catalog below.",
   },
   {
@@ -1076,10 +1076,7 @@ function catalogMetaLine() {
 const PLACE_SERVICE_FILTERS = [
   { id: "refuel", label: "Refuel" },
   { id: "repair", label: "Ship repair" },
-  { id: "restock", label: "FPS restock" },
-  { id: "vehicleShop", label: "Ship shop" },
-  { id: "food", label: "Food" },
-  { id: "medical", label: "Medical" },
+  { id: "shipAmmo", label: "Ship ammo" },
 ];
 
 function serviceBadge(on, label) {
@@ -1178,26 +1175,18 @@ function renderCatalogPlaceRows(rows) {
   if (!rows.length) return emptyPanel(tabById("catalog-places"));
   return `<div class="catalog-table-wrap"><table class="catalog-table">
     <thead><tr>
-      <th>Place</th><th>System</th><th>Type</th><th>Refuel</th><th>Repair</th><th>Restock</th><th>More</th>
+      <th>Place</th><th>System</th><th>Type</th><th>Refuel</th><th>Repair</th><th>Ship ammo</th>
     </tr></thead>
     <tbody>${rows
       .map((row) => {
         const svc = row.services || {};
-        const more = [
-          svc.vehicleShop ? "Ship shop" : null,
-          svc.food ? "Food" : null,
-          svc.medical ? "Medical" : null,
-          svc.refinery ? "Refinery" : null,
-          svc.fuel ? "Fuel depot" : null,
-        ].filter(Boolean);
         return `<tr class="catalog-row" data-catalog-place="${escapeAttr(row.key)}">
           <td><button type="button" class="catalog-link" data-catalog-place="${escapeAttr(row.key)}">${displayText(row.name)}</button><div class="muted small">${displayText(row.location || "")}</div></td>
           <td>${displayText(row.system || "")}</td>
           <td>${displayText(row.kind || "")}</td>
           <td>${serviceBadge(svc.refuel, svc.refuel ? "Yes" : "n/a")}</td>
           <td>${serviceBadge(svc.repair, svc.repair ? "Yes" : "n/a")}</td>
-          <td>${serviceBadge(svc.restock, svc.restock ? "Yes" : "n/a")}</td>
-          <td class="muted small">${escapeHtml(more.join(", ") || EMPTY_DISPLAY)}</td>
+          <td>${serviceBadge(svc.shipAmmo, svc.shipAmmo ? "Yes" : "n/a")}</td>
         </tr>`;
       })
       .join("")}</tbody></table></div>`;
@@ -1238,7 +1227,7 @@ function renderPlaceDetail(detail) {
   if (!detail) return "";
   const svc = detail.services || {};
   const svcLine = PLACE_SERVICE_FILTERS.map((f) =>
-    serviceBadge(svc[f.id], f.label)
+    serviceBadge(Boolean(svc[f.id]), f.label)
   ).join(" ");
   const terminals = (detail.terminals || [])
     .map((t) => {

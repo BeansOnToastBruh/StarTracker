@@ -53,9 +53,6 @@ function readJson(filePath) {
 
 function ensurePlacesIndex(catalogData) {
   if (!catalogData) return catalogData;
-  if (Array.isArray(catalogData.places) && catalogData.places.length) {
-    return catalogData;
-  }
   catalogData.places = buildPlacesFromTerminals(catalogData.terminals || []);
   if (catalogData.meta?.counts) {
     catalogData.meta.counts.places = catalogData.places.length;
