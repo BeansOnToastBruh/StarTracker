@@ -205,44 +205,116 @@ function buildFineEvent(text) {
   };
 }
 
+const ASOP_WINDOW_MS = 120000;
+const INSURANCE_BATCH_FLUSH_GAP_MS = 5000;
+
+function extendAsopSession(ctx, at, geid) {
+  if (geid && !ctx.playerGEID) ctx.playerGEID = geid;
+  const t = new Date(at).getTime();
+  if (Number.isFinite(t)) {
+    ctx.asopActiveUntil = t + ASOP_WINDOW_MS;
+  }
+}
+
+function isAsopActive(ctx, at) {
+  if (!ctx.asopActiveUntil || !at) return false;
+  const t = new Date(at).getTime();
+  return Number.isFinite(t) && t <= ctx.asopActiveUntil;
+}
+
+function isPlayerInsuranceUrn(urn, ctx) {
+  if (!urn) return false;
+  if (/^urn:sc:global:entitlement:uuid:/.test(urn)) return true;
+  const geidM = urn.match(/^urn:sc:entitygraph:ltp:geid:(\d+)/);
+  if (geidM) return ctx.playerGEID && geidM[1] === ctx.playerGEID;
+  return false;
+}
+
+function isInsuranceClaimLine(body) {
+  return (
+    /CWallet::(ProcessClaimToNextStep|RmMulticastOnProcessClaimCallback)/i.test(
+      body
+    ) ||
+    /Insured entity changed cb -> erase request/i.test(body) ||
+    /PayExpeditedProcessingFee failed/i.test(body)
+  );
+}
+
+function trackAsopSignals(body, at, ctx) {
+  const entitlementsM = body.match(
+    /Getting player insured entitlements for player (\d+)/
+  );
+  if (entitlementsM) {
+    ctx.insuranceBatchTainted = false;
+    ctx.insuranceCompleteBatch = [];
+    ctx.staleClaimUrns = new Set();
+    extendAsopSession(ctx, at, entitlementsM[1]);
+    return;
+  }
+  if (/Fetching ship list for local client/.test(body)) {
+    extendAsopSession(ctx, at, ctx.playerGEID);
+  }
+  const fetchDoneM = body.match(
+    /Fetching vehicle list for player (\d+) completed/
+  );
+  if (fetchDoneM && (!ctx.playerGEID || fetchDoneM[1] === ctx.playerGEID)) {
+    const t = new Date(at).getTime();
+    if (Number.isFinite(t)) ctx.asopFetchCompletedAt = t;
+  }
+}
+
+function invalidateInsuranceBatch(ctx) {
+  ctx.insuranceBatchTainted = true;
+  ctx.insuranceCompleteBatch = [];
+}
+
+function flushInsuranceBatch(ctx, out) {
+  if (!ctx.insuranceCompleteBatch?.length) return;
+  if (ctx.insuranceBatchTainted) {
+    ctx.insuranceCompleteBatch = [];
+    return;
+  }
+  for (const event of ctx.insuranceCompleteBatch) {
+    emit(out, event);
+  }
+  ctx.insuranceCompleteBatch = [];
+}
+
+function maybeFlushInsuranceBatch(body, at, ctx, out) {
+  if (!ctx.insuranceCompleteBatch?.length) return;
+  if (isInsuranceClaimLine(body)) return;
+  const t = new Date(at).getTime();
+  const lastAt = ctx.insuranceBatchLastAt;
+  if (
+    Number.isFinite(t) &&
+    Number.isFinite(lastAt) &&
+    t - lastAt < INSURANCE_BATCH_FLUSH_GAP_MS
+  ) {
+    return;
+  }
+  flushInsuranceBatch(ctx, out);
+}
+
+function queueInsuranceComplete(ctx, at, event) {
+  if (ctx.insuranceBatchTainted) return;
+  if (!ctx.insuranceCompleteBatch) ctx.insuranceCompleteBatch = [];
+  ctx.insuranceCompleteBatch.push(event);
+  const t = new Date(at).getTime();
+  if (Number.isFinite(t)) ctx.insuranceBatchLastAt = t;
+}
+
 function ingestInsuranceVehicleHint(body, at, ctx) {
   const spawnM = body.match(
     /\[VEHICLE SPAWN\].*\(([^)]+)\)\s+by player\s+(\d+)/
   );
-  if (spawnM) {
-    if (!ctx.playerGEID) ctx.playerGEID = spawnM[2];
-    if (spawnM[2] === ctx.playerGEID) {
-    ctx.lastInsuranceVehicleHint = {
-      at,
-      raw: spawnM[1],
-      name: formatVehicleLabel(spawnM[1]),
-    };
-    }
-    return;
-  }
-
-  const navM = body.match(
-    /NOT AUTH\s*\|\s*([A-Z]+(?:_[A-Za-z]+)+)_\d+\[/
-  );
-  if (navM) {
-    ctx.lastInsuranceVehicleHint = {
-      at,
-      raw: navM[1],
-      name: formatVehicleLabel(navM[1]),
-    };
-    return;
-  }
-
-  const vehM = body.match(
-    /Vehicle:\s*([A-Z]+(?:_[A-Za-z]+)+)_\d+\s*\[/
-  );
-  if (vehM) {
-    ctx.lastInsuranceVehicleHint = {
-      at,
-      raw: vehM[1],
-      name: formatVehicleLabel(vehM[1]),
-    };
-  }
+  if (!spawnM) return;
+  if (!ctx.playerGEID) ctx.playerGEID = spawnM[2];
+  if (spawnM[2] !== ctx.playerGEID) return;
+  ctx.lastInsuranceVehicleHint = {
+    at,
+    raw: spawnM[1],
+    name: formatVehicleLabel(spawnM[1]),
+  };
 }
 
 function insuranceHintForClaim(ctx, at) {
@@ -254,7 +326,27 @@ function insuranceHintForClaim(ctx, at) {
 }
 
 function appendCommerceEvents(body, at, ctx, out) {
+  maybeFlushInsuranceBatch(body, at, ctx, out);
+  trackAsopSignals(body, at, ctx);
   ingestInsuranceVehicleHint(body, at, ctx);
+
+  if (/PayExpeditedProcessingFee failed/i.test(body)) {
+    invalidateInsuranceBatch(ctx);
+  }
+
+  const existingActiveM = body.match(
+    /Existing Active Claim Found - Entitilement URN: (urn:[^\s]+)/i
+  );
+  if (existingActiveM) {
+    const staleUrn = existingActiveM[1];
+    if (!ctx.staleClaimUrns) ctx.staleClaimUrns = new Set();
+    ctx.staleClaimUrns.add(staleUrn);
+    if (ctx.insuranceClaimHints) {
+      for (const key of ctx.insuranceClaimHints.keys()) {
+        if (key.startsWith(`${staleUrn}|`)) ctx.insuranceClaimHints.delete(key);
+      }
+    }
+  }
 
   const shopBuyRe =
     /SShopBuyRequest.*?playerId\[(\d+)\].*?shopName\[([^\]]+)\].*?client_price\[([\d.]+)\].*?itemName\[([^\]]+)\](?:.*?quantity\[(\d+)\])?/gis;
@@ -290,40 +382,55 @@ function appendCommerceEvents(body, at, ctx, out) {
     /CWallet::ProcessClaimToNextStep> New Insurance Claim Request - entitlementURN: (urn:[^\s,]+).*?requestId\s*:\s*(\d+)/i
   );
   if (claimRequestM) {
-    if (!ctx.insuranceClaimHints) ctx.insuranceClaimHints = new Map();
     const urn = claimRequestM[1];
     const requestId = claimRequestM[2];
-    const shipName = insuranceHintForClaim(ctx, at);
-    let location = null;
-    const atcM = body.match(/ATC Location:\s*([A-Za-z0-9_]+)/i);
-    if (atcM) location = formatLocationLabel(atcM[1]);
-    ctx.insuranceClaimHints.set(`${urn}|${requestId}`, {
-      shipName,
-      shipRaw: ctx.lastInsuranceVehicleHint?.raw || null,
-      location,
-      requestedAt: at,
-    });
+    const staleActiveClaim = /Existing Active Claim Found/i.test(body);
+    if (
+      !staleActiveClaim &&
+      !ctx.staleClaimUrns?.has(urn) &&
+      isAsopActive(ctx, at) &&
+      isPlayerInsuranceUrn(urn, ctx)
+    ) {
+      if (!ctx.insuranceClaimHints) ctx.insuranceClaimHints = new Map();
+      const shipName = insuranceHintForClaim(ctx, at);
+      let location = null;
+      const atcM = body.match(/ATC Location:\s*([A-Za-z0-9_]+)/i);
+      if (atcM) location = formatLocationLabel(atcM[1]);
+      ctx.insuranceClaimHints.set(`${urn}|${requestId}`, {
+        shipName,
+        shipRaw: ctx.lastInsuranceVehicleHint?.raw || null,
+        location,
+        requestedAt: at,
+      });
+    }
   }
 
   const claimCompleteM = body.match(
     /CWallet::RmMulticastOnProcessClaimCallback> Claim Complete - entitlementURN: (urn:[^\s,]+).*?requestId:\s*(\d+)/i
   );
   if (claimCompleteM) {
+    const resultM = body.match(/result:\s*(\d+)/i);
+    if (resultM?.[1] === "7") return;
+
     const urn = claimCompleteM[1];
     const requestId = claimCompleteM[2];
-    const hint = ctx.insuranceClaimHints?.get(`${urn}|${requestId}`);
-    const shipRaw =
-      hint?.shipRaw || ctx.lastInsuranceVehicleHint?.raw || null;
-    let shipName =
+    const hintKey = `${urn}|${requestId}`;
+    const hint = ctx.insuranceClaimHints?.get(hintKey);
+    if (!hint) return;
+
+    ctx.insuranceClaimHints.delete(hintKey);
+
+    const shipRaw = hint.shipRaw || null;
+    const shipName =
       (shipRaw ? labelForClassName(shipRaw) : null) ||
-      hint?.shipName ||
+      hint.shipName ||
       insuranceHintForClaim(ctx, at) ||
       null;
-    const location = hint?.location || null;
+    const location = hint.location || null;
     const title = shipName
       ? `Insurance claim: ${shipName}`
       : "Insurance claim completed";
-    emit(out, {
+    queueInsuranceComplete(ctx, at, {
       type: "insurance",
       at,
       summary: title,
@@ -810,4 +917,6 @@ module.exports = {
   extractTimestamp,
   parseRewardDetail,
   rewardSummaryFromDetail,
+  isAsopActive,
+  isPlayerInsuranceUrn,
 };
