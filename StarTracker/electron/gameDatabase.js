@@ -6,10 +6,25 @@ const {
   WIKI_ITEM_GROUPS,
   buildPlacesFromTerminals,
 } = require("./catalogSections");
+const {
+  SPLIT_SECTIONS,
+  hasSplitCatalog,
+  hasLegacyCatalog,
+  writeSplitCatalog,
+  writeLegacyCatalog,
+  copySplitCatalog,
+  readSplitMeta,
+  readSplitSection,
+  readLegacyCatalog,
+} = require("./catalogStorage");
 
 let dbDir = null;
 let bundledDir = null;
 let catalog = null;
+let catalogSourceDir = null;
+let catalogFormat = null;
+const loadedSections = new Set();
+const sectionItemCache = new Map();
 let syncInFlight = null;
 let progressListeners = new Set();
 
@@ -47,10 +62,6 @@ function ensureDbDir() {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
-}
-
 function ensurePlacesIndex(catalogData) {
   if (!catalogData) return catalogData;
   catalogData.places = buildPlacesFromTerminals(catalogData.terminals || []);
@@ -60,41 +71,97 @@ function ensurePlacesIndex(catalogData) {
   return catalogData;
 }
 
+function ensureSection(section) {
+  if (!catalog || loadedSections.has(section)) return;
+  if (catalogFormat !== "split" || !catalogSourceDir) {
+    loadedSections.add(section);
+    return;
+  }
+  catalog[section] = readSplitSection(catalogSourceDir, section);
+  loadedSections.add(section);
+  if (section === "terminals") {
+    ensurePlacesIndex(catalog);
+  }
+}
+
+function loadSplitCatalog(sourceDir) {
+  catalog = {
+    ...EMPTY_CATALOG,
+    meta: readSplitMeta(sourceDir),
+  };
+  catalogFormat = "split";
+  catalogSourceDir = sourceDir;
+  loadedSections.clear();
+  sectionItemCache.clear();
+  ensureSection("terminals");
+  return catalog;
+}
+
+function loadLegacyCatalog(sourceDir) {
+  catalog = ensurePlacesIndex(readLegacyCatalog(sourceDir));
+  catalogFormat = "legacy";
+  catalogSourceDir = sourceDir;
+  for (const section of SPLIT_SECTIONS) loadedSections.add(section);
+  sectionItemCache.clear();
+  return catalog;
+}
+
 function loadCatalog() {
-  const userPath = catalogPath();
-  if (userPath && fs.existsSync(userPath)) {
+  const userDir = dbDir;
+  if (userDir && hasSplitCatalog(userDir)) {
+    return loadSplitCatalog(userDir);
+  }
+  if (userDir && hasLegacyCatalog(userDir)) {
     try {
-      catalog = ensurePlacesIndex(readJson(userPath));
-      return catalog;
+      return loadLegacyCatalog(userDir);
     } catch {
       catalog = null;
     }
   }
 
-  const bundledPath = path.join(bundledDir, "catalog.json");
-  if (fs.existsSync(bundledPath)) {
-    try {
-      catalog = ensurePlacesIndex(readJson(bundledPath));
-      if (userPath) {
-        ensureDbDir();
-        fs.writeFileSync(userPath, JSON.stringify(catalog), "utf8");
+  if (hasSplitCatalog(bundledDir)) {
+    const loaded = loadSplitCatalog(bundledDir);
+    if (userDir) {
+      try {
+        copySplitCatalog(bundledDir, userDir);
+      } catch {
+        /* keep bundled copy in memory */
       }
-      return catalog;
+    }
+    return loaded;
+  }
+
+  if (hasLegacyCatalog(bundledDir)) {
+    try {
+      const loaded = loadLegacyCatalog(bundledDir);
+      if (userDir) {
+        ensureDbDir();
+        writeLegacyCatalog(userDir, loaded);
+      }
+      return loaded;
     } catch {
       catalog = null;
     }
   }
 
   catalog = { ...EMPTY_CATALOG };
+  catalogFormat = "empty";
+  catalogSourceDir = null;
+  loadedSections.clear();
+  sectionItemCache.clear();
   return catalog;
 }
 
 function saveCatalog(next) {
-  catalog = next;
-  const userPath = catalogPath();
-  if (!userPath) return;
+  catalog = ensurePlacesIndex(next);
+  catalogFormat = "legacy";
+  catalogSourceDir = dbDir || bundledDir;
+  for (const section of SPLIT_SECTIONS) loadedSections.add(section);
+  sectionItemCache.clear();
+  const userDir = dbDir;
+  if (!userDir) return;
   ensureDbDir();
-  fs.writeFileSync(userPath, JSON.stringify(catalog), "utf8");
+  writeSplitCatalog(userDir, catalog);
 }
 
 function getCatalog() {
@@ -107,11 +174,13 @@ function getStats() {
   return {
     ...c.meta,
     loaded: Boolean(c.meta?.syncedAt),
-    itemCount: c.items?.length || 0,
-    vehicleCount: c.vehicles?.length || 0,
-    terminalCount: c.terminals?.length || 0,
-    shopCount: Object.keys(c.shopIndex?.byTerminal || {}).length,
-    placeCount: c.places?.length || 0,
+    itemCount: c.meta?.counts?.items ?? c.items?.length ?? 0,
+    vehicleCount: c.meta?.counts?.vehicles ?? c.vehicles?.length ?? 0,
+    terminalCount: c.meta?.counts?.terminals ?? c.terminals?.length ?? 0,
+    shopCount:
+      c.meta?.counts?.shopsWithStock ??
+      Object.keys(c.shopIndex?.byTerminal || {}).length,
+    placeCount: c.meta?.counts?.places ?? c.places?.length ?? 0,
   };
 }
 
@@ -149,10 +218,69 @@ function paginate(rows, options = {}) {
   };
 }
 
+function filterItemsBySection(rows, section) {
+  if (!section) return rows;
+  const group = UEX_CATEGORY_GROUPS[section] || WIKI_ITEM_GROUPS[section];
+  let filtered = rows;
+
+  if (group?.categoryIds) {
+    const cats = new Set(group.categoryIds.map((id) => Number(id)));
+    filtered = filtered.filter((r) => cats.has(Number(r.uexCategoryId)));
+  }
+  if (group?.types) {
+    const types = new Set(group.types.map((t) => t.toLowerCase()));
+    filtered = filtered.filter(
+      (r) =>
+        types.has(String(r.category || "").toLowerCase()) ||
+        types.has(String(r.section || "").toLowerCase()) ||
+        group.label.toLowerCase() === String(r.section || "").toLowerCase()
+    );
+  }
+  if (section === "armor") {
+    filtered = filtered.filter(
+      (r) =>
+        /armor|undersuit|helmet|torso|legs|arms|backpack/i.test(
+          `${r.section} ${r.category}`
+        ) || rowMatchesQuery(r, "armor")
+    );
+  }
+  if (section === "fps_weapons") {
+    filtered = filtered.filter(
+      (r) =>
+        /weapon|attachment|personal/i.test(`${r.section} ${r.category}`) &&
+        !/ship|vehicle|turret|missile rack/i.test(`${r.section} ${r.category}`)
+    );
+  }
+  if (section === "ship_weapons") {
+    filtered = filtered.filter((r) =>
+      /ship|vehicle|turret|missile|gun|cannon|bomb/i.test(
+        `${r.section} ${r.category}`
+      )
+    );
+  }
+  if (section === "ship_components" || section === "ship_utility") {
+    filtered = filtered.filter((r) =>
+      /system|avionics|propulsion|utility|cooler|power|shield|quantum|module|docking|mining|tractor|salvage/i.test(
+        `${r.section} ${r.category}`
+      )
+    );
+  }
+  return filtered;
+}
+
+function itemsForSection(section) {
+  ensureSection("items");
+  if (!section) return catalog.items || [];
+  if (sectionItemCache.has(section)) return sectionItemCache.get(section);
+  const filtered = filterItemsBySection(catalog.items || [], section);
+  sectionItemCache.set(section, filtered);
+  return filtered;
+}
+
 function queryVehicles(options = {}) {
-  const c = getCatalog();
+  ensureSection("vehicles");
   const q = normalizeQuery(options.query);
-  let rows = (c.vehicles || []).filter((r) => rowMatchesQuery(r, q));
+  let rows = (catalog.vehicles || []).filter((r) => rowMatchesQuery(r, q));
   if (options.withListingsOnly) {
     rows = rows.filter((r) => (r.listings || []).length > 0);
   }
@@ -161,57 +289,9 @@ function queryVehicles(options = {}) {
 }
 
 function queryItems(options = {}) {
-  const c = getCatalog();
   const q = normalizeQuery(options.query);
   const section = options.section || null;
-  let rows = c.items || [];
-
-  if (section) {
-    const group = UEX_CATEGORY_GROUPS[section] || WIKI_ITEM_GROUPS[section];
-    if (group?.categoryIds) {
-      const cats = new Set(group.categoryIds.map((id) => Number(id)));
-      rows = rows.filter((r) => cats.has(Number(r.uexCategoryId)));
-    }
-    if (group?.types) {
-      const types = new Set(group.types.map((t) => t.toLowerCase()));
-      rows = rows.filter(
-        (r) =>
-          types.has(String(r.category || "").toLowerCase()) ||
-          types.has(String(r.section || "").toLowerCase()) ||
-          group.label.toLowerCase() === String(r.section || "").toLowerCase()
-      );
-    }
-    if (section === "armor") {
-      rows = rows.filter(
-        (r) =>
-          /armor|undersuit|helmet|torso|legs|arms|backpack/i.test(
-            `${r.section} ${r.category}`
-          ) || rowMatchesQuery(r, "armor")
-      );
-    }
-    if (section === "fps_weapons") {
-      rows = rows.filter(
-        (r) =>
-          /weapon|attachment|personal/i.test(`${r.section} ${r.category}`) &&
-          !/ship|vehicle|turret|missile rack/i.test(`${r.section} ${r.category}`)
-      );
-    }
-    if (section === "ship_weapons") {
-      rows = rows.filter((r) =>
-        /ship|vehicle|turret|missile|gun|cannon|bomb/i.test(
-          `${r.section} ${r.category}`
-        )
-      );
-    }
-    if (section === "ship_components" || section === "ship_utility") {
-      rows = rows.filter((r) =>
-        /system|avionics|propulsion|utility|cooler|power|shield|quantum|module|docking|mining|tractor|salvage/i.test(
-          `${r.section} ${r.category}`
-        )
-      );
-    }
-  }
-
+  let rows = itemsForSection(section);
   rows = rows.filter((r) => rowMatchesQuery(r, q));
   if (options.withListingsOnly !== false) {
     rows = rows.filter((r) => (r.listings || []).length > 0);
@@ -221,9 +301,9 @@ function queryItems(options = {}) {
 }
 
 function queryShops(options = {}) {
-  const c = getCatalog();
+  ensureSection("shopIndex");
   const q = normalizeQuery(options.query);
-  const entries = Object.values(c.shopIndex?.byTerminal || {});
+  const entries = Object.values(catalog.shopIndex?.byTerminal || {});
   let rows = entries.filter((shop) => {
     if (!q) return true;
     const hay = [
@@ -242,14 +322,14 @@ function queryShops(options = {}) {
 }
 
 function getShopDetail(terminalKey) {
-  const c = getCatalog();
-  return c.shopIndex?.byTerminal?.[String(terminalKey)] || null;
+  ensureSection("shopIndex");
+  return catalog.shopIndex?.byTerminal?.[String(terminalKey)] || null;
 }
 
 function queryPlaces(options = {}) {
-  const c = getCatalog();
+  ensureSection("terminals");
   const q = normalizeQuery(options.query);
-  let rows = (c.places || []).filter((place) => {
+  let rows = (catalog.places || []).filter((place) => {
     if (!q) return true;
     const hay = [
       place.name,
@@ -275,19 +355,21 @@ function queryPlaces(options = {}) {
 }
 
 function getPlaceDetail(key) {
-  const c = getCatalog();
-  return (c.places || []).find((p) => p.key === key) || null;
+  ensureSection("terminals");
+  return (catalog.places || []).find((p) => p.key === key) || null;
 }
 
 function getItemDetail(key) {
-  const c = getCatalog();
-  const item = c.shopIndex?.byItemKey?.[String(key)] || null;
+  ensureSection("shopIndex");
+  ensureSection("items");
+  ensureSection("vehicles");
+  const item = catalog.shopIndex?.byItemKey?.[String(key)] || null;
   if (item) return item;
-  const vehicle = (c.vehicles || []).find(
+  const vehicle = (catalog.vehicles || []).find(
     (v) => v.className === key || v.slug === key
   );
   if (vehicle) return { ...vehicle, key: vehicle.className || vehicle.slug };
-  const row = (c.items || []).find(
+  const row = (catalog.items || []).find(
     (v) =>
       v.className === key ||
       v.slug === key ||

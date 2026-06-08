@@ -36,6 +36,9 @@
       "package.json"
     ],
     "asar": true,
+    "asarUnpack": [
+      "data/catalog/**"
+    ],
     "win": {
       "target": [
         {

@@ -390,6 +390,19 @@ html[data-theme="light"] .tab-btn:hover:not(.is-active) {
   font-variant-numeric: tabular-nums;
 }
 
+.tab-description {
+  margin: 0;
+  padding: 0.55rem 1.5rem 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.45;
+  flex-shrink: 0;
+}
+
+.tab-description[hidden] {
+  display: none;
+}
+
 .content {
   flex: 1;
   min-height: 0;

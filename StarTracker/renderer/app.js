@@ -178,6 +178,45 @@ const CATALOG_TABS = [
 
 const TABS = [...SESSION_TABS, ...CATALOG_TABS];
 
+const TAB_DESCRIPTIONS = {
+  overview:
+    "A quick snapshot of your current session. Start here when you want the big picture without digging into every event.",
+  missions:
+    "Contracts you accepted, finished, failed, or walked away from. Use this to track what you worked on and how objectives progressed.",
+  rewards:
+    "aUEC popups, rep gains, and loot bundles from the log. This shows what you earned during the session, not your wallet balance.",
+  fines:
+    "UEC fines from CrimeStat and monitored-space popups. Check here when you want to see penalties that hit you this session.",
+  insurance:
+    "Ship insurance claims that completed with a hull respawn. Helpful after you lose a ship and want to confirm the claim went through.",
+  shopping:
+    "Items you bought at shops and kiosks when the log records the purchase. Useful for tracking gear you picked up during a run.",
+  blueprints:
+    "Blueprint unlocks when the log names them. Look here after contract payouts that grant schematics.",
+  deaths:
+    "Every time you went down and respawned. Use this to review how often you died and where it happened.",
+  kills:
+    "Players you killed or neutralized, including PvP bounty targets. Handy after bounty hunting or combat sessions.",
+  ships:
+    "Hulls you lost while flying or in control. Check this when you want a list of your own ship destructions.",
+  history:
+    "Game.log backups since patch 4.8. Open an archive to review parsed stats from an older play session.",
+  "catalog-ships":
+    "Flyable ships with buy and rent prices by station. Use when you are shopping for a new ship or comparing rental costs.",
+  "catalog-weapons":
+    "Personal weapons and attachments sold in-game. Helpful when you need prices and which station stocks what.",
+  "catalog-armor":
+    "Armor pieces and undersuits for sale. Browse here before gearing up at a new location.",
+  "catalog-ship-weapons":
+    "Ship guns, turrets, missiles, and racks. Use when upgrading loadouts and checking shop availability.",
+  "catalog-ship-parts":
+    "Coolers, power plants, shields, quantum drives, and utility parts. Open this when planning component upgrades.",
+  "catalog-shops":
+    "Browse terminals and stations to see what they sell. Search by location when you know where you are headed.",
+  "catalog-ship-services":
+    "Places that offer refuel, repair, or ship ammo restock. Check before long trips or after combat damage.",
+};
+
 let activeTab = "overview";
 /** Last session snapshot used when main briefly sends current:null (stale log replay). */
 let lastDisplaySession = null;
@@ -218,6 +257,18 @@ const STAT_KEYS = [
 ];
 
 const tabById = (id) => TABS.find((t) => t.id === id) || TABS[0];
+
+function debounce(fn, ms) {
+  let timer = null;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  };
+}
+
+const debouncedCatalogSearch = debounce((tabId) => {
+  if (activeTab === tabId) loadCatalogTab(tabId, { resetOffset: true });
+}, 320);
 
 function fmtTime(iso) {
   try {
@@ -320,9 +371,16 @@ function panelShell(tab, innerHtml) {
     aria-labelledby="tab-${tab.id}"
     ${selected ? "" : 'hidden'}
   >
-    <p class="panel-hint">${escapeHtml(tab.hint)}</p>
     <div class="panel-body">${innerHtml}</div>
   </section>`;
+}
+
+function updateTabDescription(tabId) {
+  const el = $("tabDescription");
+  if (!el) return;
+  const text = TAB_DESCRIPTIONS[tabId] || "";
+  el.textContent = text;
+  el.hidden = !text;
 }
 
 function emptyPanel(tab) {
@@ -367,6 +425,7 @@ function initTabs() {
   nav.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
   });
+  updateTabDescription(activeTab);
 }
 
 function scrollActiveTabIntoView() {
@@ -456,6 +515,7 @@ function setActiveTab(id) {
     if (on) panel.removeAttribute("hidden");
     else panel.setAttribute("hidden", "");
   });
+  updateTabDescription(id);
   scrollActiveTabIntoView();
 }
 
@@ -1519,6 +1579,7 @@ function initCatalogUi() {
     const tabId = input.dataset.catalogSearch;
     if (!catalogQueryByTab[tabId]) return;
     catalogQueryByTab[tabId].query = input.value;
+    debouncedCatalogSearch(tabId);
   });
 
 }

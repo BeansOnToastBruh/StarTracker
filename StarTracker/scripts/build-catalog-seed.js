@@ -6,6 +6,7 @@
 const fs = require("fs");
 const path = require("path");
 const { syncCatalog } = require("../electron/catalogSync");
+const { writeSplitCatalog } = require("../electron/catalogStorage");
 
 const OUT_DIR = path.join(__dirname, "..", "data", "catalog");
 
@@ -20,11 +21,16 @@ async function main() {
     }
   });
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  const outPath = path.join(OUT_DIR, "catalog.json");
-  fs.writeFileSync(outPath, JSON.stringify(catalog));
-  const mb = (fs.statSync(outPath).size / (1024 * 1024)).toFixed(2);
+  writeSplitCatalog(OUT_DIR, catalog);
+  const files = fs
+    .readdirSync(OUT_DIR)
+    .filter((f) => f.startsWith("catalog-"));
+  const totalKb = files.reduce(
+    (sum, f) => sum + fs.statSync(path.join(OUT_DIR, f)).size,
+    0
+  );
   console.log(
-    `\nWrote ${outPath} (${mb} MB) in ${((Date.now() - started) / 1000).toFixed(1)}s`
+    `\nWrote ${files.length} catalog files (${(totalKb / 1024).toFixed(0)} KB total) in ${((Date.now() - started) / 1000).toFixed(1)}s`
   );
   console.log("Counts:", catalog.meta.counts);
 }

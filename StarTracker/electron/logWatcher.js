@@ -71,35 +71,40 @@ class LogWatcher {
     const { bytesRead } = await this.fd.read(buf, 0, buf.length, this.offset);
     this.offset += bytesRead;
 
-    this.buffer += buf.slice(0, bytesRead).toString("utf8");
-    const lines = this.buffer.split(/\r?\n/);
-    this.buffer = lines.pop() || "";
-
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      const assembled = this.lineAssembler.push(line);
-      for (const ready of assembled) {
-        const parsed = parseLine(ready, this.ctx);
-        const events = Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
-        for (const event of events) {
-          if (!event) continue;
-          if (event.type === "meta" && event.detail?.playerNick) {
-            this.ctx.playerNick = event.detail.playerNick;
+    const chunk = buf.slice(0, bytesRead).toString("utf8");
+    this.buffer = this.buffer ? this.buffer + chunk : chunk;
+    let lineStart = 0;
+    let nl = this.buffer.indexOf("\n", lineStart);
+    while (nl !== -1) {
+      let line = this.buffer.slice(lineStart, nl);
+      if (line.endsWith("\r")) line = line.slice(0, -1);
+      lineStart = nl + 1;
+      if (line.trim()) {
+        const assembled = this.lineAssembler.push(line);
+        for (const ready of assembled) {
+          const parsed = parseLine(ready, this.ctx);
+          const events = Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
+          for (const event of events) {
+            if (!event) continue;
+            if (event.type === "meta" && event.detail?.playerNick) {
+              this.ctx.playerNick = event.detail.playerNick;
+            }
+            if (event.type === "meta" && event.detail?.inUniverse) {
+              this.ctx.inUniverse = true;
+            }
+            if (event.type === "contract" && event.detail?.action === "completed") {
+              this.ctx.lastCompletedMissionId = event.detail.missionId || null;
+              this.ctx.lastCompletedTitle = event.detail.title || null;
+              this.ctx.lastCompletedAt = event.at;
+            }
+            this.onEvent(event);
           }
-          if (event.type === "meta" && event.detail?.inUniverse) {
-            this.ctx.inUniverse = true;
-          }
-          if (event.type === "contract" && event.detail?.action === "completed") {
-            this.ctx.lastCompletedMissionId = event.detail.missionId || null;
-            this.ctx.lastCompletedTitle = event.detail.title || null;
-            this.ctx.lastCompletedAt = event.at;
-          }
-          this.onEvent(event);
         }
       }
+      nl = this.buffer.indexOf("\n", lineStart);
     }
+    this.buffer = lineStart > 0 ? this.buffer.slice(lineStart) : this.buffer;
   }
-
   async close() {
     this._closed = true;
     if (this.pollTimer) clearInterval(this.pollTimer);
