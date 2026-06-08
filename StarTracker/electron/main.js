@@ -22,6 +22,7 @@ const { listLogArchives, quickScanAwardedAuec } = require("./logArchive");
 const { parseLogFileToSession } = require("./logImporter");
 const { checkForUpdates } = require("./updateChecker");
 const gameData = require("./gameDataResolver");
+const gameDatabase = require("./gameDatabase");
 const {
   enrichSession,
   applyLabelsToSession,
@@ -44,6 +45,8 @@ const CONFIG_PATH = () => path.join(app.getPath("userData"), "config.json");
 const HISTORY_PATH = () => path.join(app.getPath("userData"), "sessions.json");
 const GAME_DATA_CACHE_PATH = () =>
   path.join(app.getPath("userData"), "game-data-cache.json");
+const GAME_DATABASE_DIR = () =>
+  path.join(app.getPath("userData"), "game-database");
 
 let tray = null;
 let mainWindow = null;
@@ -438,6 +441,15 @@ function toggleWatch() {
 
 app.whenReady().then(async () => {
   gameData.init({ cachePath: GAME_DATA_CACHE_PATH() });
+  gameDatabase.init({ dbDir: GAME_DATABASE_DIR() });
+  gameDatabase.onSyncProgress((payload) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("catalog-sync", payload);
+    }
+  });
+  if (gameDatabase.isStale()) {
+    gameDatabase.refreshCatalog().catch(() => {});
+  }
   loadHistory();
   const cfg = loadConfig();
   autoTrack = cfg.autoTrack !== false;
@@ -629,3 +641,27 @@ ipcMain.handle("parse-log-archive", async (_, archiveId) => {
     return { ok: false, error: e.message || String(e) };
   }
 });
+
+ipcMain.handle("catalog-stats", () => gameDatabase.getStats());
+
+ipcMain.handle("catalog-query-vehicles", (_, options) =>
+  gameDatabase.queryVehicles(options || {})
+);
+
+ipcMain.handle("catalog-query-items", (_, options) =>
+  gameDatabase.queryItems(options || {})
+);
+
+ipcMain.handle("catalog-query-shops", (_, options) =>
+  gameDatabase.queryShops(options || {})
+);
+
+ipcMain.handle("catalog-item-detail", (_, key) =>
+  gameDatabase.getItemDetail(key)
+);
+
+ipcMain.handle("catalog-shop-detail", (_, terminalKey) =>
+  gameDatabase.getShopDetail(terminalKey)
+);
+
+ipcMain.handle("catalog-refresh", async () => gameDatabase.refreshCatalog());

@@ -82,6 +82,42 @@ const TABS = [
     empty: "No shop purchases logged this session.",
   },
   {
+    id: "catalog-ships",
+    label: "Ship catalog",
+    hint: "Flyable ships with in-game buy and rent prices by station. Data from Star Citizen Wiki and UEX.",
+    empty: "No ship catalog loaded yet. Use Refresh catalog below or wait for the background sync.",
+  },
+  {
+    id: "catalog-weapons",
+    label: "FPS weapons",
+    hint: "Personal weapons and attachments sold at in-game shops, with prices and locations.",
+    empty: "No weapon catalog loaded yet. Use Refresh catalog below.",
+  },
+  {
+    id: "catalog-armor",
+    label: "Armor",
+    hint: "Armor pieces and undersuits for sale at shops, with station and aUEC price.",
+    empty: "No armor catalog loaded yet. Use Refresh catalog below.",
+  },
+  {
+    id: "catalog-ship-weapons",
+    label: "Ship weapons",
+    hint: "Ship guns, turrets, missiles, and racks with shop availability and prices.",
+    empty: "No ship weapon catalog loaded yet. Use Refresh catalog below.",
+  },
+  {
+    id: "catalog-ship-parts",
+    label: "Ship parts",
+    hint: "Coolers, power plants, shields, quantum drives, and utility components for sale.",
+    empty: "No ship parts catalog loaded yet. Use Refresh catalog below.",
+  },
+  {
+    id: "catalog-shops",
+    label: "Shop finder",
+    hint: "Browse shops and stations to see what they sell. Search by location or terminal name.",
+    empty: "No shop data loaded yet. Use Refresh catalog below.",
+  },
+  {
     id: "blueprints",
     label: "Blueprints",
     hint: "Blueprint unlocks from contracts when Game.log includes the name. Generic reward bundles without a name won't appear here.",
@@ -127,6 +163,19 @@ let logArchiveError = null;
 /** Latest update check result from main process. */
 let updateInfo = null;
 let updateBannerDismissed = false;
+/** Game catalog (ships, items, shops) from main process. */
+let catalogStats = null;
+let catalogSyncMessage = null;
+let catalogSyncBusy = false;
+const catalogQueryByTab = {
+  "catalog-ships": { query: "", offset: 0 },
+  "catalog-weapons": { query: "", offset: 0, section: "fps_weapons" },
+  "catalog-armor": { query: "", offset: 0, section: "armor" },
+  "catalog-ship-weapons": { query: "", offset: 0, section: "ship_weapons" },
+  "catalog-ship-parts": { query: "", offset: 0, section: "ship_components" },
+  "catalog-shops": { query: "", offset: 0 },
+};
+let catalogDetailKey = null;
 
 const STAT_KEYS = [
   { key: "session", label: "Session" },
@@ -309,6 +358,15 @@ function tabBadgeCount(tabId, rollup) {
       return rollup.shopPurchases?.length || 0;
     case "history":
       return logArchiveList.length;
+    case "catalog-ships":
+      return catalogStats?.vehicleCount || 0;
+    case "catalog-weapons":
+    case "catalog-armor":
+    case "catalog-ship-weapons":
+    case "catalog-ship-parts":
+      return catalogStats?.itemCount || 0;
+    case "catalog-shops":
+      return catalogStats?.shopCount || 0;
     default:
       return 0;
   }
@@ -329,6 +387,9 @@ function setActiveTab(id) {
   activeTab = id;
   if (id === "history" && !archiveViewSession) {
     refreshLogArchiveList();
+  }
+  if (id.startsWith("catalog-")) {
+    loadCatalogTab(id);
   }
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     const on = btn.dataset.tab === id;
@@ -983,6 +1044,351 @@ function getViewRollup(state) {
   return getViewSession(state)?.rollup || archiveViewSession?.rollup || null;
 }
 
+function fmtAuec(n) {
+  if (n == null || n <= 0) return EMPTY_DISPLAY;
+  return `${Number(n).toLocaleString()} aUEC`;
+}
+
+function catalogMetaLine() {
+  if (!catalogStats?.syncedAt) {
+    return `<p class="catalog-meta muted small">Catalog not synced yet. Prices from UEX and Star Citizen Wiki.</p>`;
+  }
+  const when = fmtDateTime(catalogStats.syncedAt);
+  const counts = [
+    catalogStats.vehicleCount ? `${catalogStats.vehicleCount} ships` : null,
+    catalogStats.itemCount ? `${catalogStats.itemCount} items` : null,
+    catalogStats.shopCount ? `${catalogStats.shopCount} shops` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  return `<p class="catalog-meta muted small">Last synced ${escapeHtml(when)}. ${escapeHtml(counts)}.${catalogSyncMessage ? ` ${escapeHtml(catalogSyncMessage)}` : ""}</p>`;
+}
+
+function catalogToolbar(tabId) {
+  const q = catalogQueryByTab[tabId]?.query || "";
+  const busy = catalogSyncBusy ? " disabled" : "";
+  return `<div class="catalog-toolbar">
+    <input type="search" class="catalog-search" data-catalog-search="${escapeAttr(tabId)}" placeholder="Search name, class, manufacturer, location…" value="${escapeAttr(q)}" />
+    <button type="button" class="btn btn-sm btn-ghost" data-catalog-search-btn="${escapeAttr(tabId)}">Search</button>
+    <button type="button" class="btn btn-sm" data-catalog-refresh${busy}>Refresh catalog</button>
+  </div>`;
+}
+
+function listingSummary(listings) {
+  if (!listings?.length) return EMPTY_DISPLAY;
+  const prices = listings.map((l) => l.priceBuy).filter((p) => p > 0);
+  const min = prices.length ? Math.min(...prices) : null;
+  const loc = listings[0]?.location || listings[0]?.terminal || "";
+  const more = listings.length > 1 ? ` (+${listings.length - 1})` : "";
+  return `${fmtAuec(min)} @ ${sanitizeDisplayText(loc)}${more}`;
+}
+
+function renderCatalogItemRows(rows, tabId) {
+  if (!rows.length) return emptyPanel(tabById(tabId));
+  return `<div class="catalog-table-wrap"><table class="catalog-table">
+    <thead><tr>
+      <th>Item</th><th>Type</th><th>Manufacturer</th><th>Best price</th><th>Shop / location</th>
+    </tr></thead>
+    <tbody>${rows
+      .map((row) => {
+        const key = row.className || row.slug || `uex:${row.uexId}` || row.name;
+        const listings = row.listings || [];
+        const prices = listings.map((l) => l.priceBuy).filter((p) => p > 0);
+        const min = prices.length ? Math.min(...prices) : null;
+        const first = listings[0];
+        const loc = first
+          ? `${first.terminal || ""}${first.location ? `, ${first.location}` : ""}`
+          : EMPTY_DISPLAY;
+        return `<tr class="catalog-row" data-catalog-item="${escapeAttr(key)}">
+          <td><button type="button" class="catalog-link" data-catalog-item="${escapeAttr(key)}">${displayText(row.name)}</button>${row.className ? `<div class="muted small mono">${escapeHtml(row.className)}</div>` : ""}</td>
+          <td>${displayText(row.category || row.section || "")}</td>
+          <td>${displayText(row.manufacturer || "")}</td>
+          <td>${escapeHtml(fmtAuec(min))}</td>
+          <td>${displayText(loc)}${listings.length > 1 ? ` <span class="muted small">(+${listings.length - 1})</span>` : ""}</td>
+        </tr>`;
+      })
+      .join("")}</tbody></table></div>`;
+}
+
+function renderCatalogShipRows(rows) {
+  if (!rows.length) return emptyPanel(tabById("catalog-ships"));
+  return `<div class="catalog-table-wrap"><table class="catalog-table">
+    <thead><tr>
+      <th>Ship</th><th>Manufacturer</th><th>Cargo</th><th>Crew</th><th>Buy / rent</th><th>Location</th>
+    </tr></thead>
+    <tbody>${rows
+      .map((row) => {
+        const key = row.className || row.slug;
+        const listings = row.listings || [];
+        const buy = listings.find((l) => l.priceBuy > 0);
+        const rent = listings.find((l) => l.priceRent > 0);
+        const priceBits = [
+          buy ? fmtAuec(buy.priceBuy) : null,
+          rent ? `${fmtAuec(rent.priceRent)} rent` : null,
+        ].filter(Boolean);
+        const first = buy || rent || listings[0];
+        const loc = first
+          ? `${first.terminal || ""}${first.location ? `, ${first.location}` : ""}`
+          : EMPTY_DISPLAY;
+        return `<tr class="catalog-row" data-catalog-item="${escapeAttr(key)}">
+          <td><button type="button" class="catalog-link" data-catalog-item="${escapeAttr(key)}">${displayText(row.name)}</button><div class="muted small mono">${escapeHtml(row.className || "")}</div></td>
+          <td>${displayText(row.manufacturer || "")}</td>
+          <td>${row.cargo != null ? `${row.cargo} SCU` : EMPTY_DISPLAY}</td>
+          <td>${row.crew != null ? String(row.crew) : EMPTY_DISPLAY}</td>
+          <td>${escapeHtml(priceBits.join(" / ") || EMPTY_DISPLAY)}</td>
+          <td>${displayText(loc)}</td>
+        </tr>`;
+      })
+      .join("")}</tbody></table></div>`;
+}
+
+function renderCatalogShopRows(rows) {
+  if (!rows.length) return emptyPanel(tabById("catalog-shops"));
+  return `<div class="catalog-table-wrap"><table class="catalog-table">
+    <thead><tr><th>Shop</th><th>Location</th><th>System</th><th>Items listed</th></tr></thead>
+    <tbody>${rows
+      .map((row) => {
+        const key = String(row.terminalId || row.terminal);
+        return `<tr class="catalog-row" data-catalog-shop="${escapeAttr(key)}">
+          <td><button type="button" class="catalog-link" data-catalog-shop="${escapeAttr(key)}">${displayText(row.terminal || row.terminalCode || "Shop")}</button></td>
+          <td>${displayText(row.location || "")}</td>
+          <td>${displayText(row.system || "")}</td>
+          <td>${row.items?.length || 0}</td>
+        </tr>`;
+      })
+      .join("")}</tbody></table></div>`;
+}
+
+function renderCatalogPager(tabId, result) {
+  if (!result || result.total <= result.limit) return "";
+  const prevDisabled = result.offset <= 0 ? " disabled" : "";
+  const nextDisabled =
+    result.offset + result.limit >= result.total ? " disabled" : "";
+  const page = Math.floor(result.offset / result.limit) + 1;
+  const pages = Math.max(1, Math.ceil(result.total / result.limit));
+  return `<div class="catalog-pager">
+    <button type="button" class="btn btn-sm btn-ghost" data-catalog-page="${escapeAttr(tabId)}" data-catalog-dir="prev"${prevDisabled}>Previous</button>
+    <span class="muted small">Page ${page} of ${pages} (${result.total} results)</span>
+    <button type="button" class="btn btn-sm btn-ghost" data-catalog-page="${escapeAttr(tabId)}" data-catalog-dir="next"${nextDisabled}>Next</button>
+  </div>`;
+}
+
+function renderCatalogDetail(detail, kind) {
+  if (!detail) return "";
+  const listings = detail.listings || detail.items || [];
+  const title = detail.name || detail.terminal || "Details";
+  const rows =
+    kind === "shop"
+      ? (detail.items || [])
+          .map(
+            (it) => `<tr>
+            <td>${displayText(it.name)}</td>
+            <td>${displayText(it.section || it.category || "")}</td>
+            <td>${escapeHtml(fmtAuec(it.priceBuy))}</td>
+            <td>${escapeHtml(fmtAuec(it.priceSell))}</td>
+          </tr>`
+          )
+          .join("")
+      : (detail.listings || [])
+          .map(
+            (l) => `<tr>
+            <td>${displayText(l.terminal || "")}</td>
+            <td>${displayText(l.location || "")}</td>
+            <td>${displayText(l.system || "")}</td>
+            <td>${escapeHtml(fmtAuec(l.priceBuy))}</td>
+            <td>${escapeHtml(fmtAuec(l.priceSell))}</td>
+            <td>${l.priceRent ? escapeHtml(fmtAuec(l.priceRent)) : EMPTY_DISPLAY}</td>
+          </tr>`
+          )
+          .join("");
+
+  const head =
+    kind === "shop"
+      ? "<th>Item</th><th>Type</th><th>Buy</th><th>Sell</th>"
+      : "<th>Shop</th><th>Location</th><th>System</th><th>Buy</th><th>Sell</th><th>Rent</th>";
+
+  return `<article class="catalog-detail">
+    <header class="catalog-detail-head">
+      <h3>${displayText(title)}</h3>
+      <button type="button" class="link" data-catalog-detail-close>Close</button>
+    </header>
+    ${detail.className ? `<p class="muted small mono">${escapeHtml(detail.className)}</p>` : ""}
+    ${detail.manufacturer ? `<p class="muted small">${displayText(detail.manufacturer)}</p>` : ""}
+    <div class="catalog-table-wrap"><table class="catalog-table"><thead><tr>${head}</tr></thead><tbody>${rows || `<tr><td colspan="6" class="muted">No listings</td></tr>`}</tbody></table></div>
+  </article>`;
+}
+
+async function loadCatalogTab(tabId, options = {}) {
+  if (!tabId.startsWith("catalog-")) return;
+  const state = catalogQueryByTab[tabId] || { query: "", offset: 0 };
+  if (options.resetOffset) state.offset = 0;
+  catalogQueryByTab[tabId] = state;
+
+  setPanelHtml(
+    tabId,
+    `${catalogMetaLine()}${catalogToolbar(tabId)}<p class="muted small">Loading catalog…</p>`
+  );
+
+  try {
+    let result;
+    if (tabId === "catalog-ships") {
+      result = await window.debrief.catalogQueryVehicles({
+        query: state.query,
+        offset: state.offset,
+        limit: 60,
+        withListingsOnly: true,
+      });
+      setPanelHtml(
+        tabId,
+        `${catalogMetaLine()}${catalogToolbar(tabId)}${renderCatalogShipRows(result.rows)}${renderCatalogPager(tabId, result)}${catalogDetailKey ? "" : ""}`
+      );
+    } else if (tabId === "catalog-shops") {
+      result = await window.debrief.catalogQueryShops({
+        query: state.query,
+        offset: state.offset,
+        limit: 50,
+      });
+      setPanelHtml(
+        tabId,
+        `${catalogMetaLine()}${catalogToolbar(tabId)}${renderCatalogShopRows(result.rows)}${renderCatalogPager(tabId, result)}`
+      );
+    } else {
+      result = await window.debrief.catalogQueryItems({
+        query: state.query,
+        offset: state.offset,
+        limit: 80,
+        section: state.section,
+        withListingsOnly: true,
+      });
+      setPanelHtml(
+        tabId,
+        `${catalogMetaLine()}${catalogToolbar(tabId)}${renderCatalogItemRows(result.rows, tabId)}${renderCatalogPager(tabId, result)}`
+      );
+    }
+    if (catalogDetailKey) {
+      await showCatalogDetail(catalogDetailKey, tabId === "catalog-shops" ? "shop" : "item");
+    }
+  } catch (e) {
+    setPanelHtml(
+      tabId,
+      `${catalogMetaLine()}${catalogToolbar(tabId)}<p class="muted">Catalog error: ${escapeHtml(e.message || String(e))}</p>`
+    );
+  }
+}
+
+async function showCatalogDetail(key, kind) {
+  catalogDetailKey = key;
+  const panel = document.querySelector(`#panel-${activeTab} .panel-body`);
+  if (!panel) return;
+  const detail =
+    kind === "shop"
+      ? await window.debrief.catalogShopDetail(key)
+      : await window.debrief.catalogItemDetail(key);
+  const existing = panel.querySelector(".catalog-detail");
+  if (existing) existing.remove();
+  panel.insertAdjacentHTML("beforeend", renderCatalogDetail(detail, kind));
+}
+
+async function refreshCatalogStats() {
+  try {
+    catalogStats = await window.debrief.catalogStats();
+    updateTabCounts(getViewRollup(lastKnownState));
+  } catch {
+    catalogStats = null;
+  }
+}
+
+function initCatalogUi() {
+  refreshCatalogStats();
+
+  window.debrief.onCatalogSync((payload) => {
+    catalogSyncMessage = payload.message || payload.phase || null;
+    catalogSyncBusy = payload.phase && payload.phase !== "done" && payload.phase !== "error";
+    if (payload.phase === "done" || payload.phase === "error") {
+      catalogSyncBusy = false;
+      refreshCatalogStats();
+      if (activeTab.startsWith("catalog-")) loadCatalogTab(activeTab);
+    } else if (activeTab.startsWith("catalog-")) {
+      const panel = document.querySelector(`#panel-${activeTab} .panel-body`);
+      const meta = panel?.querySelector(".catalog-meta");
+      if (meta && catalogSyncMessage) {
+        meta.textContent = `Syncing catalog: ${sanitizeDisplayText(catalogSyncMessage)}`;
+      }
+    }
+  });
+
+  $("tabPanels")?.addEventListener("click", async (e) => {
+    const searchBtn = e.target.closest("[data-catalog-search-btn]");
+    if (searchBtn) {
+      const tabId = searchBtn.dataset.catalogSearchBtn;
+      const input = document.querySelector(`[data-catalog-search="${tabId}"]`);
+      if (input && catalogQueryByTab[tabId]) {
+        catalogQueryByTab[tabId].query = input.value.trim();
+        loadCatalogTab(tabId, { resetOffset: true });
+      }
+      return;
+    }
+
+    const refreshBtn = e.target.closest("[data-catalog-refresh]");
+    if (refreshBtn) {
+      catalogSyncBusy = true;
+      catalogSyncMessage = "Starting…";
+      if (activeTab.startsWith("catalog-")) loadCatalogTab(activeTab);
+      await window.debrief.catalogRefresh();
+      return;
+    }
+
+    const pageBtn = e.target.closest("[data-catalog-page]");
+    if (pageBtn && !pageBtn.disabled) {
+      const tabId = pageBtn.dataset.catalogPage;
+      const dir = pageBtn.dataset.catalogDir;
+      const state = catalogQueryByTab[tabId];
+      if (!state) return;
+      const step = tabId === "catalog-ships" ? 60 : tabId === "catalog-shops" ? 50 : 80;
+      state.offset = Math.max(
+        0,
+        state.offset + (dir === "next" ? step : -step)
+      );
+      loadCatalogTab(tabId);
+      return;
+    }
+
+    const itemBtn = e.target.closest("[data-catalog-item]");
+    if (itemBtn) {
+      await showCatalogDetail(itemBtn.dataset.catalogItem, "item");
+      return;
+    }
+
+    const shopBtn = e.target.closest("[data-catalog-shop]");
+    if (shopBtn) {
+      await showCatalogDetail(shopBtn.dataset.catalogShop, "shop");
+      return;
+    }
+
+    if (e.target.closest("[data-catalog-detail-close]")) {
+      catalogDetailKey = null;
+      document.querySelectorAll(".catalog-detail").forEach((el) => el.remove());
+    }
+  });
+
+  $("tabPanels")?.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const input = e.target.closest("[data-catalog-search]");
+    if (!input) return;
+    const tabId = input.dataset.catalogSearch;
+    catalogQueryByTab[tabId].query = input.value.trim();
+    loadCatalogTab(tabId, { resetOffset: true });
+  });
+
+  $("tabPanels")?.addEventListener("input", (e) => {
+    const input = e.target.closest("[data-catalog-search]");
+    if (!input) return;
+    const tabId = input.dataset.catalogSearch;
+    if (!catalogQueryByTab[tabId]) return;
+    catalogQueryByTab[tabId].query = input.value;
+  });
+}
+
 function renderAllPanels(state) {
   const session = archiveViewSession || getViewSession(state);
   const rollup = session?.rollup;
@@ -1158,6 +1564,7 @@ initTabs();
 initAppInfo();
 initUpdateUi();
 initArchiveUi();
+initCatalogUi();
 
 $("btnTheme").addEventListener("click", toggleTheme);
 $("btnNew").addEventListener("click", () => window.debrief.startSession());

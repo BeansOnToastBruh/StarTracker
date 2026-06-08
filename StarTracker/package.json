@@ -15,7 +15,8 @@
     "dist:linux": "npm run prebuild:icon && electron-builder --linux --publish never",
     "build:win": "npm run dist:win",
     "build:linux": "npm run dist:linux",
-    "verify": "node scripts/verify-repo-hygiene.js"
+    "verify": "node scripts/verify-repo-hygiene.js",
+    "build:catalog": "node scripts/build-catalog-seed.js"
   },
   "build": {
     "appId": "com.startracker.app",

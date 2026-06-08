@@ -33,4 +33,19 @@ contextBridge.exposeInMainWorld("debrief", {
     ipcRenderer.on("update-status", handler);
     return () => ipcRenderer.removeListener("update-status", handler);
   },
+  catalogStats: () => ipcRenderer.invoke("catalog-stats"),
+  catalogQueryVehicles: (options) =>
+    ipcRenderer.invoke("catalog-query-vehicles", options),
+  catalogQueryItems: (options) =>
+    ipcRenderer.invoke("catalog-query-items", options),
+  catalogQueryShops: (options) =>
+    ipcRenderer.invoke("catalog-query-shops", options),
+  catalogItemDetail: (key) => ipcRenderer.invoke("catalog-item-detail", key),
+  catalogShopDetail: (key) => ipcRenderer.invoke("catalog-shop-detail", key),
+  catalogRefresh: () => ipcRenderer.invoke("catalog-refresh"),
+  onCatalogSync: (cb) => {
+    const handler = (_, data) => cb(data);
+    ipcRenderer.on("catalog-sync", handler);
+    return () => ipcRenderer.removeListener("catalog-sync", handler);
+  },
 });
