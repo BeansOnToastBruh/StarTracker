@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { sumAwardedAuecInText } = require("./rewardFormat");
 
 /** Approximate LIVE build floor for Star Citizen 4.8.x */
 const PATCH_4_8_MIN_BUILD = 11550000;
@@ -57,6 +58,15 @@ function getLogArchiveDir(liveLogPath) {
   return path.join(path.dirname(liveLogPath), "logbackups");
 }
 
+function quickScanAwardedAuec(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) return 0;
+  try {
+    return sumAwardedAuecInText(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return 0;
+  }
+}
+
 /**
  * @param {string} liveLogPath resolved Game.log path
  */
@@ -87,6 +97,7 @@ function listLogArchives(liveLogPath) {
       label: kind === "live" ? "Current Game.log (live)" : formatArchiveLabel(name, build, stat.mtimeMs),
       mtime: stat.mtime.toISOString(),
       sizeBytes: stat.size,
+      awardedAuecTotal: quickScanAwardedAuec(filePath),
     });
   };
 
@@ -118,5 +129,6 @@ function listLogArchives(liveLogPath) {
 module.exports = {
   listLogArchives,
   getLogArchiveDir,
+  quickScanAwardedAuec,
   PATCH_4_8_MIN_BUILD,
 };

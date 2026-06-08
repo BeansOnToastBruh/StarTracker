@@ -18,7 +18,7 @@ const {
   snapshot,
 } = require("./session");
 const { resolveLogPath, getLogPathInfo } = require("./paths");
-const { listLogArchives } = require("./logArchive");
+const { listLogArchives, quickScanAwardedAuec } = require("./logArchive");
 const { parseLogFileToSession } = require("./logImporter");
 const { checkForUpdates } = require("./updateChecker");
 
@@ -142,11 +142,33 @@ function logSettingsPayload() {
   };
 }
 
+let cachedLogAuecScan = { path: null, mtimeMs: 0, total: 0 };
+
+function getLogFileAuecTotal(logPath) {
+  if (!logPath || !fs.existsSync(logPath)) return 0;
+  try {
+    const mtimeMs = fs.statSync(logPath).mtimeMs;
+    if (
+      cachedLogAuecScan.path === logPath &&
+      cachedLogAuecScan.mtimeMs === mtimeMs
+    ) {
+      return cachedLogAuecScan.total;
+    }
+    const total = quickScanAwardedAuec(logPath);
+    cachedLogAuecScan = { path: logPath, mtimeMs, total };
+    return total;
+  } catch {
+    return 0;
+  }
+}
+
 function broadcastState() {
+  const logSettings = logSettingsPayload();
   const payload = {
     watching,
     autoTrack,
-    ...logSettingsPayload(),
+    ...logSettings,
+    logFileAuecTotal: getLogFileAuecTotal(logSettings.logPath),
     current: currentSession ? snapshot(currentSession) : null,
     history: pastSessions.slice(0, 10),
   };
@@ -422,13 +444,17 @@ app.on("before-quit", async () => {
   await stopWatcher();
 });
 
-ipcMain.handle("get-state", () => ({
-  watching,
-  autoTrack,
-  ...logSettingsPayload(),
-  current: currentSession ? snapshot(currentSession) : null,
-  history: pastSessions,
-}));
+ipcMain.handle("get-state", () => {
+  const logSettings = logSettingsPayload();
+  return {
+    watching,
+    autoTrack,
+    ...logSettings,
+    logFileAuecTotal: getLogFileAuecTotal(logSettings.logPath),
+    current: currentSession ? snapshot(currentSession) : null,
+    history: pastSessions,
+  };
+});
 
 ipcMain.handle("start-session", () => {
   startSession(true);

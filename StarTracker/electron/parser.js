@@ -117,6 +117,23 @@ function isNoiseNotification(text) {
   return NOISE_PREFIXES.some((p) => text.startsWith(p));
 }
 
+function hudTextKey(text) {
+  return String(text || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function markHudTextSeen(ctx, text) {
+  if (!text) return;
+  if (!ctx.seenHudTexts) ctx.seenHudTexts = new Set();
+  ctx.seenHudTexts.add(hudTextKey(text));
+}
+
+function isHudTextSeen(ctx, text) {
+  return ctx.seenHudTexts?.has(hudTextKey(text));
+}
+
 function queueCompletedContract(ctx, missionId, title, at) {
   if (!ctx.completedContractQueue) ctx.completedContractQueue = [];
   if (!missionId || missionId === ZERO_MISSION) return;
@@ -272,6 +289,7 @@ function parseHudContinuation(line, ctx) {
   if (!m?.groups) return null;
 
   const text = m.groups.text.trim();
+  if (isHudTextSeen(ctx, text)) return null;
   if (isNoiseNotification(text)) return null;
 
   if (/^Contract (Accepted|Complete|Failed|Abandoned):/i.test(text)) return null;
@@ -525,6 +543,7 @@ function parseLine(line, ctx = {}) {
   if (m?.groups) {
     const text = m.groups.text.trim().replace(/\s+/g, " ");
     let missionId = m.groups.missionId;
+    markHudTextSeen(ctx, text);
     if (isNoiseNotification(text)) return finish(out);
 
     if (/^Journal Entry Added:/i.test(text)) {

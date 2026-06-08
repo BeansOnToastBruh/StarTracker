@@ -13,6 +13,18 @@ function parseAwardedAuec(text) {
   return m ? parseNumber(m[1]) : null;
 }
 
+/** Sum Awarded aUEC from raw Game.log text (primary HUD notifications only). */
+function sumAwardedAuecInText(text) {
+  let total = 0;
+  const re = /Added notification "Awarded\s+([\d,.]+)\s*aUEC/gi;
+  let m;
+  while ((m = re.exec(String(text || "")))) {
+    const n = parseNumber(m[1]);
+    if (n != null) total += n;
+  }
+  return total;
+}
+
 function parseFinedUec(text) {
   const m = String(text || "").match(/^Fined\s+([\d,.]+)\s*UEC/i);
   return m ? parseNumber(m[1]) : null;
@@ -194,6 +206,7 @@ module.exports = {
   rewardSummaryFromDetail,
   aggregateRewards,
   parseAwardedAuec,
+  sumAwardedAuecInText,
   parseFinedUec,
   parseNumber,
 };

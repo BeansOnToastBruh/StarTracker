@@ -382,7 +382,23 @@ function sumAuecFromEvents(session) {
   return found ? sum : null;
 }
 
-function renderStats(session) {
+function resolveAuecTotal(session, state) {
+  const r = session?.rollup;
+  const s = r?.stats ?? session?.stats;
+  const t = r?.rewardTotals;
+  const fromSession =
+    t?.totalAuec ?? s?.auecEarned ?? sumAuecFromEvents(session) ?? 0;
+  if (fromSession > 0) return { total: fromSession, source: "session" };
+  if (archiveViewSession && archiveViewMeta?.awardedAuecTotal > 0) {
+    return { total: archiveViewMeta.awardedAuecTotal, source: "archive-scan" };
+  }
+  if (!archiveViewSession && (state?.logFileAuecTotal ?? 0) > 0) {
+    return { total: state.logFileAuecTotal, source: "log-scan" };
+  }
+  return { total: 0, source: "none" };
+}
+
+function renderStats(session, state = lastKnownState) {
   if (!session) {
     for (const { key } of STAT_KEYS) {
       const card = document.querySelector(`#stats [data-stat="${key}"]`);
@@ -405,14 +421,14 @@ function renderStats(session) {
   }
   const r = session.rollup;
   const s = r?.stats ?? session?.stats;
-  const t = r?.rewardTotals;
+  const auecInfo = resolveAuecTotal(session, state);
   const values = {
     session: r?.durationLabel ?? EMPTY_DISPLAY,
     contracts: s?.contractsCompleted ?? 0,
     deaths: s?.deaths ?? 0,
     ships: s?.vehiclesLost ?? 0,
     kills: s?.kills ?? 0,
-    auec: (t?.totalAuec ?? s?.auecEarned ?? sumAuecFromEvents(session) ?? 0).toLocaleString(),
+    auec: auecInfo.total.toLocaleString(),
     earn: s?.rewards ?? 0,
   };
   for (const { key } of STAT_KEYS) {
@@ -422,6 +438,15 @@ function renderStats(session) {
     if (valEl) {
       const next = String(values[key]);
       if (valEl.textContent !== next) valEl.textContent = next;
+    }
+    if (key === "auec") {
+      const hint =
+        auecInfo.source === "log-scan"
+          ? "Awarded aUEC in your current Game.log (full-file scan). Not your wallet balance."
+          : auecInfo.source === "archive-scan"
+            ? "Awarded aUEC in this log archive. Not your wallet balance."
+            : "aUEC from payout popups this session. Not your wallet balance.";
+      card.title = hint;
     }
   }
 }
@@ -763,19 +788,23 @@ function buildHistoryArchives() {
   }
   if (!logArchiveList.length) return emptyPanel(tab);
   return `<div class="archive-list">${logArchiveList
-    .map((a) => {
+    .map((a, idx) => {
       const kind =
         a.kind === "live" ? "Live" : a.build ? `Build ${a.build}` : "Backup";
-      return `<button type="button" class="archive-row" data-archive-id="${escapeAttr(a.id)}">
+      const auecLabel =
+        (a.awardedAuecTotal ?? 0) > 0
+          ? `${Number(a.awardedAuecTotal).toLocaleString()} aUEC`
+          : "No Awarded aUEC";
+      return `<button type="button" class="archive-row" data-archive-idx="${idx}">
         <span class="archive-row-main">
           <strong>${escapeHtml(a.label)}</strong>
-          <span class="muted">${escapeHtml(kind)} · ${escapeHtml(formatArchiveSize(a.sizeBytes))}</span>
+          <span class="muted">${escapeHtml(kind)} · ${escapeHtml(formatArchiveSize(a.sizeBytes))} · ${escapeHtml(auecLabel)}</span>
         </span>
         <span class="archive-row-meta muted">${escapeHtml(fmtDateTime(a.mtime))}</span>
       </button>`;
     })
     .join("")}</div>
-    <p class="overview-foot muted">Archives are parsed in full when you open one. Use other tabs to see contracts, rewards, fines, and more from that log file.</p>`;
+    <p class="overview-foot muted">Click a row to load that log. aUEC shown is from Awarded popups in that file. Recent logs may show 0 if you did not earn contract payouts that session.</p>`;
 }
 
 function buildFines(rollup) {
@@ -869,7 +898,7 @@ async function refreshLogArchiveList() {
   }
 }
 
-async function openLogArchive(archiveId) {
+async function openLogArchive(archiveId, archiveMeta = null) {
   const status = $("statusLine");
   const prev = status?.textContent || "";
   if (status) status.textContent = "Parsing log archive…";
@@ -880,7 +909,14 @@ async function openLogArchive(archiveId) {
       return;
     }
     archiveViewSession = result.session;
-    archiveViewMeta = result.archive;
+    archiveViewMeta = {
+      ...(result.archive || {}),
+      ...(archiveMeta || {}),
+      awardedAuecTotal:
+        archiveMeta?.awardedAuecTotal ??
+        result.archive?.awardedAuecTotal ??
+        0,
+    };
     renderArchiveBanner();
     setActiveTab("overview");
     renderAllPanels(null);
@@ -926,7 +962,7 @@ function getViewRollup(state) {
 function renderAllPanels(state) {
   const session = archiveViewSession || getViewSession(state);
   const rollup = session?.rollup;
-  renderStats(session);
+  renderStats(session, state);
   setPanelHtml("overview", buildOverview(session));
   setPanelHtml("missions", buildMissions(rollup));
   setPanelHtml("rewards", buildRewards(rollup));
@@ -1082,9 +1118,11 @@ function initArchiveUi() {
   });
 
   $("tabPanels")?.addEventListener("click", (e) => {
-    const row = e.target.closest("[data-archive-id]");
+    const row = e.target.closest("[data-archive-idx]");
     if (!row) return;
-    openLogArchive(row.dataset.archiveId);
+    const idx = Number(row.dataset.archiveIdx);
+    const archive = logArchiveList[idx];
+    if (archive?.id) openLogArchive(archive.id, archive);
   });
 
   refreshLogArchiveList();
