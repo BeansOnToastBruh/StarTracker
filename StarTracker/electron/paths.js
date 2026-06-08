@@ -49,7 +49,7 @@ function getDefaultLogCandidates() {
 
   if (process.platform === "linux") {
     const home = os.homedir();
-    return [
+    const candidates = [
       wineGameLog(home, ".wine"),
       wineGameLog(home, ".local/share/lutris/runners/wine"),
       path.join(
@@ -65,7 +65,50 @@ function getDefaultLogCandidates() {
       ),
       path.join(home, ".local", "share", "Star Citizen", "LIVE", "Game.log"),
       path.join(home, "Games", "StarCitizen", "drive_c", "Program Files", ...SC_LOG_PARTS),
+      path.join(
+        home,
+        ".local",
+        "share",
+        "lutris",
+        "runners",
+        "wine",
+        "star-citizen",
+        "drive_c",
+        "Program Files",
+        "Roberts Space Industries",
+        "StarCitizen",
+        "LIVE",
+        "Game.log"
+      ),
     ];
+
+    const bottlesRoot = path.join(
+      home,
+      ".var",
+      "app",
+      "com.usebottles.bottles",
+      "data",
+      "bottles"
+    );
+    try {
+      if (fs.existsSync(bottlesRoot)) {
+        for (const bottle of fs.readdirSync(bottlesRoot)) {
+          candidates.push(
+            path.join(
+              bottlesRoot,
+              bottle,
+              "drive_c",
+              "Program Files",
+              ...SC_LOG_PARTS
+            )
+          );
+        }
+      }
+    } catch {
+      /* ignore unreadable bottles dir */
+    }
+
+    return candidates;
   }
 
   if (process.platform === "darwin") {

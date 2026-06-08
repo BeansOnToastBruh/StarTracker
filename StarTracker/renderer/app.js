@@ -1088,7 +1088,7 @@ function applyLogPathState(state) {
   banner.classList.toggle("hidden", watching || info.exists);
   if (!watching && !info.exists) {
     $("logBannerText").textContent =
-      "Game.log not found at the usual locations. Use Browse to select your Game.log (StarCitizen\\LIVE), or Auto-detect to scan again.";
+      "Game.log not found at the usual locations. Use Browse to select your Game.log (.../StarCitizen/LIVE/Game.log), or Auto-detect to scan again.";
   }
 }
 

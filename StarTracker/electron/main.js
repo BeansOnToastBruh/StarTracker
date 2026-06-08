@@ -355,7 +355,7 @@ async function startWatcher() {
   const resolved = watcherTargetPath();
   if (!fs.existsSync(resolved)) {
     throw new Error(
-      `Couldn't find Game.log.\n${resolved}\n\nUse Browse in the app footer to select your Game.log (usually in StarCitizen\\LIVE).`
+      `Couldn't find Game.log.\n${resolved}\n\nUse Browse in the app footer to select your Game.log (usually in .../StarCitizen/LIVE/Game.log).`
     );
   }
   watching = true;
@@ -501,7 +501,7 @@ ipcMain.handle("set-log-path", async (_, opts) => {
     if (path.basename(p).toLowerCase() !== "game.log") {
       return {
         ok: false,
-        error: "Select the Game.log file (usually in StarCitizen\\LIVE\\Game.log).",
+        error: "Select the Game.log file (usually in .../StarCitizen/LIVE/Game.log).",
       };
     }
     cfg.logPath = p;
