@@ -63,8 +63,8 @@ const SESSION_TABS = [
     id: "rewards",
     group: "session",
     label: "Rewards",
-    hint: "aUEC from Awarded popups, rep, and loot bundles. Not your wallet balance. Matched to contracts when we can.",
-    empty: "No payouts logged yet. Finish a contract and look for Awarded aUEC or You've Earned popups in-game.",
+    hint: "Confirmed: Awarded X aUEC HUD lines in Game.log. Estimated: wiki + your faction rep tier when the log omits cash. Not your wallet balance.",
+    empty: "No payouts logged yet. Finish a contract to see confirmed log payouts or wiki-based estimates.",
   },
   {
     id: "fines",
@@ -184,7 +184,7 @@ const TAB_DESCRIPTIONS = {
   missions:
     "Contracts you accepted, finished, failed, or walked away from. Use this to track what you worked on and how objectives progressed.",
   rewards:
-    "aUEC popups, rep gains, and loot bundles from the log. This shows what you earned during the session, not your wallet balance.",
+    "Confirmed aUEC comes from Awarded X aUEC HUD lines. When those are missing, StarTracker estimates payout from star-citizen.wiki and your tracked faction rep. Estimates are labeled and are not confirmed.",
   fines:
     "UEC fines from CrimeStat and monitored-space popups. Check here when you want to see penalties that hit you this session.",
   insurance:
@@ -392,7 +392,7 @@ function emptyPanel(tab) {
 function initStats() {
   const el = $("stats");
   const statTitles = {
-    auec: "aUEC from payout popups this session. Not your wallet balance.",
+    auec: "aUEC from Awarded X aUEC HUD lines when logged. Not your wallet balance.",
   };
   el.innerHTML = STAT_KEYS.map(
     ({ key, label }) => {
@@ -544,13 +544,15 @@ function deathBadge(d) {
   return "Combat death";
 }
 
-function sumAuecFromEvents(session) {
+function sumAuecFromEvents(session, { estimated = false } = {}) {
   const events = session?.events;
   if (!events?.length) return null;
   let sum = 0;
   let found = false;
   for (const e of events) {
-    if (e.type === "reward" && e.detail?.auec != null) {
+    if (e.type !== "reward" || e.detail?.auec == null) continue;
+    const isEst = !!e.detail.auecEstimated;
+    if (estimated ? isEst : !isEst) {
       sum += e.detail.auec;
       found = true;
     }
@@ -562,16 +564,20 @@ function resolveAuecTotal(session, state) {
   const r = session?.rollup;
   const s = r?.stats ?? session?.stats;
   const t = r?.rewardTotals;
-  const fromSession =
-    t?.totalAuec ?? s?.auecEarned ?? sumAuecFromEvents(session) ?? 0;
-  if (fromSession > 0) return { total: fromSession, source: "session" };
+  const confirmed =
+    t?.totalAuec ?? s?.auecEarned ?? sumAuecFromEvents(session, { estimated: false }) ?? 0;
+  const estimatedTotal =
+    t?.totalAuecEstimated ?? s?.auecEstimated ?? sumAuecFromEvents(session, { estimated: true }) ?? 0;
+  if (confirmed > 0 || estimatedTotal > 0) {
+    return { total: confirmed, estimated: estimatedTotal, source: "session" };
+  }
   if (archiveViewSession && archiveViewMeta?.awardedAuecTotal > 0) {
     return { total: archiveViewMeta.awardedAuecTotal, source: "archive-scan" };
   }
   if (!archiveViewSession && (state?.logFileAuecTotal ?? 0) > 0) {
     return { total: state.logFileAuecTotal, source: "log-scan" };
   }
-  return { total: 0, source: "none" };
+  return { total: 0, estimated: 0, source: "none" };
 }
 
 function renderStats(session, state = lastKnownState) {
@@ -604,7 +610,12 @@ function renderStats(session, state = lastKnownState) {
     deaths: s?.deaths ?? 0,
     ships: s?.vehiclesLost ?? 0,
     kills: s?.kills ?? 0,
-    auec: auecInfo.total.toLocaleString(),
+    auec:
+      auecInfo.estimated > 0 && auecInfo.total > 0
+        ? `${auecInfo.total.toLocaleString()} + ~${auecInfo.estimated.toLocaleString()} est`
+        : auecInfo.estimated > 0
+          ? `~${auecInfo.estimated.toLocaleString()} est`
+          : auecInfo.total.toLocaleString(),
     earn: s?.rewards ?? 0,
   };
   for (const { key } of STAT_KEYS) {
@@ -621,7 +632,9 @@ function renderStats(session, state = lastKnownState) {
           ? "Awarded aUEC in your current Game.log (full-file scan). Not your wallet balance."
           : auecInfo.source === "archive-scan"
             ? "Awarded aUEC in this log archive. Not your wallet balance."
-            : "aUEC from payout popups this session. Not your wallet balance.";
+            : auecInfo.estimated > 0
+              ? `Confirmed aUEC from Awarded HUD lines: ${auecInfo.total.toLocaleString()}. Estimated (not confirmed): ~${auecInfo.estimated.toLocaleString()} from wiki + rep tier.`
+              : "aUEC from Awarded X aUEC HUD lines this session when the game logs them. Not your wallet balance.";
       card.title = hint;
     }
   }
@@ -650,7 +663,7 @@ function buildOverview(session) {
     })()}</li>`,
     `<li><strong>${s.deaths}</strong> death${s.deaths === 1 ? "" : "s"} · <strong>${s.kills}</strong> kill${s.kills === 1 ? "" : "s"} · <strong>${s.vehiclesLost}</strong> ship${s.vehiclesLost === 1 ? "" : "s"} lost</li>`,
     `<li><strong>${s.rewards}</strong> payout popup${s.rewards === 1 ? "" : "s"} logged</li>`,
-    `<li>aUEC earned: <strong>${(t?.totalAuec ?? 0).toLocaleString()}</strong></li>`,
+    `<li>aUEC confirmed: <strong>${(t?.totalAuec ?? 0).toLocaleString()}</strong>${(t?.totalAuecEstimated ?? 0) > 0 ? ` · estimated: <strong>~${t.totalAuecEstimated.toLocaleString()}</strong> (not confirmed)` : ""}</li>`,
     `<li>Fines: <strong>${(r.finesTotal ?? 0).toLocaleString()}</strong> UEC · Insurance claims: <strong>${r.insuranceClaims?.length ?? 0}</strong> · Shop spend: <strong>${Math.round(r.shopSpendTotal ?? 0).toLocaleString()}</strong> aUEC</li>`,
   ];
   if (t?.repByFaction?.length) {
@@ -667,7 +680,7 @@ function buildOverview(session) {
   }
   lines.push(
     `</ul>`,
-    `<p class="overview-foot muted">Use the tabs above for the full breakdown. <strong>Rewards</strong> includes <strong>Awarded aUEC</strong> popups and item bundles. This is not your wallet balance. Game.log does not log wallet totals.</p>`
+    `<p class="overview-foot muted">Use the tabs above for the full breakdown. <strong>Rewards</strong> counts <strong>Awarded X aUEC</strong> HUD lines when Game.log has them (best source). Rep and blueprints can come from contract titles. This is not your wallet balance.</p>`
   );
 
   if (session.status === "active") {
@@ -794,11 +807,16 @@ function buildRewards(rollup) {
   const t = rollup.rewardTotals || {};
   const parts = [];
 
-  if (t.totalAuec > 0 || t.repByFaction?.length || t.itemCount > 0) {
+  if (t.totalAuec > 0 || t.totalAuecEstimated > 0 || t.repByFaction?.length || t.itemCount > 0) {
     const totals = [];
     if (t.totalAuec > 0) {
       totals.push(
-        `<div class="reward-total-card"><span class="reward-lbl">aUEC earned (session)</span><span class="reward-total-val">${t.totalAuec.toLocaleString()}</span></div>`
+        `<div class="reward-total-card"><span class="reward-lbl">aUEC confirmed</span><span class="reward-total-val">${t.totalAuec.toLocaleString()}</span></div>`
+      );
+    }
+    if (t.totalAuecEstimated > 0) {
+      totals.push(
+        `<div class="reward-total-card"><span class="reward-lbl">aUEC estimated</span><span class="reward-total-val">~${t.totalAuecEstimated.toLocaleString()}</span></div>`
       );
     }
     if (t.repByFaction?.length) {
@@ -828,14 +846,17 @@ function buildRewards(rollup) {
           : r.linkedFromRecentContract
             ? "Linked to last completed contract"
             : "Session reward";
+        const isEst = !!r.auecEstimated;
         return entryCard({
           time: fmtDateTime(r.at),
-          badge: r.kind === "auec" ? "Currency" : r.kind === "reputation" ? "Rep" : "Items",
-          badgeClass: "entry-good",
+          badge: isEst ? "Est." : r.kind === "auec" ? "Currency" : r.kind === "reputation" ? "Rep" : "Items",
+          badgeClass: isEst ? "entry-warn" : "entry-good",
           title,
-          description: r.contractTitle
-            ? `Payout after completing this contract.`
-            : `Reward popup (couldn't match to a specific contract).`,
+          description: isEst
+            ? `Estimated payout from wiki + rep tier. Not confirmed in Game.log.`
+            : r.contractTitle
+              ? `Payout after completing this contract.`
+              : `Reward popup (couldn't match to a specific contract).`,
           extraHtml: renderRewardBreakdown(r),
         });
       })

@@ -21,6 +21,8 @@ const PATTERNS = {
     /\[Notice\] <Channel Disconnected>.*gamerules="SC_Default".*reason="(?<reason>[^"]+)"/,
   notificationAdded:
     /Added notification "(?<text>.+?)"\s*\[(?<notifId>\d+)\].*?MissionId: \[(?<missionId>[^\]]+)\]/,
+  missionMarker:
+    /CreateMarker> Creating objective marker: missionId \[(?<missionId>[^\]]+)\], generator name \[(?<generator>[^\]]+)\], contract \[(?<contract>[^\]]+)\], contractDefinitionId\[(?<definitionId>[^\]]+)\]/,
 };
 const ZERO_MISSION = "00000000-0000-0000-0000-000000000000";
 const {
@@ -28,6 +30,9 @@ const {
   rewardSummaryFromDetail,
   parseAwardedAuec,
   parseFinedUec,
+  stripHudMarkup,
+  parseContractPayoutFromTitle,
+  finalizeRewardKind,
 } = require("./rewardFormat");
 const {
   onActorStateDead,
@@ -626,6 +631,10 @@ function parseHudContinuation(line, ctx) {
   const awarded = buildAwardedAuecReward(text, null, ctx);
   if (awarded) {
     awarded.at = at;
+    if (awarded.detail) {
+      awarded.detail.auecConfirmed = true;
+      awarded.detail.auecEstimated = false;
+    }
     return awarded;
   }
 
@@ -708,6 +717,19 @@ function parseLine(line, ctx = {}) {
   );
   if (playerJoinedM) {
     registerBountyPlayer(ctx, playerJoinedM[1], playerJoinedM[2], ctx.playerGEID);
+  }
+
+  const markerM = body.match(PATTERNS.missionMarker);
+  if (markerM?.groups) {
+    const { missionId, generator, contract, definitionId } = markerM.groups;
+    if (missionId && definitionId) {
+      if (!ctx.missionWikiByMissionId) ctx.missionWikiByMissionId = new Map();
+      ctx.missionWikiByMissionId.set(missionId, {
+        contractDefinitionId: definitionId,
+        debugContract: contract,
+        generatorName: generator,
+      });
+    }
   }
 
   if (PATTERNS.nickname.test(line) && !ctx.playerNick) {
@@ -876,18 +898,35 @@ function parseLine(line, ctx = {}) {
     }
 
     if (/^Contract Accepted:/i.test(text)) {
-      const title = text.replace(/^Contract Accepted:\s*/i, "").trim();
+      const rawTitle = text.replace(/^Contract Accepted:\s*/i, "").trim();
+      const title = stripHudMarkup(rawTitle);
+      const wikiMeta = ctx.missionWikiByMissionId?.get(missionId);
+      const acceptPayout = parseContractPayoutFromTitle(rawTitle);
+      if (missionId && missionId !== ZERO_MISSION) {
+        if (acceptPayout.auec != null || acceptPayout.rep != null) {
+          if (!ctx.contractPayoutByMission) ctx.contractPayoutByMission = new Map();
+          ctx.contractPayoutByMission.set(missionId, acceptPayout);
+        }
+      }
       return finish(
         emit(out, {
           type: "contract",
           at,
           summary: `Accepted: ${title}`,
-          detail: { action: "accepted", title, missionId },
+          detail: {
+            action: "accepted",
+            title,
+            missionId,
+            contractDefinitionId: wikiMeta?.contractDefinitionId || null,
+            debugContract: wikiMeta?.debugContract || null,
+            faction: acceptPayout.faction || null,
+          },
         })
       );
     }
     if (/^Contract Complete:/i.test(text)) {
-      const title = text.replace(/^Contract Complete:\s*/i, "").trim();
+      const rawTitle = text.replace(/^Contract Complete:\s*/i, "").trim();
+      const title = stripHudMarkup(rawTitle);
       if (missionId && missionId !== ZERO_MISSION) {
         emit(out, tryBountyKill(ctx, missionId, at, title, beautifyName));
         queueCompletedContract(ctx, missionId, title, at);
@@ -895,16 +934,57 @@ function parseLine(line, ctx = {}) {
       ctx.lastCompletedMissionId = missionId;
       ctx.lastCompletedContractTitle = title;
       ctx.lastCompletedAt = at;
+      const wikiMeta = ctx.missionWikiByMissionId?.get(missionId);
+      const payout = parseContractPayoutFromTitle(rawTitle);
+      if (missionId && ctx.contractPayoutByMission?.has(missionId)) {
+        const expected = ctx.contractPayoutByMission.get(missionId);
+        if (payout.auec == null && expected.auec != null) payout.auec = expected.auec;
+        if (payout.rep == null && expected.rep != null) payout.rep = expected.rep;
+        if (!payout.faction && expected.faction) payout.faction = expected.faction;
+        finalizeRewardKind(payout);
+        ctx.contractPayoutByMission.delete(missionId);
+      }
       emit(out, {
         type: "contract",
         at,
         summary: `Completed: ${title}`,
-        detail: { action: "completed", title, missionId },
+        detail: {
+          action: "completed",
+          title,
+          missionId,
+          contractDefinitionId: wikiMeta?.contractDefinitionId || null,
+          debugContract: wikiMeta?.debugContract || null,
+          faction: payout.faction || null,
+        },
       });
+      if (payout.rep != null || payout.auec != null) {
+        const rewardDetail = {
+          missionId:
+            missionId && missionId !== ZERO_MISSION ? missionId : null,
+          raw: rawTitle,
+          kind: payout.kind,
+          auec: payout.auec,
+          rep: payout.rep,
+          faction: payout.faction,
+          itemCount: null,
+          itemName: null,
+          itemQuantity: null,
+          blueprintName: null,
+          deliveryNote: null,
+          contractTitle: title,
+          linkedFromContractComplete: true,
+        };
+        emit(out, {
+          type: "reward",
+          at,
+          summary: `Earned: ${rewardSummaryFromDetail(rewardDetail, rawTitle)}`,
+          detail: rewardDetail,
+        });
+      }
       return finish(out);
     }
     if (/^Contract Failed:/i.test(text)) {
-      const title = text.replace(/^Contract Failed:\s*/i, "").trim();
+      const title = stripHudMarkup(text.replace(/^Contract Failed:\s*/i, "").trim());
       return finish(
         emit(out, {
           type: "contract",
@@ -915,7 +995,7 @@ function parseLine(line, ctx = {}) {
       );
     }
     if (/^Contract Abandoned:/i.test(text)) {
-      const title = text.replace(/^Contract Abandoned:\s*/i, "").trim();
+      const title = stripHudMarkup(text.replace(/^Contract Abandoned:\s*/i, "").trim());
       return finish(
         emit(out, {
           type: "contract",
@@ -939,6 +1019,10 @@ function parseLine(line, ctx = {}) {
     const awarded = buildAwardedAuecReward(text, missionId, ctx);
     if (awarded) {
       awarded.at = at;
+      if (awarded.detail) {
+        awarded.detail.auecConfirmed = true;
+        awarded.detail.auecEstimated = false;
+      }
       return finish(emit(out, awarded));
     }
     const fine = buildFineEvent(text);
@@ -988,13 +1072,16 @@ function parseLine(line, ctx = {}) {
       return finish(out);
     }
     if (/blueprint/i.test(text)) {
-      const detail = parseRewardDetail(text, missionId);
+      const cleanedText = stripHudMarkup(text);
+      const detail = parseRewardDetail(cleanedText, missionId);
       detail.kind = "blueprint";
+      detail.raw = cleanedText;
+      const summaryName = detail.blueprintName || cleanedText;
       return finish(
         emit(out, {
           type: "blueprint",
           at,
-          summary: text,
+          summary: summaryName,
           detail,
         })
       );

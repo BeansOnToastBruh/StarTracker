@@ -27,6 +27,11 @@ const {
   enrichSession,
   applyLabelsToSession,
 } = require("./sessionEnrichment");
+const factionRepStore = require("./factionRepStore");
+const {
+  maybeAddEstimatedPayout,
+  trackRepFromReward,
+} = require("./contractPayoutEnrichment");
 
 app.setName("StarTracker");
 if (process.platform === "win32") {
@@ -343,8 +348,23 @@ function handleLogEvent(event) {
   }
 
   pushEvent(currentSession, event);
+  if (event.type === "reward") trackRepFromReward(event);
   maybeRefreshGameLabels(event);
+  maybeEstimateContractPayout(event);
   broadcastState();
+}
+
+function maybeEstimateContractPayout(event) {
+  if (!currentSession || event.type !== "contract" || event.detail?.action !== "completed") {
+    return;
+  }
+  maybeAddEstimatedPayout(currentSession, event)
+    .then((estimated) => {
+      if (!estimated || !currentSession) return;
+      pushEvent(currentSession, estimated);
+      broadcastState();
+    })
+    .catch(() => {});
 }
 
 function maybeRefreshGameLabels(event) {
@@ -440,6 +460,7 @@ function toggleWatch() {
 }
 
 app.whenReady().then(async () => {
+  factionRepStore.init(path.join(app.getPath("userData"), "faction-rep.json"));
   gameData.init({ cachePath: GAME_DATA_CACHE_PATH() });
   gameDatabase.init({ dbDir: GAME_DATABASE_DIR() });
   gameDatabase.onSyncProgress((payload) => {

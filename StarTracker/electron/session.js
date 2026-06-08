@@ -23,6 +23,7 @@ function createSession(overrides = {}) {
       quantumJumps: 0,
       rewards: 0,
       auecEarned: 0,
+      auecEstimated: 0,
       flightKmEstimate: 0,
       finesTotal: 0,
       fineCount: 0,
@@ -61,7 +62,13 @@ function bumpStats(session, event) {
       break;
     case "reward":
       s.rewards += 1;
-      if (event.detail?.auec) s.auecEarned = (s.auecEarned || 0) + event.detail.auec;
+      if (event.detail?.auec) {
+        if (event.detail.auecEstimated) {
+          s.auecEstimated = (s.auecEstimated || 0) + event.detail.auec;
+        } else {
+          s.auecEarned = (s.auecEarned || 0) + event.detail.auec;
+        }
+      }
       break;
     case "fine":
       s.fineCount += 1;

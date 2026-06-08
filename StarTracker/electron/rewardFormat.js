@@ -13,16 +13,32 @@ function parseAwardedAuec(text) {
   return m ? parseNumber(m[1]) : null;
 }
 
-/** Sum Awarded aUEC from raw Game.log text (primary HUD notifications only). */
-function sumAwardedAuecInText(text) {
+/**
+ * Sum aUEC payout amounts from raw Game.log text.
+ * Only counts primary `Added notification` lines to avoid double-counting
+ * continuation/UpdateNotificationItem duplicates.
+ */
+function sumAuecPayoutsInText(text) {
   let total = 0;
-  const re = /Added notification "Awarded\s+([\d,.]+)\s*aUEC/gi;
-  let m;
-  while ((m = re.exec(String(text || "")))) {
-    const n = parseNumber(m[1]);
-    if (n != null) total += n;
+  const raw = String(text || "");
+  const patterns = [
+    /Added notification "Awarded\s+([\d,.]+)\s*aUEC/gi,
+    /Added notification "You(?:'ve| have) [Ee]arned:\s*([\d,.]+)\s*aUEC/gi,
+    /Added notification "Contract (?:Complete|Accepted):[^"]*\[([\d,.]+)\s*aUEC\s*\]/gi,
+  ];
+  for (const re of patterns) {
+    let m;
+    while ((m = re.exec(raw))) {
+      const n = parseNumber(m[1]);
+      if (n != null) total += n;
+    }
   }
   return total;
+}
+
+/** @deprecated alias — use sumAuecPayoutsInText */
+function sumAwardedAuecInText(text) {
+  return sumAuecPayoutsInText(text);
 }
 
 function parseFinedUec(text) {
@@ -30,9 +46,37 @@ function parseFinedUec(text) {
   return m ? parseNumber(m[1]) : null;
 }
 
+/** Remove HUD markup tags (e.g. `<EM4>`) and trailing colons. */
+function stripHudMarkup(text) {
+  return String(text || "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/:\s*$/, "")
+    .trim();
+}
+
 function applyRewardPatterns(detail, text) {
+  for (const bracketAuecM of text.matchAll(/\[\s*([\d,.]+)\s*aUEC\s*\]/gi)) {
+    const n = parseNumber(bracketAuecM[1]);
+    if (n != null) {
+      detail.auec = (detail.auec || 0) + n;
+    }
+  }
+
+  for (const bracketRepM of text.matchAll(
+    /\[\s*([\d,.]+)\s*Rep(?:utation)?(?:\s+([^\]]+?))?\s*\]/gi
+  )) {
+    const n = parseNumber(bracketRepM[1]);
+    if (n != null) {
+      detail.rep = (detail.rep || 0) + n;
+      const factionPart = bracketRepM[2]?.trim();
+      if (factionPart && !/^BP$/i.test(factionPart) && !detail.faction) {
+        detail.faction = factionPart;
+      }
+    }
+  }
+
   const auecM = text.match(/([\d,.]+)\s*aUEC/i);
-  if (auecM) detail.auec = parseNumber(auecM[1]);
+  if (auecM && detail.auec == null) detail.auec = parseNumber(auecM[1]);
 
   const repWithM =
     text.match(
@@ -64,8 +108,17 @@ function applyRewardPatterns(detail, text) {
     detail.deliveryNote = deliveryM[1].replace(/:\s*$/, "").trim();
   }
 
+  const receivedBpM = text.match(/Received\s+Blueprint:\s*(.+)$/i);
+  if (receivedBpM) {
+    detail.blueprintName = receivedBpM[1]
+      .replace(/\s*\[BP\]\s*$/i, "")
+      .trim();
+  }
+
   const bpM = text.match(/blueprint[:\s]+(.+?)(?:\.|Access|$)/i);
-  if (bpM) detail.blueprintName = bpM[1].trim();
+  if (bpM && !detail.blueprintName) {
+    detail.blueprintName = bpM[1].replace(/\s*\[BP\]\s*$/i, "").trim();
+  }
 
   const itemNameM = text.match(
     /^You(?:'ve| have) [Ee]arned:\s*(.+?)(?:\s+x(\d+))?\s*$/i
@@ -100,26 +153,56 @@ function finalizeRewardKind(detail) {
 function enrichRewardDetail(detail, text) {
   if (!text) return detail;
 
-  const parts = text.split(/\s+and\s+/i);
+  const cleaned = stripHudMarkup(text);
+  const parts = cleaned.split(/\s+and\s+/i);
   if (parts.length > 1) {
     for (const part of parts) {
       applyRewardPatterns(detail, part.trim());
     }
   } else {
-    applyRewardPatterns(detail, text);
+    applyRewardPatterns(detail, cleaned);
   }
 
+  return finalizeRewardKind(detail);
+}
+
+/** Parse rep/aUEC payout hints embedded in a contract complete title. */
+function parseContractPayoutFromTitle(title) {
+  const cleaned = stripHudMarkup(title);
+  const detail = {
+    raw: title,
+    kind: "other",
+    auec: null,
+    rep: null,
+    faction: null,
+    itemCount: null,
+    itemName: null,
+    itemQuantity: null,
+    blueprintName: null,
+    deliveryNote: null,
+  };
+  applyRewardPatterns(detail, cleaned);
   return finalizeRewardKind(detail);
 }
 
 function buildRewardDisplayLines(detail) {
   const lines = [];
   if (detail.auec != null) {
+    const est = !!detail.auecEstimated;
     lines.push({
       key: "auec",
-      label: "Currency",
-      value: `${detail.auec.toLocaleString()} aUEC`,
+      label: est ? "Currency (estimated)" : "Currency",
+      value: est
+        ? `~${detail.auec.toLocaleString()} aUEC (not confirmed)`
+        : `${detail.auec.toLocaleString()} aUEC`,
     });
+    if (est && detail.estimateNote) {
+      lines.push({
+        key: "estimate_note",
+        label: "Estimate basis",
+        value: detail.estimateNote,
+      });
+    }
   }
   if (detail.rep != null) {
     lines.push({
@@ -173,12 +256,16 @@ function rewardSummaryFromDetail(detail, fallbackText) {
 
 function aggregateRewards(rewardRows) {
   let totalAuec = 0;
+  let totalAuecEstimated = 0;
   const repByFaction = new Map();
   let itemBundles = 0;
   let itemCount = 0;
 
   for (const r of rewardRows) {
-    if (r.auec != null) totalAuec += r.auec;
+    if (r.auec != null) {
+      if (r.auecEstimated) totalAuecEstimated += r.auec;
+      else totalAuec += r.auec;
+    }
     if (r.rep != null) {
       const f = r.faction || "Unknown faction";
       repByFaction.set(f, (repByFaction.get(f) || 0) + r.rep);
@@ -191,6 +278,7 @@ function aggregateRewards(rewardRows) {
 
   return {
     totalAuec,
+    totalAuecEstimated,
     repByFaction: [...repByFaction.entries()].map(([faction, rep]) => ({
       faction,
       rep,
@@ -206,7 +294,11 @@ module.exports = {
   rewardSummaryFromDetail,
   aggregateRewards,
   parseAwardedAuec,
+  sumAuecPayoutsInText,
   sumAwardedAuecInText,
   parseFinedUec,
   parseNumber,
+  stripHudMarkup,
+  parseContractPayoutFromTitle,
+  finalizeRewardKind,
 };
