@@ -231,6 +231,7 @@ let logArchiveError = null;
 /** Latest update check result from main process. */
 let updateInfo = null;
 let updateBannerDismissed = false;
+let updateInstalling = false;
 /** Game catalog (ships, items, shops) from main process. */
 let catalogStats = null;
 let catalogSyncMessage = null;
@@ -1687,10 +1688,7 @@ function initAppInfo() {
 }
 
 function initUpdateUi() {
-  $("btnDownloadUpdate")?.addEventListener("click", () => {
-    const url = updateInfo?.downloadUrl || updateInfo?.releaseUrl;
-    if (url) window.debrief.openUpdateUrl(url);
-  });
+  $("btnDownloadUpdate")?.addEventListener("click", () => installAvailableUpdate());
 
   $("btnDismissUpdate")?.addEventListener("click", () => {
     updateBannerDismissed = true;
@@ -1711,6 +1709,8 @@ function initUpdateUi() {
         setTimeout(() => {
           if (status.textContent === result.error) status.textContent = prevStatus;
         }, 6000);
+      } else if (result?.available && status) {
+        status.textContent = `Update ${formatVersion(result.latestVersion)} ready — click Install update above.`;
       } else if (result && !result.available && !result.error && status) {
         status.textContent = `You're on the latest release (${formatVersion(result.currentVersion)}).`;
         setTimeout(() => {
@@ -1723,7 +1723,70 @@ function initUpdateUi() {
     }
   });
 
+  window.debrief.onUpdateDownloadProgress?.((progress) => {
+    if (!updateInstalling) return;
+    const btn = $("btnDownloadUpdate");
+    const status = $("statusLine");
+    if (progress?.phase === "installing") {
+      if (btn) btn.textContent = "Starting installer…";
+      if (status) status.textContent = "Download complete. Starting installer…";
+      return;
+    }
+    if (btn && progress?.percent != null) {
+      btn.textContent = `Downloading… ${progress.percent}%`;
+    }
+    if (status && progress?.percent != null) {
+      status.textContent = `Downloading update… ${progress.percent}%`;
+    }
+  });
+
   window.debrief.onUpdateStatus(applyUpdateStatus);
+}
+
+async function installAvailableUpdate() {
+  const url = updateInfo?.downloadUrl;
+  const status = $("statusLine");
+  const btn = $("btnDownloadUpdate");
+  if (!url || updateInstalling) {
+    const fallback = updateInfo?.releaseUrl || url;
+    if (fallback) window.debrief.openUpdateUrl(fallback);
+    return;
+  }
+
+  updateInstalling = true;
+  const prevLabel = btn?.textContent || "Install update";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Downloading…";
+  }
+  if (status) status.textContent = "Downloading update…";
+
+  try {
+    const result = await window.debrief.downloadAndInstallUpdate({
+      downloadUrl: url,
+      platform: updateInfo.platform,
+    });
+    if (result?.ok) {
+      if (status) status.textContent = result.message || "Installer started.";
+      if (btn) btn.textContent = "Closing…";
+      return;
+    }
+    if (status) {
+      status.textContent =
+        result?.error ||
+        "Could not install automatically. Opening the release page instead.";
+    }
+    window.debrief.openUpdateUrl(updateInfo.releaseUrl || url);
+  } catch (e) {
+    if (status) status.textContent = "Install failed. Opening the release page instead.";
+    window.debrief.openUpdateUrl(updateInfo.releaseUrl || url);
+  } finally {
+    updateInstalling = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = prevLabel;
+    }
+  }
 }
 
 function applyState(state) {

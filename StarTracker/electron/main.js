@@ -21,6 +21,7 @@ const { resolveLogPath, getLogPathInfo } = require("./paths");
 const { listLogArchives, quickScanAwardedAuec } = require("./logArchive");
 const { parseLogFileToSession } = require("./logImporter");
 const { checkForUpdates } = require("./updateChecker");
+const { downloadAndInstallUpdate } = require("./updateInstaller");
 const gameData = require("./gameDataResolver");
 const gameDatabase = require("./gameDatabase");
 const {
@@ -608,6 +609,29 @@ ipcMain.handle("get-app-info", () => ({
 }));
 
 ipcMain.handle("check-for-updates", () => runUpdateCheck());
+
+ipcMain.handle("download-and-install-update", async (event, payload) => {
+  const downloadUrl = payload?.downloadUrl;
+  const platform = payload?.platform;
+  if (typeof downloadUrl !== "string" || !/^https?:\/\//i.test(downloadUrl)) {
+    return { ok: false, error: "No download URL for this update." };
+  }
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const sendProgress = (progress) => {
+    if (win && !win.isDestroyed()) {
+      win.webContents.send("update-download-progress", progress);
+    }
+  };
+  try {
+    return await downloadAndInstallUpdate({
+      downloadUrl,
+      platform,
+      onProgress: sendProgress,
+    });
+  } catch (e) {
+    return { ok: false, error: e.message || String(e) };
+  }
+});
 
 ipcMain.handle("open-update-url", (_, url) => {
   if (typeof url !== "string" || !/^https?:\/\//i.test(url)) return false;

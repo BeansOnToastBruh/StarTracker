@@ -15,7 +15,14 @@ contextBridge.exposeInMainWorld("debrief", {
   },
   getAppInfo: () => ipcRenderer.invoke("get-app-info"),
   checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
+  downloadAndInstallUpdate: (payload) =>
+    ipcRenderer.invoke("download-and-install-update", payload),
   openUpdateUrl: (url) => ipcRenderer.invoke("open-update-url", url),
+  onUpdateDownloadProgress: (cb) => {
+    const handler = (_, data) => cb(data);
+    ipcRenderer.on("update-download-progress", handler);
+    return () => ipcRenderer.removeListener("update-download-progress", handler);
+  },
   listLogArchives: () => ipcRenderer.invoke("list-log-archives"),
   parseLogArchive: (id) => ipcRenderer.invoke("parse-log-archive", id),
   onState: (cb) => {
