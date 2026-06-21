@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const referenceLinks = require("./referenceLinks");
 
 let seedDir = null;
 
@@ -27,17 +28,21 @@ function getExternalToolsHub() {
   }));
 
   const inAppCount = tools.filter((t) => t.inAppTab).length;
+  const integratedCount = tools.filter((t) => t.integrated).length;
+  const dataSources = Array.isArray(seed.dataSources) ? seed.dataSources : [];
 
   return {
     categories: byCategory,
     tools,
+    dataSources,
     inAppCount,
+    integratedCount,
     meta: {
       source: "data/guides/external-tools-hub.json",
       updated: seed.updated || null,
     },
     disclaimer:
-      "Community tools listed for reference. StarTracker marks tabs that cover similar features in-app. Drop rates and live prices may require external sites.",
+      "Community tools listed for reference. Integrated sources feed StarTracker data via public APIs (wiki/scunpacked, UEX). External-only tools open in your browser.",
   };
 }
 
@@ -71,8 +76,16 @@ function getCombatExternalTools() {
   };
 }
 
+function buildReferenceLinks(options) {
+  const kind = options?.kind || "item";
+  if (kind === "location") return referenceLinks.buildLocationLinks(options);
+  if (kind === "ship") return referenceLinks.buildShipLinks(options);
+  return referenceLinks.buildItemLinks(options);
+}
+
 module.exports = {
   init,
   getExternalToolsHub,
   getCombatExternalTools,
+  buildReferenceLinks,
 };

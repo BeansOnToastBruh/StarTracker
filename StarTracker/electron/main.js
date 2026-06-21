@@ -33,6 +33,7 @@ const craftingIntel = require("./craftingIntel");
 const tradeIntel = require("./tradeIntel");
 const terminalIntel = require("./terminalIntel");
 const externalToolsHub = require("./externalToolsHub");
+const starmapIntel = require("./starmapIntel");
 const reputationIntel = require("./reputationIntel");
 const {
   enrichSession,
@@ -980,6 +981,16 @@ ipcMain.handle("guides-get-trade-presets", () => ({
 ipcMain.handle("guides-get-external-tools-hub", () =>
   externalToolsHub.getExternalToolsHub()
 );
+
+ipcMain.handle("reference-build-links", (_, options) =>
+  externalToolsHub.buildReferenceLinks(options || {})
+);
+
+ipcMain.handle("starmap-lookup-location", (_, name) =>
+  starmapIntel.lookupLocation(name)
+);
+
+ipcMain.handle("starmap-list-systems", () => starmapIntel.listStarSystems(16));
 
 ipcMain.handle("guides-get-reputation", () => {
   const snap = currentSession ? snapshot(currentSession) : null;

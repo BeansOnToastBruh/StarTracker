@@ -1,5 +1,55 @@
 {
   "updated": "2026-06-21",
+  "dataSources": [
+    {
+      "id": "wiki-scunpacked",
+      "name": "Star Citizen Wiki API (SCUnpacked)",
+      "url": "https://api.star-citizen.wiki",
+      "description": "Primary in-game datamine: ships, items, blueprints, locations, and starmap data extracted from game files (same lineage as SCUnpacked).",
+      "powers": ["Catalog", "Ship builder", "Fleet compare", "Crafting", "Combat stats", "Patch notes", "Starmap lookups"],
+      "integrated": true
+    },
+    {
+      "id": "uex",
+      "name": "UEX Corp",
+      "url": "https://uexcorp.space/",
+      "description": "Live terminal commodity prices, stock SCU, and shop listings.",
+      "powers": ["Market prices", "Trade routes", "Smuggler routes", "Refinery calculator"],
+      "integrated": true
+    },
+    {
+      "id": "rsi-starmap",
+      "name": "RSI Starmap",
+      "url": "https://robertsspaceindustries.com/en/starmap",
+      "description": "Official system map. StarTracker resolves locations via wiki/scunpacked data and links you to RSI for the same POI.",
+      "powers": ["Location cross-links on trade and smuggling terminals"],
+      "integrated": true
+    },
+    {
+      "id": "scodex",
+      "name": "SCodex",
+      "url": "https://scodex.garga.net/",
+      "description": "Loot tables, presets, and raw LIVE file dumps. StarTracker links items/ships by class name; loot probabilities stay on SCodex.",
+      "powers": ["Reference links on catalog and loadout items"],
+      "integrated": "links"
+    },
+    {
+      "id": "hubcitizen",
+      "name": "HubCitizen",
+      "url": "https://hubcitizen.com/",
+      "description": "Loadouts, commodities, contracts, and org tools. No public third-party API — StarTracker links matching features and opens HubCitizen for sync-heavy workflows.",
+      "powers": ["Deep links from Credits to and terminal panels"],
+      "integrated": "links"
+    },
+    {
+      "id": "omnicore",
+      "name": "OmniCore",
+      "url": "https://lolindark.github.io/StarCitizen-OmniCore/",
+      "description": "Ship database and HOTAS editor PWA. Linked from ship catalog and builder for alternate views.",
+      "powers": ["Reference links on ships"],
+      "integrated": "links"
+    }
+  ],
   "categories": [
     { "id": "trade", "title": "Trade and economy", "summary": "Route finders, commodity prices, and cargo planning." },
     { "id": "mining", "title": "Mining and refining", "summary": "Ore locations, refinery yields, and crew tools." },
@@ -130,10 +180,11 @@
       "name": "SCodex",
       "url": "https://scodex.garga.net/",
       "category": "reference",
-      "description": "Loot presets, tables, and drop archetypes from the datamine.",
+      "description": "Loot presets, tables, and drop archetypes from the LIVE datamine.",
       "tags": ["loot", "datamine"],
-      "inAppTab": null,
-      "inAppNote": "Drop probabilities are not in the wiki API; use SCodex for full loot tables."
+      "integrated": "links",
+      "inAppTab": "catalog-weapons",
+      "inAppNote": "Catalog items include SCodex + SCUnpacked links by class name. Loot drop rates remain on SCodex."
     },
     {
       "id": "scunpacked",
@@ -142,7 +193,9 @@
       "category": "reference",
       "description": "Raw datamine browser for items, ships, and game files.",
       "tags": ["datamine"],
-      "inAppTab": null
+      "integrated": true,
+      "inAppTab": "guides-fleet",
+      "inAppNote": "StarTracker already uses the same scunpacked lineage via api.star-citizen.wiki for ships, items, and starmap."
     },
     {
       "id": "hangar-link",
@@ -168,9 +221,11 @@
       "name": "HubCitizen",
       "url": "https://hubcitizen.com/",
       "category": "fleet",
-      "description": "Combined loadout manager, commodity tracker, and org tools.",
-      "tags": ["org", "loadout"],
-      "inAppTab": null
+      "description": "Combined loadout manager, commodity tracker, contracts, and org tools.",
+      "tags": ["org", "loadout", "trade"],
+      "integrated": "links",
+      "inAppTab": "guides-loadout",
+      "inAppNote": "StarTracker links HubCitizen for loadouts, commodities, and contracts. RSI sync stays on HubCitizen."
     },
     {
       "id": "starcitizen-tools",
@@ -188,7 +243,9 @@
       "category": "reference",
       "description": "Official system map with jump points and POIs.",
       "tags": ["map", "systems"],
-      "inAppTab": null
+      "integrated": true,
+      "inAppTab": "guides-trade-routes",
+      "inAppNote": "Trade and smuggler terminals include RSI Starmap + wiki location links resolved from scunpacked data."
     },
     {
       "id": "sc-cargo",
@@ -226,7 +283,9 @@
       "category": "reference",
       "description": "PWA hub with ship database and HOTAS keybind editor.",
       "tags": ["hotas", "ships"],
-      "inAppTab": null
+      "integrated": "links",
+      "inAppTab": "catalog-ships",
+      "inAppNote": "Ship catalog rows link to OmniCore alongside wiki and SCodex."
     }
   ]
 }

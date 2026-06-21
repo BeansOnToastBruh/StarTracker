@@ -528,7 +528,44 @@ function expandChevron(host, key) {
   return isInlineExpanded(host, key) ? "▾" : "▸";
 }
 
-function renderInlineDetailRow(colspan, host, key) {
+function renderReferenceLinkBar(links, note) {
+  if (!links?.length) return "";
+  const btns = links
+    .map(
+      (l) =>
+        `<button type="button" class="btn btn-sm btn-ghost ref-link-btn" data-guide-external="${escapeAttr(l.url)}" title="${escapeAttr(l.source || l.label)}">${escapeHtml(l.label)}</button>`
+    )
+    .join("");
+  return `<div class="reference-link-bar">${note ? `<span class="reference-link-note muted small">${displayText(note)}</span>` : ""}<div class="reference-link-buttons">${btns}</div></div>`;
+}
+
+async function fetchReferenceLinkBar(options, note) {
+  try {
+    const links = await window.debrief.referenceBuildLinks(options);
+    return renderReferenceLinkBar(links, note);
+  } catch {
+    return "";
+  }
+}
+
+async function buildTerminalStarmapLinks(terminalRoute) {
+  if (!terminalRoute?.buyTerminal && !terminalRoute?.sellTerminal) return "";
+  const blocks = [];
+  for (const [label, term] of [
+    ["Buy terminal", terminalRoute.buyTerminal],
+    ["Sell terminal", terminalRoute.sellTerminal],
+  ]) {
+    if (!term?.terminal) continue;
+    const loc = await window.debrief.starmapLookupLocation(term.terminal);
+    if (loc?.location?.description) {
+      blocks.push(`<p class="muted small starmap-loc-blurb"><strong>${escapeHtml(label)}:</strong> ${displayText(String(loc.location.description).slice(0, 220))}${String(loc.location.description).length > 220 ? "…" : ""}</p>`);
+    }
+    if (loc?.links?.length) {
+      blocks.push(renderReferenceLinkBar(loc.links, `${label} · ${term.terminal}`));
+    }
+  }
+  return blocks.length ? `<div class="starmap-ref-block">${blocks.join("")}</div>` : "";
+}
   if (!isInlineExpanded(host, key)) return "";
   const inner = inlineExpand.loading
     ? `<p class="muted small inline-detail-loading">Loading…</p>`
@@ -564,10 +601,24 @@ async function buildCatalogInlineHtml(key, kind) {
     kind === "vehicle" || activeTab === "catalog-ships" || detail?.section === "Ships";
   if (isShip) {
     const perfHtml = await fetchCombatProfileHtml(detail, "vehicle");
+    const refBar = await fetchReferenceLinkBar(
+      { kind: "ship", name: detail.name, slug: detail.slug, className: detail.className },
+      "Cross-reference"
+    );
     const listingsHtml = renderCatalogDetail(detail, "item");
-    return `${perfHtml}${listingsHtml}`;
+    return `${refBar}${perfHtml}${listingsHtml}`;
   }
   let html = renderCatalogDetail(detail, kind);
+  const refBar = await fetchReferenceLinkBar(
+    {
+      kind: kind === "place" ? "location" : "item",
+      name: detail.name || detail.terminal,
+      slug: detail.slug,
+      className: detail.className,
+    },
+    "Cross-reference"
+  );
+  html = refBar + html;
   const combatHtml = await fetchCombatProfileHtml(detail, kind);
   if (combatHtml) html += combatHtml;
   return html;
@@ -684,6 +735,7 @@ async function toggleInlineExpand(host, key, meta = {}) {
         cargoScu,
       });
       html = renderTradeRouteInlineDetail(detail);
+      html += await buildTerminalStarmapLinks(detail?.route);
     } else if (host === INLINE_HOST.SMUGGLE) {
       const route =
         meta.route ||
@@ -692,6 +744,7 @@ async function toggleInlineExpand(host, key, meta = {}) {
         ) ||
         null;
       html = renderSmugglerRouteInlineDetail(route);
+      html += await buildTerminalStarmapLinks(route?.terminalRoute);
     } else if (host === INLINE_HOST.CRAFTING) {
       const detail = await window.debrief.craftingGetBlueprint(key);
       if (detail?.ok) {
@@ -3974,13 +4027,47 @@ function buildTradeRoutesPanel(data, presets) {
     <p class="muted small"><button type="button" class="link guide-tab-link" data-tab="guides-commodities">Terminal breakdown</button> · <button type="button" class="link guide-tab-link" data-tab="guides-smuggling">Smuggler routes</button></p>`;
 }
 
-function buildExternalToolsHubPanel(data) {
+function buildExternalToolsHubPanel(data, starmapSystems = []) {
   const categories = data.categories || [];
   const inAppCount = data.inAppCount || 0;
+  const dataSources = data.dataSources || [];
   const disclaimer = data.disclaimer
     ? `<p class="guides-meta muted small">${displayText(data.disclaimer)}</p>`
     : "";
-  const intro = `<div class="hub-intro"><strong>Community tools directory.</strong> ${inAppCount} tools have a similar feature inside StarTracker. External links open in your browser.</div>`;
+  const intro = `<div class="hub-intro"><strong>Community tools directory.</strong> ${inAppCount} tools overlap with in-app tabs. ${dataSources.filter((d) => d.integrated === true).length} data sources are integrated into StarTracker; others open in your browser.</div>`;
+
+  const stackCards = dataSources
+    .map((src) => {
+      const badge =
+        src.integrated === true
+          ? `<span class="badge badge-success">Integrated</span>`
+          : src.integrated === "links"
+            ? `<span class="badge badge-warn">Cross-linked</span>`
+            : `<span class="badge badge-muted">External</span>`;
+      const powers = (src.powers || []).map((p) => `<li>${displayText(p)}</li>`).join("");
+      return `<article class="guide-card data-source-card">
+        <header><h3>${displayText(src.name)} ${badge}</h3></header>
+        <p>${displayText(src.description)}</p>
+        ${powers ? `<ul class="guide-list data-source-powers">${powers}</ul>` : ""}
+        <button type="button" class="btn btn-sm btn-ghost" data-guide-external="${escapeAttr(src.url)}">Open</button>
+      </article>`;
+    })
+    .join("");
+
+  const systemChips = starmapSystems
+    .map(
+      (s) =>
+        `<button type="button" class="quick-nav-chip" data-guide-external="${escapeAttr(s.rsiUrl || s.webUrl || "")}" title="RSI Starmap">${escapeHtml(s.name)}</button>`
+    )
+    .join("");
+
+  const starmapSection = systemChips
+    ? `<section class="guide-section"><h2 class="guide-section-title">Starmap systems (RSI + scunpacked)</h2><p class="muted small">Quick jump to major systems on RSI Starmap. Location data comes from api.star-citizen.wiki — the same scunpacked pipeline SCUnpacked and starcitizen.tools use.</p><div class="starmap-system-chips">${systemChips}</div></section>`
+    : "";
+
+  const dataStackSection = stackCards
+    ? `<section class="guide-section"><h2 class="guide-section-title">Integrated data stack</h2><p class="muted small">What powers StarTracker vs what we link out to (SCodex loot tables, HubCitizen RSI sync, etc.).</p><div class="data-source-grid">${stackCards}</div></section>`
+    : "";
 
   const sections = categories
     .map((cat) => {
@@ -3992,7 +4079,11 @@ function buildExternalToolsHubPanel(data) {
               : "";
           const inApp = tool.inAppTab
             ? `<p class="external-tool-inapp"><span class="badge badge-success">In StarTracker</span> <button type="button" class="link guide-tab-link" data-tab="${escapeAttr(tool.inAppTab)}">${escapeHtml(TABS.find((t) => t.id === tool.inAppTab)?.label || tool.inAppTab)}</button>${tool.inAppNote ? `<span class="muted small"> · ${displayText(tool.inAppNote)}</span>` : ""}</p>`
-            : `<p class="muted small external-tool-external-only">External only${tool.inAppNote ? `: ${displayText(tool.inAppNote)}` : ""}</p>`;
+            : tool.integrated === true
+              ? `<p class="external-tool-inapp"><span class="badge badge-success">Data integrated</span>${tool.inAppNote ? `<span class="muted small"> · ${displayText(tool.inAppNote)}</span>` : ""}</p>`
+              : tool.integrated === "links"
+                ? `<p class="external-tool-inapp"><span class="badge badge-warn">Cross-linked</span>${tool.inAppNote ? `<span class="muted small"> · ${displayText(tool.inAppNote)}</span>` : ""}</p>`
+                : `<p class="muted small external-tool-external-only">External only${tool.inAppNote ? `: ${displayText(tool.inAppNote)}` : ""}</p>`;
           const tags = (tool.tags || [])
             .map((t) => `<span class="tag-chip">${escapeHtml(t)}</span>`)
             .join("");
@@ -4009,7 +4100,7 @@ function buildExternalToolsHubPanel(data) {
     })
     .join("");
 
-  return `${intro}${disclaimer}${sections || `<p class="muted">No tools listed.</p>`}`;
+  return `${intro}${disclaimer}${dataStackSection}${starmapSection}${sections || `<p class="muted">No tools listed.</p>`}`;
 }
 
 function buildReputationPanel(data) {
@@ -4167,10 +4258,13 @@ async function loadGuideTab(tabId, options = {}) {
   }
 
   if (tabId === "guides-external-tools") {
-    setPanelHtml(tabId, `<p class="muted small">Loading Credits to…</p>`);
+    setPanelHtml(tabId, `<p class="muted small">Loading Credits to & starmap…</p>`);
     try {
-      const data = await window.debrief.guidesGetExternalToolsHub();
-      setPanelHtml(tabId, buildExternalToolsHubPanel(data));
+      const [data, systems] = await Promise.all([
+        window.debrief.guidesGetExternalToolsHub(),
+        window.debrief.starmapListSystems().catch(() => []),
+      ]);
+      setPanelHtml(tabId, buildExternalToolsHubPanel(data, systems));
     } catch (e) {
       setPanelHtml(
         tabId,

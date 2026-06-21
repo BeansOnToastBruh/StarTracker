@@ -101,5 +101,8 @@ contextBridge.exposeInMainWorld("debrief", {
   guidesGetTradePresets: () => ipcRenderer.invoke("guides-get-trade-presets"),
   guidesGetExternalToolsHub: () =>
     ipcRenderer.invoke("guides-get-external-tools-hub"),
+  referenceBuildLinks: (options) => ipcRenderer.invoke("reference-build-links", options),
+  starmapLookupLocation: (name) => ipcRenderer.invoke("starmap-lookup-location", name),
+  starmapListSystems: () => ipcRenderer.invoke("starmap-list-systems"),
   guidesGetReputation: () => ipcRenderer.invoke("guides-get-reputation"),
 });

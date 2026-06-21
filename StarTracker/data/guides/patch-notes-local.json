@@ -1,5 +1,16 @@
 [
   {
+    "id": "startracker-1.0.11",
+    "version": "1.0.11",
+    "title": "StarTracker 1.0.11",
+    "date": "2026-05-29",
+    "startrackerNotes": [
+      "Credits to now shows integrated data stack: wiki/scunpacked, UEX, RSI Starmap, SCodex, HubCitizen, OmniCore.",
+      "Cross-reference links on catalog items, trade/smuggler terminals (RSI Starmap + wiki locations).",
+      "Starmap system quick-jumps on Credits to tab."
+    ]
+  },
+  {
     "id": "startracker-1.0.10",
     "version": "1.0.10",
     "title": "StarTracker 1.0.10",

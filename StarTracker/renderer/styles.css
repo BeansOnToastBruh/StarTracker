@@ -3241,3 +3241,59 @@ html[data-theme="light"] .top h1 {
   color: var(--good);
   font-family: var(--font-mono);
 }
+
+.data-source-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.65rem;
+}
+
+.data-source-card header h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+}
+
+.data-source-powers {
+  font-size: 0.76rem;
+  margin: 0.35rem 0;
+}
+
+.starmap-system-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.reference-link-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  margin: 0.45rem 0 0.65rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--accent-secondary);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.reference-link-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.ref-link-btn {
+  font-size: 0.68rem;
+  padding: 0.2rem 0.45rem;
+}
+
+.starmap-ref-block {
+  margin-top: 0.55rem;
+}
+
+.starmap-loc-blurb {
+  margin: 0.35rem 0;
+}
