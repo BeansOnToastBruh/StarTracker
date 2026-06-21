@@ -11,6 +11,7 @@ const WIKI_COMM_LINKS = "https://api.star-citizen.wiki/api/comm-links";
 
 const COMMODITIES_TTL_MS = 24 * 60 * 60 * 1000;
 const PATCH_NOTES_TTL_MS = 6 * 60 * 60 * 1000;
+const PATCH_NOTES_CACHE_FILE = "patch-notes-cache-v2.json";
 
 let cacheDir = null;
 let seedDir = null;
@@ -279,6 +280,30 @@ function isPatchCommLink(row) {
   return isGamePatchCommLink(row);
 }
 
+function sanitizePatchNoteEntry(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  const title = String(entry.title || entry.headline || "").trim();
+  if (/^Star Citizen Live$/i.test(title)) return null;
+  if (!isGamePatchCommLink({ title, channel: entry.channel })) return null;
+  const wikiId = entry.wikiId ?? entry.id;
+  const rsiUrl = normalizeRsiUrl(entry.rsiUrl ?? entry.rsi_url, wikiId, title);
+  return {
+    ...entry,
+    title: entry.title || title,
+    rsiUrl,
+  };
+}
+
+function sanitizePatchNotesRemote(remote) {
+  if (!Array.isArray(remote)) return [];
+  const out = [];
+  for (const row of remote) {
+    const clean = sanitizePatchNoteEntry(row);
+    if (clean) out.push(clean);
+  }
+  return out;
+}
+
 function parsePatchVersion(title) {
   const m = String(title || "").match(/Alpha\s*(\d+(?:\.\d+)*)/i);
   return m ? m[1] : null;
@@ -292,7 +317,7 @@ async function fetchPatchNoteDetail(wikiId) {
   return {
     bodyText: body,
     parsed,
-    rsiUrl: normalizeRsiUrl(row.rsi_url, wikiId),
+    rsiUrl: normalizeRsiUrl(row.rsi_url, wikiId, row.title),
     wikiUrl: wikiCommLinkUrl(wikiId, row.api_public_url),
   };
 }
@@ -311,10 +336,10 @@ async function fetchPatchNotesRemote() {
     try {
       detail = await fetchPatchNoteDetail(row.id);
     } catch {
-      detail.rsiUrl = normalizeRsiUrl(row.rsi_url, row.id);
+      detail.rsiUrl = normalizeRsiUrl(row.rsi_url, row.id, row.title);
       detail.wikiUrl = wikiCommLinkUrl(row.id, row.api_public_url);
     }
-    remote.push({
+    const sanitized = sanitizePatchNoteEntry({
       id: `wiki-${row.id}`,
       wikiId: row.id,
       title: row.title,
@@ -323,7 +348,7 @@ async function fetchPatchNotesRemote() {
       dateHuman: row.created_at_human || null,
       channel: row.channel || null,
       series: row.series || null,
-      rsiUrl: detail.rsiUrl || normalizeRsiUrl(row.rsi_url, row.id),
+      rsiUrl: detail.rsiUrl || normalizeRsiUrl(row.rsi_url, row.id, row.title),
       wikiUrl: detail.wikiUrl || wikiCommLinkUrl(row.id, row.api_public_url),
       headline: detail.parsed.headline || row.title,
       intro: detail.parsed.intro || [],
@@ -331,6 +356,7 @@ async function fetchPatchNotesRemote() {
       source: "star-citizen.wiki",
       isGamePatch: true,
     });
+    if (sanitized) remote.push(sanitized);
   }
   remote.sort((a, b) => {
     const da = a.date ? new Date(a.date).getTime() : 0;
@@ -341,16 +367,18 @@ async function fetchPatchNotesRemote() {
     fetchedAt: new Date().toISOString(),
     remote,
   };
-  const cp = cachePath("patch-notes-cache.json");
+  const cp = cachePath(PATCH_NOTES_CACHE_FILE);
   if (cp) writeJsonFile(cp, entry);
   return entry;
 }
 
 async function getPatchNotesCache(force = false) {
-  const cp = cachePath("patch-notes-cache.json");
+  const cp = cachePath(PATCH_NOTES_CACHE_FILE);
   if (!force && cp) {
     const cached = readJsonFile(cp, null);
-    if (cached && isFresh(cached, PATCH_NOTES_TTL_MS)) return cached;
+    if (cached && isFresh(cached, PATCH_NOTES_TTL_MS)) {
+      return { ...cached, remote: sanitizePatchNotesRemote(cached.remote) };
+    }
   }
   try {
     return await fetchPatchNotesRemote();
@@ -358,7 +386,12 @@ async function getPatchNotesCache(force = false) {
     if (cp) {
       const cached = readJsonFile(cp, null);
       if (cached?.remote?.length) {
-        return { ...cached, stale: true, error: err.message };
+        return {
+          ...cached,
+          remote: sanitizePatchNotesRemote(cached.remote),
+          stale: true,
+          error: err.message,
+        };
       }
     }
     return { fetchedAt: null, remote: [], stale: true, error: err.message };

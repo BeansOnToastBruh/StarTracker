@@ -173,15 +173,38 @@ function parsePatchNotesText(raw) {
   };
 }
 
-function normalizeRsiUrl(rsiUrl, wikiId) {
+function isSclOrBadTransmission(url, title) {
+  const u = String(url || "").trim();
+  const t = String(title || "").trim();
+  if (/Star-Citizen-Live/i.test(u) || /Star-Citizen-Live/i.test(t)) return true;
+  if (/transmission\/21215|21215-Star-Citizen-Live/i.test(u)) return true;
+  if (/\/transmission\//i.test(u)) return true;
+  return false;
+}
+
+function isAlphaPatchCommLink(url, title) {
+  const u = String(url || "").trim();
+  const t = String(title || "").trim();
+  if (isSclOrBadTransmission(u, t)) return false;
+  if (/\/Patch-Notes\//i.test(u) && /Alpha/i.test(u)) return true;
+  if (/Star Citizen Alpha/i.test(t)) return true;
+  if (/Alpha/i.test(u) && !/Live/i.test(u)) return true;
+  return false;
+}
+
+function normalizeRsiUrl(rsiUrl, wikiId, title) {
   const url = String(rsiUrl || "").trim();
-  if (/Star-Citizen-Live/i.test(url)) return wikiId ? buildPatchNotesUrl(wikiId, url) : null;
-  if (url && /\/Patch-Notes\//i.test(url)) return url;
-  if (url && wikiId && /Alpha|Patch|Star-Citizen/i.test(url)) {
+  const entryTitle = title != null ? title : "";
+  if (isSclOrBadTransmission(url, entryTitle)) return null;
+  if (url && /\/Patch-Notes\//i.test(url)) {
+    if (/Star-Citizen-Live|\/transmission\//i.test(url)) return null;
+    return url;
+  }
+  if (wikiId && isAlphaPatchCommLink(url, entryTitle)) {
     return buildPatchNotesUrl(wikiId, url);
   }
-  if (wikiId) return buildPatchNotesUrl(wikiId, url);
-  return url || null;
+  if (url && !/\/transmission\//i.test(url) && /\/Patch-Notes\//i.test(url)) return url;
+  return null;
 }
 
 function buildPatchNotesUrl(wikiId, rsiUrl) {

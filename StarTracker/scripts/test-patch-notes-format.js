@@ -43,11 +43,14 @@ Some missions may fail to progress.`;
     normalizeRsiUrl("https://robertsspaceindustries.com/en/comm-link/Patch-Notes/21168-Star-Citizen-Alpha-48"),
     "https://robertsspaceindustries.com/en/comm-link/Patch-Notes/21168-Star-Citizen-Alpha-48"
   );
-  assert.ok(
-    normalizeRsiUrl("https://robertsspaceindustries.com/en/comm-link/transmission/21215-Star-Citizen-Live", 21215).includes(
-      "Patch-Notes"
+  assert.strictEqual(
+    normalizeRsiUrl(
+      "https://robertsspaceindustries.com/en/comm-link/transmission/21215-Star-Citizen-Live",
+      21215,
+      "Star Citizen Live"
     ),
-    "SCL url rewritten"
+    null,
+    "SCL url must not become Patch-Notes"
   );
 
   console.log("test-patch-notes-format: OK");

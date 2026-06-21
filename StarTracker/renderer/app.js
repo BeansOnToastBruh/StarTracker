@@ -465,7 +465,8 @@ const guideQueryByTab = {
     qualities: {},
     page: 1,
   },
-  "guides-fleet": { query: "", offset: 0, sort: "manufacturer" },
+  "guides-fleet": { query: "", offset: 0, sort: "manufacturer", limit: 80 },
+  "guides-loadout": { query: "", offset: 0, limit: 25 },
 };
 let guideCommodityMeta = null;
 let fleetCompareMeta = null;
@@ -473,7 +474,6 @@ let loadoutBuilderState = {
   shipSlug: null,
   slotAssignments: {},
   stockBaseline: null,
-  shipFilter: "",
 };
 let loadoutBuilderBlueprint = null;
 let guideCommodityRefreshBusy = false;
@@ -503,6 +503,9 @@ let tradeRoutesLastPayload = null;
 let smugglerRoutesLastPayload = null;
 let craftingDetailCache = null;
 let craftingSearchLastRows = null;
+let craftingSearchMeta = null;
+let shipBuilderLastPayload = null;
+let fleetComparePageMeta = null;
 
 const INLINE_HOST = {
   FLEET: "fleet",
@@ -512,6 +515,7 @@ const INLINE_HOST = {
   TRADE: "trade-route",
   SMUGGLE: "smuggle-route",
   CRAFTING: "crafting-blueprint",
+  SHIP_BUILDER: "ship-builder",
 };
 
 function clearInlineExpand() {
@@ -684,6 +688,11 @@ async function refreshInlineExpandHost(host) {
       }
       break;
     }
+    case INLINE_HOST.SHIP_BUILDER:
+      if (activeTab === "guides-loadout" && shipBuilderLastPayload?.tableHtml) {
+        patchShipBuilderTable(shipBuilderLastPayload.tableHtml);
+      }
+      break;
     default:
       break;
   }
@@ -693,6 +702,17 @@ function patchPanelTable(panelSelector, tableHtml) {
   const panel = document.querySelector(`${panelSelector} .panel-body`);
   const old = panel?.querySelector(".catalog-table-wrap");
   if (old) old.outerHTML = tableHtml;
+}
+
+function patchShipBuilderTable(tableHtml) {
+  const wrap = document.querySelector("#panel-guides-loadout .ship-picker-table-wrap");
+  const pager = document.querySelector("#panel-guides-loadout .ship-builder-pager");
+  if (wrap) {
+    wrap.outerHTML = tableHtml;
+  }
+  if (pager && shipBuilderLastPayload?.pagerHtml) {
+    pager.outerHTML = shipBuilderLastPayload.pagerHtml;
+  }
 }
 
 async function toggleInlineExpand(host, key, meta = {}) {
@@ -766,6 +786,8 @@ async function toggleInlineExpand(host, key, meta = {}) {
         guideQueryByTab["guides-crafting"] = state;
       }
       html = buildCraftingInlineDetail(detail, guideQueryByTab["guides-crafting"] || {});
+    } else if (host === INLINE_HOST.SHIP_BUILDER) {
+      html = await buildShipBuilderInlineHtml(String(key));
     }
     if (inlineExpand.host === host && String(inlineExpand.key) === String(key)) {
       inlineExpand.html = html;
@@ -814,6 +836,10 @@ const debouncedGuideSearch = debounce((tabId) => {
 const debouncedFleetSearch = debounce((tabId) => {
   clearInlineExpand();
   if (activeTab === tabId) loadFleetCompareTab(tabId, { resetOffset: true });
+}, 320);
+
+const debouncedShipBuilderFilter = debounce(() => {
+  if (activeTab === "guides-loadout") loadLoadoutBuilderTab("guides-loadout", { resetOffset: true });
 }, 320);
 
 const debouncedCraftingPreview = debounce(async () => {
@@ -1116,16 +1142,7 @@ function initTabs() {
 }
 
 function scrollActiveTabIntoView() {
-  const btn = document.getElementById(`tab-${activeTab}`);
-  const scroller = document.querySelector(".tabs-scroll");
-  if (!btn || !scroller) return;
-  const btnLeft = btn.offsetLeft;
-  const btnRight = btnLeft + btn.offsetWidth;
-  const viewLeft = scroller.scrollLeft;
-  const viewRight = viewLeft + scroller.clientWidth;
-  if (btnLeft < viewLeft || btnRight > viewRight) {
-    btn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
-  }
+  /* Tabs wrap — no horizontal scroll needed. */
 }
 
 function tabBadgeCount(tabId, rollup) {
@@ -2567,7 +2584,7 @@ function fleetMetaLine(meta) {
 }
 
 function fleetStateKey(state) {
-  return `${state.query || ""}|${state.sort || "manufacturer"}|${state.offset || 0}`;
+  return `${state.query || ""}|${state.sort || "manufacturer"}|${state.offset || 0}|${state.limit || 80}`;
 }
 
 async function getLoadoutFleetIndex(forceRefresh = false) {
@@ -2689,43 +2706,137 @@ function renderLoadoutSummaryStrip(totals, baseline) {
   </div>`;
 }
 
+function filterShipBuilderRows(rows, state, favSlugs) {
+  const filter = (state?.query || "").trim().toLowerCase();
+  return (rows || []).filter((r) => {
+    if (shipBuilderPickMode === "favorites" && !favSlugs.has(r.slug)) return false;
+    const hay = `${r.name || ""} ${r.manufacturer || ""} ${r.slug || ""}`.toLowerCase();
+    return !filter || hay.includes(filter);
+  });
+}
+
+function renderShipBuilderRows(rows) {
+  if (!rows?.length) {
+    return `<div class="catalog-table-wrap ship-picker-table-wrap"><table class="catalog-table ship-picker-table">
+      <thead><tr><th></th><th></th><th>Mfg</th><th>Ship</th><th>Role</th></tr></thead>
+      <tbody><tr><td colspan="5" class="muted">${shipBuilderPickMode === "favorites" ? "No favorites match your filter." : "No ships match your filter."}</td></tr></tbody>
+    </table></div>`;
+  }
+  const host = INLINE_HOST.SHIP_BUILDER;
+  const colspan = 5;
+  const body = rows
+    .map((r) => {
+      const key = r.slug;
+      const starred = isShipFavorited(r.slug);
+      const expanded = isInlineExpanded(host, key);
+      return `<tr class="ship-picker-row ${expandableRowClass(host, key)}" data-ship-builder-key="${escapeAttr(key)}" tabindex="0" role="button" aria-expanded="${expanded}">
+        <td class="expand-chevron-cell"><span class="expand-chevron" aria-hidden="true">${expandChevron(host, key)}</span></td>
+        <td><button type="button" class="ship-fav-btn${starred ? " is-favorited" : ""}" data-ship-fav-toggle="${escapeAttr(r.slug)}" data-ship-name="${escapeAttr(r.name || r.slug)}" data-ship-mfg="${escapeAttr(r.manufacturer || "")}" aria-label="${starred ? "Remove from favorites" : "Add to favorites"}">${starred ? "★" : "☆"}</button></td>
+        <td>${displayText(r.manufacturer || "—")}</td>
+        <td>${displayText(r.name)}</td>
+        <td class="muted small">${displayText(r.role || r.focus || "")}</td>
+      </tr>${renderInlineDetailRow(colspan, host, key)}`;
+    })
+    .join("");
+  return `<div class="catalog-table-wrap ship-picker-table-wrap"><table class="catalog-table ship-picker-table">
+    <thead><tr><th></th><th></th><th>Mfg</th><th>Ship</th><th>Role</th></tr></thead>
+    <tbody>${body}</tbody>
+  </table></div>`;
+}
+
+function renderShipBuilderPager(tabId, total, offset, limit) {
+  if (total <= limit) return "";
+  const prevDisabled = offset <= 0 ? " disabled" : "";
+  const nextDisabled = offset + limit >= total ? " disabled" : "";
+  const page = Math.floor(offset / limit) + 1;
+  const pages = Math.max(1, Math.ceil(total / limit));
+  return `<div class="catalog-pager ship-builder-pager">
+    <button type="button" class="btn btn-sm btn-ghost" data-guide-page="${escapeAttr(tabId)}" data-guide-dir="prev"${prevDisabled}>Previous</button>
+    <span class="muted small">Page ${page} of ${pages} (${total} total)</span>
+    <button type="button" class="btn btn-sm btn-ghost" data-guide-page="${escapeAttr(tabId)}" data-guide-dir="next"${nextDisabled}>Next</button>
+  </div>`;
+}
+
+function renderFleetComparePager(tabId, result) {
+  if (!result || result.total <= result.limit) return "";
+  const prevDisabled = result.offset <= 0 ? " disabled" : "";
+  const nextDisabled = result.offset + result.limit >= result.total ? " disabled" : "";
+  const page = Math.floor(result.offset / result.limit) + 1;
+  const pages = Math.max(1, Math.ceil(result.total / result.limit));
+  return `<div class="catalog-pager fleet-compare-pager">
+    <button type="button" class="btn btn-sm btn-ghost" data-fleet-page="${escapeAttr(tabId)}" data-fleet-dir="prev"${prevDisabled}>Previous</button>
+    <span class="muted small">Page ${page} of ${pages} (${result.total} total)</span>
+    <button type="button" class="btn btn-sm btn-ghost" data-fleet-page="${escapeAttr(tabId)}" data-fleet-dir="next"${nextDisabled}>Next</button>
+  </div>`;
+}
+
+async function buildShipBuilderInlineHtml(slug) {
+  if (loadoutBuilderState.shipSlug !== slug) {
+    loadoutBuilderState.shipSlug = slug;
+    loadoutBuilderState.slotAssignments = {};
+    loadoutBuilderState.stockBaseline = null;
+    loadoutBuilderBlueprint = null;
+  }
+  const [blueprint, sim] = await Promise.all([
+    loadoutBuilderBlueprint?.ok && loadoutBuilderState.shipSlug === slug
+      ? Promise.resolve(loadoutBuilderBlueprint)
+      : window.debrief.loadoutGetBlueprint(slug),
+    window.debrief.loadoutSimulate({
+      shipSlug: slug,
+      slotAssignments: loadoutBuilderState.slotAssignments,
+    }),
+  ]);
+  if (blueprint?.ok) loadoutBuilderBlueprint = blueprint;
+  if (!loadoutBuilderState.stockBaseline && sim.summary) {
+    loadoutBuilderState.stockBaseline = {
+      totalDps: sim.summary.totalDps,
+      totalAlpha: sim.summary.totalAlpha,
+    };
+  }
+  let html = renderLoadoutBuilderBody(blueprint, sim.summary);
+  if (sim.hullProfile) {
+    const hullHtml = renderCombatPerformanceSections(sim.hullProfile);
+    html = html.replace(
+      '<div id="loadoutHullProfile"></div>',
+      `<div id="loadoutHullProfile">${hullHtml}</div>`
+    );
+  }
+  return html;
+}
+
 async function renderLoadoutBuilderShell() {
   await loadShipBuilderFavorites();
-  const slug = loadoutBuilderState.shipSlug || "";
-  const filter = (loadoutBuilderState.shipFilter || "").trim().toLowerCase();
+  const tabId = "guides-loadout";
+  const state = guideQueryByTab[tabId] || { query: "", offset: 0, limit: 25 };
+  if (!state.limit) state.limit = 25;
+  guideQueryByTab[tabId] = state;
   const fleet = await getLoadoutFleetIndex();
   const favSlugs = new Set(shipBuilderFavorites.map((s) => s.slug));
+  const filtered = filterShipBuilderRows(fleet.rows || [], state, favSlugs);
+  const total = filtered.length;
+  const offset = Math.max(state.offset || 0, 0);
+  const limit = state.limit || 25;
+  const pageRows = filtered.slice(offset, offset + limit);
 
   const favChips = shipBuilderFavorites.length
     ? shipBuilderFavorites
         .map(
           (s) =>
-            `<button type="button" class="ship-builder-fav-chip${s.slug === slug ? " is-active" : ""}" data-ship-fav-load="${escapeAttr(s.slug)}" title="${escapeAttr(s.name)}"><span aria-hidden="true">★</span> ${escapeHtml(s.name || s.slug)}</button>`
+            `<button type="button" class="ship-builder-fav-chip${s.slug === loadoutBuilderState.shipSlug ? " is-active" : ""}" data-ship-fav-load="${escapeAttr(s.slug)}" title="${escapeAttr(s.name)}"><span aria-hidden="true">★</span> ${escapeHtml(s.name || s.slug)}</button>`
         )
         .join("")
     : `<p class="ship-builder-favorites-empty muted small">No favorite hulls yet. Switch to <strong>All ships</strong> and tap ☆ on any ship to pin it here — like Jump to, but for ship builder.</p>`;
 
-  const shipRows = (fleet.rows || [])
-    .filter((r) => {
-      if (shipBuilderPickMode === "favorites" && !favSlugs.has(r.slug)) return false;
-      const hay = `${r.name || ""} ${r.manufacturer || ""} ${r.slug || ""}`.toLowerCase();
-      return !filter || hay.includes(filter);
-    })
-    .slice(0, shipBuilderPickMode === "favorites" ? 24 : 80)
-    .map((r) => {
-      const starred = isShipFavorited(r.slug);
-      return `<tr class="ship-picker-row${r.slug === slug ? " is-selected" : ""}">
-        <td><button type="button" class="ship-fav-btn${starred ? " is-favorited" : ""}" data-ship-fav-toggle="${escapeAttr(r.slug)}" data-ship-name="${escapeAttr(r.name || r.slug)}" data-ship-mfg="${escapeAttr(r.manufacturer || "")}" aria-label="${starred ? "Remove from favorites" : "Add to favorites"}">${starred ? "★" : "☆"}</button></td>
-        <td>${displayText(r.manufacturer || "—")}</td>
-        <td><button type="button" class="link ship-picker-name" data-ship-pick="${escapeAttr(r.slug)}">${displayText(r.name)}</button></td>
-        <td class="muted small">${displayText(r.role || r.focus || "")}</td>
-      </tr>`;
-    })
-    .join("");
+  const tableHtml = renderShipBuilderRows(pageRows);
+  const pagerHtml = renderShipBuilderPager(tabId, total, offset, limit);
+  shipBuilderLastPayload = { tableHtml, pagerHtml, total, offset, limit };
 
-  const hasShip = Boolean(slug);
   const modeFavActive = shipBuilderPickMode === "favorites" ? " is-active" : "";
   const modeAllActive = shipBuilderPickMode === "all" ? " is-active" : "";
+  const expandedHint =
+    inlineExpand.host === INLINE_HOST.SHIP_BUILDER && inlineExpand.key
+      ? ""
+      : `<p class="muted small ship-builder-hint">Click a ship row to expand loadout details inline. Click again to collapse.</p>`;
 
   return `<div class="hub-intro loadout-builder-intro">
     <strong>Ship builder.</strong> Favorite hulls for quick access, swap weapons and components, read live DPS and hull stats.
@@ -2741,14 +2852,10 @@ async function renderLoadoutBuilderShell() {
   <section class="guide-section loadout-ship-pick">
     <h2 class="guide-section-title loadout-section-title">${shipBuilderPickMode === "favorites" ? "Your favorites" : "Pick a hull"}</h2>
     <div class="catalog-toolbar">
-      <input type="search" id="loadoutShipFilter" class="catalog-search" placeholder="Filter ships…" value="${escapeAttr(loadoutBuilderState.shipFilter || "")}" />
+      <input type="search" id="loadoutShipFilter" class="catalog-search" placeholder="Filter ships…" value="${escapeAttr(state.query || "")}" />
     </div>
-    <div class="catalog-table-wrap ship-picker-table-wrap"><table class="catalog-table ship-picker-table">
-      <thead><tr><th></th><th>Mfg</th><th>Ship</th><th>Role</th></tr></thead>
-      <tbody>${shipRows || `<tr><td colspan="4" class="muted">${shipBuilderPickMode === "favorites" ? "No favorites match your filter." : "No ships match your filter."}</td></tr>`}</tbody>
-    </table></div>
-  </section>
-  <div id="loadoutBuilderBody">${hasShip ? `<p class="muted small">Loading ${escapeHtml(slug)}…</p>` : `<p class="muted small">Select a hull above to load weapons, components, and stats.</p>`}</div>`;
+    ${tableHtml}${pagerHtml}${expandedHint}
+  </section>`;
 }
 
 function renderLoadoutBuilderBody(blueprint, summary) {
@@ -2837,15 +2944,16 @@ function renderLoadoutBuilderBody(blueprint, summary) {
 }
 
 async function loadFleetCompareTab(tabId, options = {}) {
-  const state = guideQueryByTab[tabId] || { query: "", offset: 0, sort: "manufacturer" };
+  const state = guideQueryByTab[tabId] || { query: "", offset: 0, sort: "manufacturer", limit: 80 };
+  if (!state.limit) state.limit = 80;
   if (options.resetOffset) state.offset = 0;
   guideQueryByTab[tabId] = state;
 
   const cacheKey = fleetStateKey(state);
-  if (!options.forceRefresh && fleetCompareLastRows && fleetCompareCacheKey === cacheKey) {
+  if (!options.forceRefresh && fleetCompareLastRows && fleetCompareCacheKey === cacheKey && fleetComparePageMeta) {
     setPanelHtml(
       tabId,
-      `<div class="hub-intro"><strong>Compare the whole fleet.</strong> Sort ships by hull, shields, SCM, cargo, mass, and IR signature. Click any row for the full performance breakdown. Click again to collapse.</div>${fleetMetaLine(fleetCompareMeta)}${fleetCompareToolbar(tabId)}${renderFleetCompareRows(fleetCompareLastRows)}`
+      `<div class="hub-intro"><strong>Compare the whole fleet.</strong> Sort ships by hull, shields, SCM, cargo, mass, and IR signature. Click any row for the full performance breakdown. Click again to collapse.</div>${fleetMetaLine(fleetCompareMeta)}${fleetCompareToolbar(tabId)}${renderFleetCompareRows(fleetCompareLastRows)}${renderFleetComparePager(tabId, fleetComparePageMeta)}`
     );
     return;
   }
@@ -2860,16 +2968,17 @@ async function loadFleetCompareTab(tabId, options = {}) {
       query: state.query,
       sort: state.sort,
       offset: state.offset,
-      limit: 80,
+      limit: state.limit,
       forceRefresh: options.forceRefresh,
     });
     if (!result.ok) throw new Error(result.error || "fleet compare failed");
     fleetCompareMeta = result.meta;
     fleetCompareLastRows = result.rows;
+    fleetComparePageMeta = { total: result.total, offset: result.offset, limit: result.limit };
     fleetCompareCacheKey = cacheKey;
     setPanelHtml(
       tabId,
-      `<div class="hub-intro"><strong>Compare the whole fleet.</strong> Sort ships by hull, shields, SCM, cargo, mass, and IR signature. Click any row for the full performance breakdown. Click again to collapse.</div>${fleetMetaLine(result.meta)}${fleetCompareToolbar(tabId)}${renderFleetCompareRows(result.rows)}`
+      `<div class="hub-intro"><strong>Compare the whole fleet.</strong> Sort ships by hull, shields, SCM, cargo, mass, and IR signature. Click any row for the full performance breakdown. Click again to collapse.</div>${fleetMetaLine(result.meta)}${fleetCompareToolbar(tabId)}${renderFleetCompareRows(result.rows)}${renderFleetComparePager(tabId, fleetComparePageMeta)}`
     );
   } catch (e) {
     setPanelHtml(
@@ -2879,38 +2988,39 @@ async function loadFleetCompareTab(tabId, options = {}) {
   }
 }
 
-async function loadLoadoutBuilderTab(tabId) {
+async function loadLoadoutBuilderTab(tabId, options = {}) {
+  const preserveKey =
+    inlineExpand.host === INLINE_HOST.SHIP_BUILDER ? inlineExpand.key : null;
+  const preserveHtml = preserveKey ? inlineExpand.html : null;
+  const preserveLoading = preserveKey ? inlineExpand.loading : false;
+
+  if (options.resetOffset) {
+    const state = guideQueryByTab["guides-loadout"] || {};
+    state.offset = 0;
+    guideQueryByTab["guides-loadout"] = state;
+  }
+
   setPanelHtml(tabId, `<p class="muted small">Loading ship list…</p>`);
   setPanelHtml(tabId, await renderLoadoutBuilderShell());
-  if (!loadoutBuilderState.shipSlug) return;
 
-  const body = document.getElementById("loadoutBuilderBody");
-  if (!body) return;
-  body.innerHTML = `<p class="muted small">Loading ${escapeHtml(loadoutBuilderState.shipSlug)}…</p>`;
-  try {
-    const [blueprint, sim] = await Promise.all([
-      window.debrief.loadoutGetBlueprint(loadoutBuilderState.shipSlug),
-      window.debrief.loadoutSimulate({
-        shipSlug: loadoutBuilderState.shipSlug,
-        slotAssignments: loadoutBuilderState.slotAssignments,
-      }),
-    ]);
-    loadoutBuilderBlueprint = blueprint;
-    if (!loadoutBuilderState.stockBaseline && sim.summary) {
-      loadoutBuilderState.stockBaseline = {
-        totalDps: sim.summary.totalDps,
-        totalAlpha: sim.summary.totalAlpha,
+  if (preserveKey) {
+    const state = guideQueryByTab["guides-loadout"] || {};
+    const fleet = await getLoadoutFleetIndex();
+    const favSlugs = new Set(shipBuilderFavorites.map((s) => s.slug));
+    const filtered = filterShipBuilderRows(fleet.rows || [], state, favSlugs);
+    const stillVisible = filtered.some((r) => r.slug === preserveKey);
+    if (!stillVisible) {
+      clearInlineExpand();
+    } else {
+      inlineExpand = {
+        host: INLINE_HOST.SHIP_BUILDER,
+        key: String(preserveKey),
+        kind: null,
+        html: preserveHtml,
+        loading: preserveLoading,
       };
     }
-    body.innerHTML = renderLoadoutBuilderBody(blueprint, sim.summary);
-    if (sim.hullProfile) {
-      document.getElementById("loadoutHullProfile")?.insertAdjacentHTML(
-        "beforeend",
-        renderCombatPerformanceSections(sim.hullProfile)
-      );
-    }
-  } catch (e) {
-    body.innerHTML = `<p class="muted">Loadout error: ${escapeHtml(e.message || String(e))}</p>`;
+    await refreshInlineExpandHost(INLINE_HOST.SHIP_BUILDER);
   }
 }
 
@@ -2926,34 +3036,18 @@ function gatherLoadoutAssignments() {
 
 async function applyLoadoutAssignments() {
   loadoutBuilderState.slotAssignments = gatherLoadoutAssignments();
-  const body = document.getElementById("loadoutBuilderBody");
-  if (!body || !loadoutBuilderState.shipSlug) return;
+  if (!loadoutBuilderState.shipSlug) return;
+  if (!isInlineExpanded(INLINE_HOST.SHIP_BUILDER, loadoutBuilderState.shipSlug)) return;
+  inlineExpand.loading = true;
+  await refreshInlineExpandHost(INLINE_HOST.SHIP_BUILDER);
   try {
-    const [blueprint, sim] = await Promise.all([
-      loadoutBuilderBlueprint?.ok
-        ? Promise.resolve(loadoutBuilderBlueprint)
-        : window.debrief.loadoutGetBlueprint(loadoutBuilderState.shipSlug),
-      window.debrief.loadoutSimulate({
-        shipSlug: loadoutBuilderState.shipSlug,
-        slotAssignments: loadoutBuilderState.slotAssignments,
-      }),
-    ]);
-    if (blueprint?.ok) loadoutBuilderBlueprint = blueprint;
-    if (!loadoutBuilderState.stockBaseline && sim.summary) {
-      loadoutBuilderState.stockBaseline = {
-        totalDps: sim.summary.totalDps,
-        totalAlpha: sim.summary.totalAlpha,
-      };
-    }
-    body.innerHTML = renderLoadoutBuilderBody(blueprint, sim.summary);
-    if (sim.hullProfile) {
-      document.getElementById("loadoutHullProfile")?.insertAdjacentHTML(
-        "beforeend",
-        renderCombatPerformanceSections(sim.hullProfile)
-      );
-    }
+    inlineExpand.html = await buildShipBuilderInlineHtml(loadoutBuilderState.shipSlug);
+    inlineExpand.loading = false;
+    await refreshInlineExpandHost(INLINE_HOST.SHIP_BUILDER);
   } catch (e) {
-    body.innerHTML = `<p class="muted">Loadout error: ${escapeHtml(e.message || String(e))}</p>`;
+    inlineExpand.html = `<p class="muted">Loadout error: ${escapeHtml(e.message || String(e))}</p>`;
+    inlineExpand.loading = false;
+    await refreshInlineExpandHost(INLINE_HOST.SHIP_BUILDER);
   }
 }
 
@@ -3219,8 +3313,12 @@ function buildPatchNotesPanel(data) {
         .map((p) => `<p class="patch-note-intro">${displayText(p)}</p>`)
         .join("");
       const sectionsHtml = renderPatchNoteSections(link.sections);
+      const rsiValid =
+        rsiUrl &&
+        !/Star-Citizen-Live/i.test(rsiUrl) &&
+        !/\/transmission\//i.test(rsiUrl);
       const linkRow = [
-        rsiUrl
+        rsiValid
           ? `<button type="button" class="btn btn-sm patch-read-rsi" data-guide-external="${escapeAttr(rsiUrl)}">Open on RSI</button>`
           : "",
         wikiUrl
@@ -3602,6 +3700,19 @@ function buildCraftingMissionsSection(detail) {
   </table></div>`;
 }
 
+function renderCraftingPager(meta) {
+  if (!meta || meta.total <= meta.perPage) return "";
+  const page = meta.page || 1;
+  const pages = meta.lastPage || Math.max(1, Math.ceil(meta.total / meta.perPage));
+  const prevDisabled = page <= 1 ? " disabled" : "";
+  const nextDisabled = page >= pages ? " disabled" : "";
+  return `<div class="catalog-pager crafting-pager">
+    <button type="button" class="btn btn-sm btn-ghost" data-crafting-page="prev"${prevDisabled}>Previous</button>
+    <span class="muted small">Page ${page} of ${pages} (${meta.total} total)</span>
+    <button type="button" class="btn btn-sm btn-ghost" data-crafting-page="next"${nextDisabled}>Next</button>
+  </div>`;
+}
+
 function buildCraftingPanel(searchData) {
   const state = guideQueryByTab["guides-crafting"] || {};
   const query = state.query || "";
@@ -3619,6 +3730,7 @@ function buildCraftingPanel(searchData) {
         <button type="button" class="btn btn-sm" id="craftingSearchBtn">Search</button>
       </div>
       <div id="craftingSearchResults">${renderCraftingSearchRows(craftingSearchLastRows || searchData?.rows || [], state.blueprintId)}</div>
+      ${renderCraftingPager(craftingSearchMeta || searchData?.meta)}
     </section>
     <p class="muted small"><button type="button" class="link guide-tab-link" data-tab="blueprints">Session blueprint unlocks</button> · <button type="button" class="link guide-tab-link" data-tab="guides-loops">Game loops</button></p>`;
 }
@@ -3635,6 +3747,7 @@ async function loadCraftingTab(tabId, options = {}) {
       perPage: 25,
     });
     craftingSearchLastRows = searchData.rows || [];
+    craftingSearchMeta = searchData.meta || null;
     setPanelHtml(tabId, buildCraftingPanel(searchData));
     if (inlineExpand.host === INLINE_HOST.CRAFTING) {
       const el = $("craftingSearchResults");
@@ -4282,7 +4395,7 @@ async function loadGuideTab(tabId, options = {}) {
   }
 
   if (tabId === "guides-loadout") {
-    await loadLoadoutBuilderTab(tabId);
+    await loadLoadoutBuilderTab(tabId, options);
     return;
   }
 
@@ -4415,9 +4528,45 @@ function initGuidesUi() {
       const dir = pageBtn.dataset.guideDir;
       const state = guideQueryByTab[tabId];
       if (!state) return;
+      const limit = state.limit || (tabId === "guides-loadout" ? 25 : 80);
+      if (tabId === "guides-loadout") {
+        state.offset = Math.max(0, state.offset + (dir === "next" ? limit : -limit));
+        guideQueryByTab[tabId] = state;
+        loadLoadoutBuilderTab(tabId);
+      } else {
+        clearInlineExpand();
+        state.offset = Math.max(0, state.offset + (dir === "next" ? limit : -limit));
+        loadGuideTab(tabId);
+      }
+      return;
+    }
+
+    const fleetPageBtn = e.target.closest("[data-fleet-page]");
+    if (fleetPageBtn && !fleetPageBtn.disabled) {
+      const tabId = fleetPageBtn.dataset.fleetPage;
+      const dir = fleetPageBtn.dataset.fleetDir;
+      const state = guideQueryByTab[tabId];
+      if (!state) return;
       clearInlineExpand();
-      state.offset = Math.max(0, state.offset + (dir === "next" ? 80 : -80));
-      loadGuideTab(tabId);
+      const limit = state.limit || 80;
+      state.offset = Math.max(0, state.offset + (dir === "next" ? limit : -limit));
+      guideQueryByTab[tabId] = state;
+      loadFleetCompareTab(tabId);
+      return;
+    }
+
+    const craftingPageBtn = e.target.closest("[data-crafting-page]");
+    if (craftingPageBtn && !craftingPageBtn.disabled) {
+      const dir = craftingPageBtn.dataset.craftingPage;
+      const state = guideQueryByTab["guides-crafting"] || {};
+      const meta = craftingSearchMeta || {};
+      const pages = meta.lastPage || Math.max(1, Math.ceil((meta.total || 0) / (meta.perPage || 25)));
+      const nextPage = (state.page || 1) + (dir === "next" ? 1 : -1);
+      if (nextPage < 1 || nextPage > pages) return;
+      state.page = nextPage;
+      guideQueryByTab["guides-crafting"] = state;
+      clearInlineExpand();
+      loadCraftingTab("guides-crafting");
       return;
     }
 
@@ -4528,6 +4677,12 @@ function initGuidesUi() {
       return;
     }
 
+    const shipBuilderRow = e.target.closest("tr[data-ship-builder-key]");
+    if (shipBuilderRow?.dataset.shipBuilderKey && !e.target.closest("[data-ship-fav-toggle]")) {
+      await toggleInlineExpand(INLINE_HOST.SHIP_BUILDER, shipBuilderRow.dataset.shipBuilderKey);
+      return;
+    }
+
     const shipFavToggle = e.target.closest("[data-ship-fav-toggle]");
     if (shipFavToggle?.dataset.shipFavToggle) {
       await toggleShipFavorite(
@@ -4539,30 +4694,19 @@ function initGuidesUi() {
       return;
     }
 
-    const shipPick = e.target.closest("[data-ship-pick]");
-    if (shipPick?.dataset.shipPick) {
-      loadoutBuilderState.shipSlug = shipPick.dataset.shipPick;
-      loadoutBuilderState.slotAssignments = {};
-      loadoutBuilderState.stockBaseline = null;
-      loadoutBuilderBlueprint = null;
-      loadLoadoutBuilderTab("guides-loadout");
-      return;
-    }
-
     const shipFavLoad = e.target.closest("[data-ship-fav-load]");
     if (shipFavLoad?.dataset.shipFavLoad) {
-      loadoutBuilderState.shipSlug = shipFavLoad.dataset.shipFavLoad;
-      loadoutBuilderState.slotAssignments = {};
-      loadoutBuilderState.stockBaseline = null;
-      loadoutBuilderBlueprint = null;
-      loadLoadoutBuilderTab("guides-loadout");
+      await toggleInlineExpand(INLINE_HOST.SHIP_BUILDER, shipFavLoad.dataset.shipFavLoad);
       return;
     }
 
     const shipBuilderMode = e.target.closest("[data-ship-builder-mode]");
     if (shipBuilderMode?.dataset.shipBuilderMode) {
       shipBuilderPickMode = shipBuilderMode.dataset.shipBuilderMode;
-      loadLoadoutBuilderTab("guides-loadout");
+      const state = guideQueryByTab["guides-loadout"] || {};
+      state.offset = 0;
+      guideQueryByTab["guides-loadout"] = state;
+      loadLoadoutBuilderTab("guides-loadout", { resetOffset: true });
       return;
     }
   });
@@ -4657,8 +4801,10 @@ function initGuidesUi() {
     }
 
     if (e.target.id === "loadoutShipFilter") {
-      loadoutBuilderState.shipFilter = e.target.value;
-      loadLoadoutBuilderTab("guides-loadout");
+      const state = guideQueryByTab["guides-loadout"] || { query: "", offset: 0, limit: 25 };
+      state.query = e.target.value;
+      guideQueryByTab["guides-loadout"] = state;
+      debouncedShipBuilderFilter();
       return;
     }
     const fleetInput = e.target.closest("[data-fleet-search]");

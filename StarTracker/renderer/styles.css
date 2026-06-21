@@ -539,9 +539,9 @@ html[data-theme="light"] .stat[data-stat="earn"] {
   align-items: stretch;
   gap: 0.5rem;
   padding: 0.45rem 1rem 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  flex-wrap: nowrap;
+  overflow-x: visible;
+  overflow-y: visible;
+  flex-wrap: wrap;
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
 }
@@ -559,7 +559,8 @@ html[data-theme="light"] .stat[data-stat="earn"] {
   display: flex;
   align-items: stretch;
   gap: 0.15rem;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  flex-wrap: wrap;
   padding: 0.35rem 0.45rem 0;
   border-radius: 3px 3px 0 0;
   border: 1px solid var(--border-subtle);
