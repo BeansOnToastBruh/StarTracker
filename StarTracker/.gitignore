@@ -9,5 +9,5 @@ npm-debug.log*
 # Shipping builds (project root after npm run dist:*)
 StarTracker-*.exe
 StarTracker-*.AppImage
-StarTracker-*.deb
+build-meta.json
 

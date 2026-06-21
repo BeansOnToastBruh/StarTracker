@@ -43,4 +43,20 @@ assert(isLinuxReleaseTag("v1.0.4-linux"), "v1.0.4-linux is linux tag");
 assert(isWindowsReleaseTag("v1.0.3"), "v1.0.3 is windows tag");
 assert(!isWindowsReleaseTag("v1.0.4-linux"), "linux tag not windows tag");
 
+const { releaseIsNewerBuild } = require("../electron/updateChecker");
+assert(
+  releaseIsNewerBuild(
+    { published_at: "2026-05-30T12:00:00Z" },
+    { builtAt: "2026-05-29T12:00:00Z" }
+  ),
+  "newer GitHub release detected for same version"
+);
+assert(
+  !releaseIsNewerBuild(
+    { published_at: "2026-05-29T12:00:00Z" },
+    { builtAt: "2026-05-29T12:00:00Z" }
+  ),
+  "same-day build within grace window not flagged"
+);
+
 if (!process.exitCode) console.log("test-update-installer: ok");

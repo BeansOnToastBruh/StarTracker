@@ -1,4 +1,4 @@
-const PLACEHOLDER_PATTERN = /YOUR_USER/i;
+const { readBuildMeta } = require("./buildMeta");
 const REQUEST_TIMEOUT_MS = 8000;
 
 function userAgent() {
@@ -210,6 +210,14 @@ async function fetchLatestPlatformRelease(owner, repo) {
   return null;
 }
 
+function releaseIsNewerBuild(release, buildMeta) {
+  if (!buildMeta?.builtAt || !release?.published_at) return false;
+  const built = new Date(buildMeta.builtAt).getTime();
+  const published = new Date(release.published_at).getTime();
+  if (!Number.isFinite(built) || !Number.isFinite(published)) return false;
+  return published > built + 60_000;
+}
+
 async function checkForUpdates(cfg) {
   const repo = resolveUpdateRepo(cfg);
   if (!repo) {
@@ -239,8 +247,14 @@ async function checkForUpdates(cfg) {
   const latestVersion = normalizeTag(release.tag_name);
   const downloadUrl = pickDownloadUrl(release);
   const platformLabel = platformReleaseLabel(release);
+  const buildMeta = readBuildMeta();
+  const versionNewer = semverGreaterThan(latestVersion, currentVersion);
+  const sameVersionNewerBuild =
+    !versionNewer &&
+    latestVersion === normalizeTag(currentVersion) &&
+    releaseIsNewerBuild(release, buildMeta);
 
-  if (!latestVersion || !semverGreaterThan(latestVersion, currentVersion)) {
+  if (!versionNewer && !sameVersionNewerBuild) {
     return {
       available: false,
       currentVersion,
@@ -248,6 +262,10 @@ async function checkForUpdates(cfg) {
       platformLabel,
     };
   }
+
+  const rebuildNote = sameVersionNewerBuild
+    ? `A newer ${platformLabel} build of v${latestVersion} is available.`
+    : null;
 
   if (!downloadUrl) {
     return {
@@ -257,6 +275,7 @@ async function checkForUpdates(cfg) {
       platformLabel,
       releaseUrl: release.html_url || null,
       downloadUrl: null,
+      rebuildNote,
       error: `Update ${latestVersion} exists but no ${platformLabel} installer was found on that release.`,
     };
   }
@@ -269,6 +288,7 @@ async function checkForUpdates(cfg) {
     downloadUrl,
     platformLabel,
     platform: wantsLinuxRelease() ? "linux" : "windows",
+    rebuildNote,
   };
 }
 
@@ -278,4 +298,5 @@ module.exports = {
   semverGreaterThan,
   isLinuxReleaseTag,
   normalizeTag,
+  releaseIsNewerBuild,
 };

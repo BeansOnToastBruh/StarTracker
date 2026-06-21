@@ -1,5 +1,16 @@
 [
   {
+    "id": "startracker-1.0.6",
+    "version": "1.0.6",
+    "title": "StarTracker 1.0.6",
+    "date": "2026-05-29",
+    "startrackerNotes": [
+      "In-app updates now detect newer builds even when the version number matches.",
+      "Terminal trade routes, loadout combat cards, refinery and smuggler overhauls from 1.0.5 follow-up.",
+      "Use Check for updates in the footer or the Install update banner when a release is ready."
+    ]
+  },
+  {
     "id": "startracker-1.0.5",
     "version": "1.0.5",
     "title": "StarTracker 1.0.5",

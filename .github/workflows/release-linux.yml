@@ -57,6 +57,9 @@ jobs:
             electron-builder-linux-appimage-12.0.1-${{ runner.os }}-
             electron-builder-linux-${{ runner.os }}-
 
+      - name: Write build metadata
+        run: node scripts/write-build-meta.js
+
       - name: Build Linux AppImage
         shell: bash
         run: |

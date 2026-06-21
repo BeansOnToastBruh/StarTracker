@@ -50,6 +50,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Write build metadata
+        run: node scripts/write-build-meta.js
+
       - name: Build Windows installers
         run: npm run dist:win
 

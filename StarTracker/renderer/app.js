@@ -4529,7 +4529,9 @@ function renderUpdateBanner() {
   }
 
   const plat = updateInfo.platformLabel ? ` (${updateInfo.platformLabel})` : "";
-  text.textContent = `Update available${plat}: ${formatVersion(updateInfo.latestVersion)}`;
+  text.textContent =
+    updateInfo.rebuildNote ||
+    `Update available${plat}: ${formatVersion(updateInfo.latestVersion)}`;
   banner.classList.remove("hidden");
 }
 
