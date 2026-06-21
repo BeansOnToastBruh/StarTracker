@@ -1,5 +1,14 @@
 [
   {
+    "id": "startracker-1.0.12",
+    "version": "1.0.12",
+    "title": "StarTracker 1.0.12",
+    "date": "2026-05-29",
+    "startrackerNotes": [
+      "Fix startup hang caused by a syntax error in app.js (1.0.11 regression)."
+    ]
+  },
+  {
     "id": "startracker-1.0.11",
     "version": "1.0.11",
     "title": "StarTracker 1.0.11",

@@ -566,6 +566,8 @@ async function buildTerminalStarmapLinks(terminalRoute) {
   }
   return blocks.length ? `<div class="starmap-ref-block">${blocks.join("")}</div>` : "";
 }
+
+function renderInlineDetailRow(colspan, host, key) {
   if (!isInlineExpanded(host, key)) return "";
   const inner = inlineExpand.loading
     ? `<p class="muted small inline-detail-loading">Loading…</p>`
