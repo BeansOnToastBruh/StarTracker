@@ -1,5 +1,10 @@
 const fs = require("fs");
 const path = require("path");
+const {
+  parsePatchNotesText,
+  normalizeRsiUrl,
+  wikiCommLinkUrl,
+} = require("./patchNotesFormat");
 
 const UEX_BASE = "https://api.uexcorp.space/2.0";
 const WIKI_COMM_LINKS = "https://api.star-citizen.wiki/api/comm-links";
@@ -261,11 +266,12 @@ async function getCommodityDetail(commodityId) {
 }
 
 function isGamePatchCommLink(row) {
-  const title = String(row.title || "");
+  const title = String(row.title || "").trim();
   const channel = String(row.channel || "");
+  if (/^Star Citizen Live$/i.test(title)) return false;
+  if (/Tech Talk|Roadmap Roundup|Letter from the Chairman/i.test(title)) return false;
   if (/Star Citizen Alpha \d/i.test(title)) return true;
   if (/Patch Notes/i.test(channel)) return true;
-  if (/^Live\b/i.test(title) && /Alpha|Patch/i.test(title)) return true;
   return false;
 }
 
@@ -278,27 +284,59 @@ function parsePatchVersion(title) {
   return m ? m[1] : null;
 }
 
+async function fetchPatchNoteDetail(wikiId) {
+  const json = await fetchJson(`${WIKI_COMM_LINKS}/${wikiId}`);
+  const row = json.data || json;
+  const body = row.translations?.en_EN || row.content || "";
+  const parsed = parsePatchNotesText(body);
+  return {
+    bodyText: body,
+    parsed,
+    rsiUrl: normalizeRsiUrl(row.rsi_url, wikiId),
+    wikiUrl: wikiCommLinkUrl(wikiId, row.api_public_url),
+  };
+}
+
 async function fetchPatchNotesRemote() {
   const json = await fetchJson(`${WIKI_COMM_LINKS}?limit=120`);
-  const remote = (json.data || [])
-    .filter(isGamePatchCommLink)
-    .map((row) => ({
+  const candidates = (json.data || []).filter(isGamePatchCommLink).slice(0, 12);
+  const remote = [];
+  for (const row of candidates) {
+    let detail = {
+      bodyText: "",
+      parsed: { headline: null, intro: [], sections: [] },
+      rsiUrl: null,
+      wikiUrl: null,
+    };
+    try {
+      detail = await fetchPatchNoteDetail(row.id);
+    } catch {
+      detail.rsiUrl = normalizeRsiUrl(row.rsi_url, row.id);
+      detail.wikiUrl = wikiCommLinkUrl(row.id, row.api_public_url);
+    }
+    remote.push({
       id: `wiki-${row.id}`,
+      wikiId: row.id,
       title: row.title,
       version: parsePatchVersion(row.title),
       date: row.created_at || null,
       dateHuman: row.created_at_human || null,
       channel: row.channel || null,
       series: row.series || null,
-      rsiUrl: row.rsi_url || null,
+      rsiUrl: detail.rsiUrl || normalizeRsiUrl(row.rsi_url, row.id),
+      wikiUrl: detail.wikiUrl || wikiCommLinkUrl(row.id, row.api_public_url),
+      headline: detail.parsed.headline || row.title,
+      intro: detail.parsed.intro || [],
+      sections: detail.parsed.sections || [],
       source: "star-citizen.wiki",
       isGamePatch: true,
-    }))
-    .sort((a, b) => {
-      const da = a.date ? new Date(a.date).getTime() : 0;
-      const db = b.date ? new Date(b.date).getTime() : 0;
-      return db - da;
     });
+  }
+  remote.sort((a, b) => {
+    const da = a.date ? new Date(a.date).getTime() : 0;
+    const db = b.date ? new Date(b.date).getTime() : 0;
+    return db - da;
+  });
   const entry = {
     fetchedAt: new Date().toISOString(),
     remote,
@@ -327,9 +365,9 @@ async function getPatchNotesCache(force = false) {
   }
 }
 
-async function getPatchNotes() {
+async function getPatchNotes(force = false) {
   const local = readSeed("patch-notes-local.json") || [];
-  const cache = await getPatchNotesCache(false);
+  const cache = await getPatchNotesCache(force);
   return {
     local: Array.isArray(local) ? local : [],
     remote: cache.remote || [],
@@ -339,6 +377,10 @@ async function getPatchNotes() {
       sources: ["data/guides", "api.star-citizen.wiki"],
     },
   };
+}
+
+async function refreshPatchNotes() {
+  return getPatchNotes(true);
 }
 
 function matchCommodityHint(hint, rows) {
@@ -421,6 +463,7 @@ module.exports = {
   getCommodityList,
   getCommodityDetail,
   getPatchNotes,
+  refreshPatchNotes,
   getSmugglerRoutes,
   getGameLoops,
   refreshCommodities,

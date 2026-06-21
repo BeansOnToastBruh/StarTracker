@@ -786,7 +786,8 @@ ipcMain.handle("catalog-place-detail", (_, placeKey) =>
 
 ipcMain.handle("catalog-refresh", async () => gameDatabase.refreshCatalog());
 
-ipcMain.handle("guides-get-patch-notes", () => guidesHub.getPatchNotes());
+ipcMain.handle("guides-get-patch-notes", (_, force) => guidesHub.getPatchNotes(!!force));
+ipcMain.handle("guides-refresh-patch-notes", () => guidesHub.refreshPatchNotes());
 
 ipcMain.handle("guides-get-commodities", (_, options) =>
   guidesHub.getCommodityList(options || {})

@@ -58,7 +58,8 @@ contextBridge.exposeInMainWorld("debrief", {
     ipcRenderer.on("catalog-sync", handler);
     return () => ipcRenderer.removeListener("catalog-sync", handler);
   },
-  guidesGetPatchNotes: () => ipcRenderer.invoke("guides-get-patch-notes"),
+  guidesGetPatchNotes: (force) => ipcRenderer.invoke("guides-get-patch-notes", !!force),
+  guidesRefreshPatchNotes: () => ipcRenderer.invoke("guides-refresh-patch-notes"),
   guidesGetCommodities: (options) =>
     ipcRenderer.invoke("guides-get-commodities", options),
   guidesGetCommodityDetail: (commodityId) =>

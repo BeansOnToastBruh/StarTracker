@@ -3056,22 +3056,67 @@ function renderGuideCommodityDetail(detail) {
   </article>`;
 }
 
+function renderPatchSectionItems(items, limit = 24) {
+  if (!items?.length) return "";
+  const slice = items.slice(0, limit);
+  const more = items.length > limit ? `<li class="muted small">…and ${items.length - limit} more (open full notes on RSI or Wiki)</li>` : "";
+  return `<ul class="patch-note-list">${slice.map((item) => `<li>${displayText(item)}</li>`).join("")}${more}</ul>`;
+}
+
+function renderPatchNoteSections(sections) {
+  if (!sections?.length) return "";
+  return sections
+    .map((section, idx) => {
+      const open = idx === 0 ? " open" : "";
+      const subHtml = (section.subsections || [])
+        .map(
+          (sub) => `<div class="patch-note-subsection">
+            <h5 class="patch-note-subhead">${displayText(sub.title)}</h5>
+            ${renderPatchSectionItems(sub.items, 16)}
+          </div>`
+        )
+        .join("");
+      const directItems = renderPatchSectionItems(section.items, 20);
+      const body = subHtml || directItems;
+      if (!body) return "";
+      return `<details class="patch-note-section"${open}>
+        <summary>${displayText(section.title)}</summary>
+        <div class="patch-note-section-body">${body}</div>
+      </details>`;
+    })
+    .join("");
+}
+
 function buildPatchNotesPanel(data) {
   const remoteCards = (data.remote || [])
     .map((link) => {
-      const url = link.rsiUrl || "";
+      const rsiUrl = link.rsiUrl || "";
+      const wikiUrl = link.wikiUrl || "";
       const version = link.version ? `Alpha ${link.version}` : "";
-      const openBtn = url
-        ? `<button type="button" class="btn btn-sm patch-read-rsi" data-guide-external="${escapeAttr(url)}">Read full patch notes on RSI</button>`
-        : "";
+      const intro = (link.intro || [])
+        .slice(0, 4)
+        .map((p) => `<p class="patch-note-intro">${displayText(p)}</p>`)
+        .join("");
+      const sectionsHtml = renderPatchNoteSections(link.sections);
+      const linkRow = [
+        rsiUrl
+          ? `<button type="button" class="btn btn-sm patch-read-rsi" data-guide-external="${escapeAttr(rsiUrl)}">Open on RSI</button>`
+          : "",
+        wikiUrl
+          ? `<button type="button" class="btn btn-sm btn-ghost patch-read-wiki" data-guide-external="${escapeAttr(wikiUrl)}">Wiki mirror</button>`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
       return `<article class="patch-note-card guide-card patch-note-game">
         <header>
-          <h3>${displayText(link.title)}</h3>
+          <h3>${displayText(link.headline || link.title)}</h3>
           <span class="patch-version-badge">${escapeHtml(version || link.channel || "RSI")}</span>
         </header>
         <p class="muted small">${escapeHtml(link.dateHuman || link.date || "")}${link.channel ? ` · ${escapeHtml(link.channel)}` : ""}</p>
-        <p class="patch-note-lead">Official game patch from Roberts Space Industries. Open on RSI for the full notes, balance changes, and known issues.</p>
-        ${openBtn}
+        ${intro}
+        ${sectionsHtml || `<p class="patch-note-lead muted small">Full notes could not be parsed. Use the links below.</p>`}
+        <div class="patch-note-links">${linkRow}</div>
       </article>`;
     })
     .join("");
@@ -3089,8 +3134,8 @@ function buildPatchNotesPanel(data) {
     .join("");
 
   const meta = data.meta?.fetchedAt
-    ? `<p class="guides-meta muted small">Game patches from RSI comm-links · cached ${escapeHtml(fmtDateTime(data.meta.fetchedAt))}</p>`
-    : "";
+    ? `<p class="guides-meta muted small">Game patches from star-citizen.wiki · cached ${escapeHtml(fmtDateTime(data.meta.fetchedAt))}${data.meta.stale ? " (stale)" : ""} · <button type="button" class="link" id="patchNotesRefreshBtn">Refresh patch notes</button></p>`
+    : `<p class="guides-meta muted small"><button type="button" class="link" id="patchNotesRefreshBtn">Refresh patch notes</button></p>`;
 
   const appSection = localCards
     ? `<details class="patch-app-notes"><summary>StarTracker app release notes (not game patches)</summary>${localCards}</details>`
@@ -3103,7 +3148,7 @@ function buildPatchNotesPanel(data) {
   return `${meta}
     <section class="guide-section"><h2 class="guide-section-title">Star Citizen game patches</h2>${remoteCards || `<p class="muted">No Alpha patch comm-links in cache. Use Refresh below or open RSI directly.</p>`}</section>
     ${appSection}
-    <p class="guides-meta muted small"><button type="button" class="link" data-guide-external="https://robertsspaceindustries.com/en/comm-link">Browse all RSI comm-links</button></p>`;
+    <p class="guides-meta muted small"><button type="button" class="link" data-guide-external="https://robertsspaceindustries.com/en/comm-link/Patch-Notes">Browse RSI patch notes</button></p>`;
 }
 
 function buildRefineryYieldTable(oreCatalog) {
@@ -4132,6 +4177,20 @@ function initGuidesUi() {
     const external = e.target.closest("[data-guide-external]");
     if (external?.dataset.guideExternal) {
       window.debrief.openUpdateUrl(external.dataset.guideExternal);
+      return;
+    }
+
+    if (e.target.closest("#patchNotesRefreshBtn")) {
+      setPanelHtml("guides-patch-notes", `<p class="muted small">Refreshing patch notes from wiki…</p>`);
+      try {
+        const data = await window.debrief.guidesRefreshPatchNotes();
+        setPanelHtml("guides-patch-notes", buildPatchNotesPanel(data));
+      } catch (err) {
+        setPanelHtml(
+          "guides-patch-notes",
+          `<p class="muted">Refresh failed: ${escapeHtml(err.message || String(err))}</p>`
+        );
+      }
       return;
     }
 

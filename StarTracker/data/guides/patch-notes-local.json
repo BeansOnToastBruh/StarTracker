@@ -1,5 +1,15 @@
 [
   {
+    "id": "startracker-1.0.9",
+    "version": "1.0.9",
+    "title": "StarTracker 1.0.9",
+    "date": "2026-05-29",
+    "startrackerNotes": [
+      "Patch notes tab shows full game patch content inline: features, bug fixes, known issues.",
+      "Fixed broken RSI links; Wiki mirror link added. Refresh button pulls latest from star-citizen.wiki."
+    ]
+  },
+  {
     "id": "startracker-1.0.7",
     "version": "1.0.7",
     "title": "StarTracker 1.0.7",
