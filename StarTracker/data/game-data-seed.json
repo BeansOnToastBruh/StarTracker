@@ -48,5 +48,21 @@
     "manufacturer": "Esperia",
     "className": "ESPR_Prowler_Utility",
     "source": "seed"
+  },
+  "GAMA_Railen": {
+    "type": "vehicle",
+    "name": "Gatac Railen",
+    "displayName": "Railen",
+    "manufacturer": "Gatac Manufacture",
+    "className": "GAMA_Railen",
+    "source": "seed"
+  },
+  "GAMA_Tyilui": {
+    "type": "vehicle",
+    "name": "Gatac Tyilui",
+    "displayName": "Tyilui",
+    "manufacturer": "Gatac Manufacture",
+    "className": "GAMA_Tyilui",
+    "source": "seed"
   }
 }

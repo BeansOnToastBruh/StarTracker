@@ -24,6 +24,10 @@ const { checkForUpdates } = require("./updateChecker");
 const { downloadAndInstallUpdate } = require("./updateInstaller");
 const gameData = require("./gameDataResolver");
 const gameDatabase = require("./gameDatabase");
+const guidesHub = require("./guidesHub");
+const combatIntel = require("./combatIntel");
+const fleetCompare = require("./fleetCompare");
+const loadoutBuilder = require("./loadoutBuilder");
 const {
   enrichSession,
   applyLabelsToSession,
@@ -53,6 +57,12 @@ const GAME_DATA_CACHE_PATH = () =>
   path.join(app.getPath("userData"), "game-data-cache.json");
 const GAME_DATABASE_DIR = () =>
   path.join(app.getPath("userData"), "game-database");
+const GUIDES_CACHE_DIR = () => path.join(app.getPath("userData"), "guides");
+const GUIDES_SEED_DIR = () =>
+  path.join(__dirname, "..", "data", "guides");
+const COMBAT_CACHE_DIR = () => path.join(app.getPath("userData"), "combat-intel");
+const COMBAT_SEED_DIR = () => path.join(__dirname, "..", "data", "combat");
+const FLEET_CACHE_DIR = () => path.join(app.getPath("userData"), "fleet-compare");
 
 let tray = null;
 let mainWindow = null;
@@ -464,6 +474,15 @@ app.whenReady().then(async () => {
   factionRepStore.init(path.join(app.getPath("userData"), "faction-rep.json"));
   gameData.init({ cachePath: GAME_DATA_CACHE_PATH() });
   gameDatabase.init({ dbDir: GAME_DATABASE_DIR() });
+  guidesHub.init({
+    cacheDir: GUIDES_CACHE_DIR(),
+    seedDir: GUIDES_SEED_DIR(),
+  });
+  combatIntel.init({
+    cacheDir: COMBAT_CACHE_DIR(),
+    seedDir: COMBAT_SEED_DIR(),
+  });
+  fleetCompare.init({ cacheDir: FLEET_CACHE_DIR() });
   gameDatabase.onSyncProgress((payload) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send("catalog-sync", payload);
@@ -718,3 +737,63 @@ ipcMain.handle("catalog-place-detail", (_, placeKey) =>
 );
 
 ipcMain.handle("catalog-refresh", async () => gameDatabase.refreshCatalog());
+
+ipcMain.handle("guides-get-patch-notes", () => guidesHub.getPatchNotes());
+
+ipcMain.handle("guides-get-commodities", (_, options) =>
+  guidesHub.getCommodityList(options || {})
+);
+
+ipcMain.handle("guides-get-commodity-detail", (_, commodityId) =>
+  guidesHub.getCommodityDetail(commodityId)
+);
+
+ipcMain.handle("guides-get-smuggler-routes", () =>
+  guidesHub.getSmugglerRoutes()
+);
+
+ipcMain.handle("guides-get-game-loops", () => guidesHub.getGameLoops());
+
+ipcMain.handle("guides-refresh-commodities", () =>
+  guidesHub.refreshCommodities()
+);
+
+ipcMain.handle("combat-get-item-profile", (_, options) =>
+  combatIntel.getItemCombatProfile(options || {})
+);
+
+ipcMain.handle("combat-get-vehicle-profile", (_, options) =>
+  combatIntel.getVehicleCombatProfile(options || {})
+);
+
+ipcMain.handle("combat-get-loadout-summary", (_, items) =>
+  combatIntel.getLoadoutCombatSummary(items || [])
+);
+
+ipcMain.handle("combat-get-external-tools", () =>
+  combatIntel.getExternalTools()
+);
+
+ipcMain.handle("combat-search", (_, options) =>
+  combatIntel.searchCombatProfiles(options || {})
+);
+
+ipcMain.handle("fleet-compare-query", (_, options) =>
+  fleetCompare.getFleetCompare(options || {})
+);
+
+ipcMain.handle("fleet-compare-refresh", () =>
+  fleetCompare.getFleetCompare({ forceRefresh: true })
+);
+
+ipcMain.handle("loadout-get-blueprint", (_, slug) =>
+  loadoutBuilder.getShipBlueprint(combatIntel, slug)
+);
+
+ipcMain.handle("loadout-search-weapons", (_, options) =>
+  loadoutBuilder.searchShipWeapons(options || {})
+);
+
+ipcMain.handle("loadout-simulate", (_, options) =>
+  loadoutBuilder.simulateLoadout(combatIntel, options || {})
+);

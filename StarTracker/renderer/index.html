@@ -12,72 +12,85 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <header class="top">
-      <div>
-        <h1>StarTracker</h1>
-        <p class="sub" id="statusLine">Starting…</p>
-      </div>
-      <div class="actions">
-        <button
-          type="button"
-          id="btnTheme"
-          class="theme-toggle"
-          aria-label="Switch to light theme"
-        >☀️</button>
-        <label class="toggle">
-          <input type="checkbox" id="autoTrack" checked />
-          Auto-track
-        </label>
-        <button type="button" id="btnNew" class="btn">New session</button>
-        <button type="button" id="btnEnd" class="btn btn-ghost">End session</button>
-      </div>
-    </header>
-
-    <div id="updateBanner" class="update-banner hidden" role="status" aria-live="polite">
-      <span id="updateBannerText"></span>
-      <button type="button" id="btnDownloadUpdate" class="btn btn-sm">Install update</button>
-      <button type="button" id="btnDismissUpdate" class="link update-dismiss">Dismiss</button>
+    <div class="cosmos-bg" aria-hidden="true">
+      <div class="cosmos-nebula"></div>
+      <div class="cosmos-stars cosmos-stars-far"></div>
+      <div class="cosmos-stars cosmos-stars-near"></div>
     </div>
 
-    <div id="logBanner" class="log-banner hidden" role="status" aria-live="polite">
-      <span id="logBannerText">Game.log not found. Browse to your file or try auto-detect.</span>
-    </div>
+    <div class="app-shell">
+      <header class="top">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">✦</div>
+          <div>
+            <h1>StarTracker</h1>
+            <p class="sub" id="statusLine">Starting…</p>
+          </div>
+        </div>
+        <div class="actions">
+          <button
+            type="button"
+            id="btnTheme"
+            class="theme-toggle"
+            aria-label="Switch to light theme"
+          >☀️</button>
+          <label class="toggle">
+            <input type="checkbox" id="autoTrack" checked />
+            Auto-track
+          </label>
+          <button type="button" id="btnNew" class="btn">New session</button>
+          <button type="button" id="btnEnd" class="btn btn-ghost">End session</button>
+        </div>
+      </header>
 
-    <div id="archiveBanner" class="archive-banner hidden" role="status" aria-live="polite">
-      <span id="archiveBannerText"></span>
-      <button type="button" id="btnArchiveBack" class="btn btn-sm">Back to live session</button>
-    </div>
-
-    <section class="stats" id="stats" aria-label="Session summary"></section>
-
-    <nav class="tabs" id="tabNav" role="tablist" aria-label="Session and catalog"></nav>
-
-    <p id="tabDescription" class="tab-description" role="status" hidden></p>
-
-    <main class="content">
-      <div id="tabPanels" class="tab-panels"></div>
-    </main>
-
-    <footer class="foot">
-      <div class="log-path-row">
-        <label class="log-path-label" for="logPathInput">Game.log</label>
-        <input
-          type="text"
-          id="logPathInput"
-          class="log-path-input"
-          readonly
-          placeholder="Not found. Use Browse"
-          title="Star Citizen Game.log path"
-        />
-        <button type="button" id="btnBrowseLog" class="btn btn-sm">Browse…</button>
-        <button type="button" id="btnAutoLog" class="link">Auto-detect</button>
+      <div id="updateBanner" class="update-banner hidden" role="status" aria-live="polite">
+        <span id="updateBannerText"></span>
+        <button type="button" id="btnDownloadUpdate" class="btn btn-sm">Install update</button>
+        <button type="button" id="btnDismissUpdate" class="link update-dismiss">Dismiss</button>
       </div>
-      <div class="foot-actions">
-        <span id="appVersion" class="version-label"></span>
-        <button type="button" id="btnCheckUpdates" class="link">Check for updates</button>
-        <button type="button" id="btnLog" class="link">Open log folder</button>
+
+      <div id="logBanner" class="log-banner hidden" role="status" aria-live="polite">
+        <span id="logBannerText">Game.log not found. Browse to your file or try auto-detect.</span>
       </div>
-    </footer>
+
+      <div id="archiveBanner" class="archive-banner hidden" role="status" aria-live="polite">
+        <span id="archiveBannerText"></span>
+        <button type="button" id="btnArchiveBack" class="btn btn-sm">Back to live session</button>
+      </div>
+
+      <section class="stats" id="stats" aria-label="Session summary"></section>
+
+      <nav class="quick-nav" id="quickNav" aria-label="Quick access"></nav>
+
+      <nav class="tabs" id="tabNav" role="tablist" aria-label="Session and catalog"></nav>
+
+      <div id="tabDescription" class="tab-briefing-wrap" role="status" hidden></div>
+
+      <main class="content">
+        <div id="tabPanels" class="tab-panels"></div>
+      </main>
+
+      <footer class="foot">
+        <div class="log-path-row">
+          <label class="log-path-label" for="logPathInput">Game.log</label>
+          <input
+            type="text"
+            id="logPathInput"
+            class="log-path-input"
+            readonly
+            placeholder="Not found. Use Browse"
+            title="Star Citizen Game.log path"
+          />
+          <button type="button" id="btnBrowseLog" class="btn btn-sm">Browse…</button>
+          <button type="button" id="btnAutoLog" class="link">Auto-detect</button>
+        </div>
+        <div class="foot-actions">
+          <span id="appVersion" class="version-label"></span>
+          <button type="button" id="btnCheckUpdates" class="link">Check for updates</button>
+          <button type="button" id="btnLog" class="link">Open log folder</button>
+        </div>
+      </footer>
+    </div>
     <script src="app.js"></script>
   </body>
 </html>

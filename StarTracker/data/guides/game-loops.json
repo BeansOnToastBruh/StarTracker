@@ -1,0 +1,57 @@
+[
+  {
+    "id": "hauling",
+    "title": "Cargo hauling",
+    "summary": "Buy commodities low at one TDD, sell high at another. Profit is spread per SCU minus fuel, time, and risk.",
+    "tips": [
+      "Open Commodities for best buy and sell prices per SCU across Stanton.",
+      "Large ships (C2, Caterpillar, Hull series) scale profit with SCU.",
+      "Session Shopping tab logs kiosk purchases when Game.log records them."
+    ],
+    "relatedTabs": ["guides-commodities", "shopping", "catalog-ships"]
+  },
+  {
+    "id": "mining",
+    "title": "Mining and selling",
+    "summary": "Extract ore or harvest materials, refine when needed, then sell at TDDs. Sell price per SCU matters more than raw ore names.",
+    "tips": [
+      "Mining tab lists extractable and harvestable goods with UEX sell prices.",
+      "Quantainium and volatile goods need fast routes after extraction.",
+      "Refined metals often sell better than ore variants listed at zero."
+    ],
+    "relatedTabs": ["guides-mining", "guides-commodities"]
+  },
+  {
+    "id": "smuggling",
+    "title": "Smuggling",
+    "summary": "Move illegal or restricted goods from low-security sources to buyers willing to pay a premium.",
+    "tips": [
+      "Smuggler routes tab has curated Stanton loops with commodity hints.",
+      "Compare illegal commodity spreads in Commodities detail view.",
+      "Expect interdiction and scans near major ports."
+    ],
+    "relatedTabs": ["guides-smuggling", "guides-commodities"]
+  },
+  {
+    "id": "merc",
+    "title": "Merc and bounty hunting",
+    "summary": "Contracts, bunkers, and PvP bounties. StarTracker tracks missions, kills, deaths, and payouts from Game.log.",
+    "tips": [
+      "Rewards tab shows confirmed aUEC or wiki estimates when the log omits cash.",
+      "Missions tab tracks Foxwell defend, Headhunters ambush, and other contracts.",
+      "Kills tab highlights PvP bounty completions."
+    ],
+    "relatedTabs": ["missions", "rewards", "kills", "deaths", "guides-combat"]
+  },
+  {
+    "id": "refuel",
+    "title": "Refuel and logistics",
+    "summary": "Plan routes around ship services and commodity terminals before long hauls.",
+    "tips": [
+      "Ship services catalog lists refuel, repair, and ammo restock locations.",
+      "Pair service stops with commodity terminals on the same moon when possible.",
+      "Insurance tab confirms claims after ship loss."
+    ],
+    "relatedTabs": ["catalog-ship-services", "insurance", "ships"]
+  }
+]

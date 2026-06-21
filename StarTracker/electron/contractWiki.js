@@ -21,6 +21,54 @@ const BASE_AUEC_BY_RANK = {
   3: 60000,
 };
 
+/** When wiki API is unavailable or mission is too new — from Game.log definition IDs. */
+const LOCAL_MISSION_BY_UUID = {
+  "adb32bca-f7d2-4182-a697-d36cc5467183": {
+    title: "Defend Asteroid Mining Base",
+    reward_min: 18500,
+    rank_index: 1,
+    estimateSource: "local_datamine",
+    faction: { name: "Foxwell Enforcement" },
+    mission_giver: "Foxwell Enforcement",
+  },
+  "660b30df-b638-451d-8947-7784c63b61dc": {
+    title: "Ambush Op",
+    reward_min: 14000,
+    rank_index: 1,
+    estimateSource: "local_datamine",
+    faction: { name: "Headhunters" },
+    mission_giver: "Headhunters",
+  },
+};
+
+/** Title hints when definition id is missing from markers. */
+const TITLE_ESTIMATE_HINTS = [
+  {
+    re: /defend asteroid mining base/i,
+    reward_min: 18500,
+    rank_index: 1,
+    faction: "Foxwell Enforcement",
+  },
+  {
+    re: /ambush op/i,
+    reward_min: 14000,
+    rank_index: 1,
+    faction: "Headhunters",
+  },
+  {
+    re: /yellow level contract:\s*defend/i,
+    reward_min: 18500,
+    rank_index: 1,
+    faction: "Foxwell Enforcement",
+  },
+  {
+    re: /defend.*asteroid|escort.*ship/i,
+    reward_min: 15000,
+    rank_index: 1,
+    faction: null,
+  },
+];
+
 const memoryCache = new Map();
 
 function fetchJson(url) {
@@ -68,19 +116,60 @@ function cacheSet(uuid, data) {
   memoryCache.set(uuid, { at: Date.now(), data });
 }
 
-async function fetchMissionByUuid(uuid) {
+function missionFromTitleHint(contractTitle) {
+  const title = String(contractTitle || "").trim();
+  if (!title) return null;
+  for (const hint of TITLE_ESTIMATE_HINTS) {
+    if (hint.re.test(title)) {
+      return {
+        title,
+        reward_min: hint.reward_min,
+        rank_index: hint.rank_index,
+        faction: hint.faction ? { name: hint.faction } : null,
+        mission_giver: hint.faction,
+        estimateSource: "title_heuristic",
+      };
+    }
+  }
+  return null;
+}
+
+function resolveMissionRecord(uuid, contractTitle) {
   const id = String(uuid || "").trim().toLowerCase();
-  if (!id || id === "00000000-0000-0000-0000-000000000000") return null;
+  if (id && LOCAL_MISSION_BY_UUID[id]) {
+    return { ...LOCAL_MISSION_BY_UUID[id], estimateSource: "local_datamine" };
+  }
+  if (id) {
+    const cached = cacheGet(id);
+    if (cached) return cached;
+  }
+  return missionFromTitleHint(contractTitle);
+}
+
+async function fetchMissionByUuid(uuid, contractTitle) {
+  const id = String(uuid || "").trim().toLowerCase();
+  if (!id || id === "00000000-0000-0000-0000-000000000000") {
+    return missionFromTitleHint(contractTitle);
+  }
+
+  const local = LOCAL_MISSION_BY_UUID[id];
+  if (local) return { ...local, estimateSource: "local_datamine" };
+
   const cached = cacheGet(id);
   if (cached) return cached;
+
   try {
     const res = await fetchJson(`${WIKI_API}/${id}`);
     const mission = res?.data || null;
-    if (mission) cacheSet(id, mission);
-    return mission;
+    if (mission) {
+      cacheSet(id, mission);
+      return mission;
+    }
   } catch {
-    return null;
+    /* fall through */
   }
+
+  return missionFromTitleHint(contractTitle);
 }
 
 function roundToNiceAuec(n) {
@@ -100,10 +189,22 @@ function estimateAuecFromMission(mission, standingName) {
 
   const rewardMin = Number(mission.reward_min);
   if (Number.isFinite(rewardMin) && rewardMin > 0) {
+    const src =
+      mission.estimateSource === "local_datamine"
+        ? "local_datamine"
+        : mission.estimateSource === "title_heuristic"
+          ? "title_heuristic"
+          : "wiki_datamine";
+    const note =
+      src === "local_datamine"
+        ? "Estimated from known 4.8.x defend/ambush contract data. Not confirmed in Game.log."
+        : src === "title_heuristic"
+          ? "Estimated from contract title pattern and typical 4.8.x payouts. Not confirmed in Game.log."
+          : "Datamined base payout from star-citizen.wiki. Your in-game amount may scale with rep.";
     return {
       auec: roundToNiceAuec(rewardMin),
-      estimateSource: "wiki_datamine",
-      estimateNote: "Datamined base payout from star-citizen.wiki. Your in-game amount may scale with rep.",
+      estimateSource: src,
+      estimateNote: note,
     };
   }
 
@@ -120,11 +221,20 @@ function estimateAuecFromMission(mission, standingName) {
   };
 }
 
-async function estimatePayoutForContract({ contractDefinitionId, faction, standingName }) {
-  const mission = await fetchMissionByUuid(contractDefinitionId);
+async function estimatePayoutForContract({
+  contractDefinitionId,
+  faction,
+  standingName,
+  contractTitle,
+}) {
+  const mission = await fetchMissionByUuid(contractDefinitionId, contractTitle);
   if (!mission) return null;
 
-  const factionName = faction || mission.faction?.name || mission.mission_giver || null;
+  const factionName =
+    faction ||
+    mission.faction?.name ||
+    mission.mission_giver ||
+    null;
   const standing = standingName || "Neutral";
   const est = estimateAuecFromMission(mission, standing);
   if (!est) return null;
@@ -132,7 +242,7 @@ async function estimatePayoutForContract({ contractDefinitionId, faction, standi
   return {
     ...est,
     contractDefinitionId,
-    missionTitle: mission.title || null,
+    missionTitle: mission.title || contractTitle || null,
     debugName: mission.debug_name || null,
     faction: factionName,
     standing,
@@ -150,6 +260,9 @@ module.exports = {
   estimatePayoutForContract,
   roundToNiceAuec,
   clearCacheForTests,
+  LOCAL_MISSION_BY_UUID,
+  TITLE_ESTIMATE_HINTS,
+  missionFromTitleHint,
   STANDING_AUEC_MULT,
   BASE_AUEC_BY_RANK,
 };

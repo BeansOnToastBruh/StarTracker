@@ -58,4 +58,26 @@ contextBridge.exposeInMainWorld("debrief", {
     ipcRenderer.on("catalog-sync", handler);
     return () => ipcRenderer.removeListener("catalog-sync", handler);
   },
+  guidesGetPatchNotes: () => ipcRenderer.invoke("guides-get-patch-notes"),
+  guidesGetCommodities: (options) =>
+    ipcRenderer.invoke("guides-get-commodities", options),
+  guidesGetCommodityDetail: (commodityId) =>
+    ipcRenderer.invoke("guides-get-commodity-detail", commodityId),
+  guidesGetSmugglerRoutes: () => ipcRenderer.invoke("guides-get-smuggler-routes"),
+  guidesGetGameLoops: () => ipcRenderer.invoke("guides-get-game-loops"),
+  guidesRefreshCommodities: () => ipcRenderer.invoke("guides-refresh-commodities"),
+  combatGetItemProfile: (options) =>
+    ipcRenderer.invoke("combat-get-item-profile", options),
+  combatGetVehicleProfile: (options) =>
+    ipcRenderer.invoke("combat-get-vehicle-profile", options),
+  combatGetLoadoutSummary: (items) =>
+    ipcRenderer.invoke("combat-get-loadout-summary", items),
+  combatGetExternalTools: () => ipcRenderer.invoke("combat-get-external-tools"),
+  combatSearch: (options) => ipcRenderer.invoke("combat-search", options),
+  fleetCompareQuery: (options) => ipcRenderer.invoke("fleet-compare-query", options),
+  fleetCompareRefresh: () => ipcRenderer.invoke("fleet-compare-refresh"),
+  loadoutGetBlueprint: (slug) => ipcRenderer.invoke("loadout-get-blueprint", slug),
+  loadoutSearchWeapons: (options) =>
+    ipcRenderer.invoke("loadout-search-weapons", options),
+  loadoutSimulate: (options) => ipcRenderer.invoke("loadout-simulate", options),
 });

@@ -1,0 +1,18 @@
+[
+  {
+    "id": "sc-4.8.2",
+    "version": "4.8.2",
+    "title": "Star Citizen Alpha 4.8.2",
+    "date": "2026-05-01",
+    "rsiUrl": "https://robertsspaceindustries.com/en/comm-link",
+    "startrackerNotes": [
+      "Awarded X aUEC HUD lines are often missing from Game.log on newer builds. StarTracker falls back to wiki payout estimates for known contracts.",
+      "Loadout snapshots now parse AttachmentReceived lines when you spawn or swap gear.",
+      "Foxwell defend and Headhunters ambush contracts get local payout estimates when cash lines are absent."
+    ],
+    "playerNotes": [
+      "Check the Commodities and Mining tabs for UEX buy and sell prices per SCU.",
+      "Smuggler routes tab lists curated illegal trade runs with commodity hints."
+    ]
+  }
+]

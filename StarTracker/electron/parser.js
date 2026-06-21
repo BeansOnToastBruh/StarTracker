@@ -56,7 +56,14 @@ const {
   formatLocationLabel,
   shopItemCategory,
 } = require("./commerceFormat");
-const { labelForClassName, isVerified } = require("./sessionEnrichment");
+const {
+  parseAttachmentLine,
+  isPlayerAttachment,
+  noteLoadoutAttachment,
+  onPlayerSpawned,
+  flushLoadoutBatch,
+} = require("./loadoutContext");
+const { formatPortLabel } = require("./loadoutFormat");
 
 function emit(events, event) {
   if (!event) return events;
@@ -664,6 +671,13 @@ function parseLine(line, ctx = {}) {
 
   appendCommerceEvents(body, at, ctx, out);
 
+  const attachment = parseAttachmentLine(body);
+  if (attachment && isPlayerAttachment(attachment.player, ctx)) {
+    const finalized = noteLoadoutAttachment(ctx, at, attachment);
+    if (finalized) emit(out, finalized);
+    return finish(out);
+  }
+
   const geidM = body.match(/playerGEID=(\d+)/);
   if (geidM && !ctx.playerGEID) ctx.playerGEID = geidM[1];
 
@@ -757,6 +771,8 @@ function parseLine(line, ctx = {}) {
   }
 
   if (PATTERNS.spawned.test(body)) {
+    const loadoutEv = onPlayerSpawned(ctx, at);
+    if (loadoutEv) emit(out, loadoutEv);
     emit(out, {
       type: "spawn",
       at,
@@ -780,6 +796,8 @@ function parseLine(line, ctx = {}) {
   }
 
   if (PATTERNS.quitLobby.test(body) || PATTERNS.systemQuit.test(body)) {
+    const loadoutEv = flushLoadoutBatch(ctx);
+    if (loadoutEv) emit(out, loadoutEv);
     return finish(
       emit(out, { type: "session_end", at, summary: "Game session ended" })
     );

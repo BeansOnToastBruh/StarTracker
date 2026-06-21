@@ -97,6 +97,7 @@ async function maybeAddEstimatedPayout(session, contractEvent) {
     contractDefinitionId: meta.contractDefinitionId,
     faction,
     standingName: standing,
+    contractTitle: contractEvent.detail?.title || meta.title,
   });
   if (!estimate?.auec) return null;
 

@@ -1,5 +1,6 @@
 const { snapshot } = require("./session");
 const gameData = require("./gameDataResolver");
+const { formatPortLabel } = require("./loadoutFormat");
 const {
   formatShopItemName,
   formatVehicleLabel,
@@ -13,6 +14,11 @@ function collectClassNames(session) {
     }
     if (e.type === "insurance" && e.detail?.shipRaw) {
       names.add(e.detail.shipRaw);
+    }
+    if (e.type === "loadout" && Array.isArray(e.detail?.items)) {
+      for (const item of e.detail.items) {
+        if (item.className) names.add(item.className);
+      }
     }
   }
   return [...names];
@@ -50,6 +56,27 @@ function applyLabelsToSession(session) {
         e.detail.verified = isVerified(e.detail.shipRaw);
         e.summary = `Insurance claim: ${label}`;
       }
+    }
+    if (e.type === "loadout" && Array.isArray(e.detail?.items)) {
+      let gear = 0;
+      for (const item of e.detail.items) {
+        const label = labelForClassName(item.className);
+        item.label = label;
+        item.slotLabel = formatPortLabel(item.port);
+        item.verified = isVerified(item.className);
+        if (item.category !== "cosmetic") gear += 1;
+      }
+      e.detail.gearCount = gear;
+      const reason =
+        e.detail.reason === "gear_change"
+          ? "Gear updated"
+          : e.detail.reason === "spawn"
+            ? "Spawn loadout"
+            : "Loadout snapshot";
+      e.summary =
+        gear > 0
+          ? `${reason}: ${gear} gear item${gear === 1 ? "" : "s"}`
+          : `${reason} (${e.detail.items.length} attachments)`;
     }
   }
   return session;

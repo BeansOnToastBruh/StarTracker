@@ -88,6 +88,13 @@ const SESSION_TABS = [
     empty: "No shop purchases logged this session.",
   },
   {
+    id: "loadout",
+    group: "session",
+    label: "Loadout",
+    hint: "Gear on your character when you spawned or swapped armor mid-session (from Game.log AttachmentReceived lines).",
+    empty: "No loadout snapshots yet. StarTracker captures gear when you spawn into the universe.",
+  },
+  {
     id: "blueprints",
     group: "session",
     label: "Blueprints",
@@ -176,11 +183,70 @@ const CATALOG_TABS = [
   },
 ];
 
-const TABS = [...SESSION_TABS, ...CATALOG_TABS];
+const GUIDE_TABS = [
+  {
+    id: "guides-patch-notes",
+    group: "guides",
+    label: "Patch notes",
+    hint: "Official RSI patch notes plus StarTracker-specific tracking notes for each version.",
+    empty: "No patch notes loaded yet.",
+  },
+  {
+    id: "guides-commodities",
+    group: "guides",
+    label: "Commodities",
+    hint: "Trade materials with buy and sell prices per SCU from UEX community data.",
+    empty: "No commodity data loaded yet. Use Refresh prices below.",
+  },
+  {
+    id: "guides-mining",
+    group: "guides",
+    label: "Mining",
+    hint: "Extractable and harvestable materials with sell prices per SCU at terminals.",
+    empty: "No mining commodity data loaded yet. Use Refresh prices below.",
+  },
+  {
+    id: "guides-smuggling",
+    group: "guides",
+    label: "Smuggler routes",
+    hint: "Curated illegal cargo routes with commodity hints and buy/sell location notes.",
+    empty: "No smuggler routes loaded yet.",
+  },
+  {
+    id: "guides-loops",
+    group: "guides",
+    label: "Game loops",
+    hint: "Quick intros for hauling, mining, smuggling, merc work, and refuel loops with links to relevant tabs.",
+    empty: "No game loop guides loaded yet.",
+  },
+  {
+    id: "guides-combat",
+    group: "guides",
+    label: "Combat intel",
+    hint: "Weapon DPS, armor values, ship hull and shield stats. Use Fleet compare and Ship builder tabs for rankings and loadouts.",
+    empty: "Combat intel not loaded yet.",
+  },
+  {
+    id: "guides-fleet",
+    group: "guides",
+    label: "Fleet compare",
+    hint: "Sortable ship rankings: hull, shields, SCM, cargo, mass, and signatures from the wiki datamine.",
+    empty: "Fleet index not loaded yet.",
+  },
+  {
+    id: "guides-loadout",
+    group: "guides",
+    label: "Ship builder",
+    hint: "Pick a hull, view stock hardpoints, and swap weapons to compare simplified total DPS.",
+    empty: "Load a ship to start building.",
+  },
+];
+
+const TABS = [...SESSION_TABS, ...CATALOG_TABS, ...GUIDE_TABS];
 
 const TAB_DESCRIPTIONS = {
   overview:
-    "A quick snapshot of your current session. Start here when you want the big picture without digging into every event.",
+    "Your home base. A friendly snapshot of this play session before you dive into contracts, combat, or the intel hub.",
   missions:
     "Contracts you accepted, finished, failed, or walked away from. Use this to track what you worked on and how objectives progressed.",
   rewards:
@@ -191,6 +257,8 @@ const TAB_DESCRIPTIONS = {
     "Ship insurance claims that completed with a hull respawn. Helpful after you lose a ship and want to confirm the claim went through.",
   shopping:
     "Items you bought at shops and kiosks when the log records the purchase. Useful for tracking gear you picked up during a run.",
+  loadout:
+    "Armor, weapons, medpens, and backpack from Game.log when you spawn or change gear. Cosmetic DNA pieces are hidden in the list.",
   blueprints:
     "Blueprint unlocks when the log names them. Look here after contract payouts that grant schematics.",
   deaths:
@@ -215,6 +283,69 @@ const TAB_DESCRIPTIONS = {
     "Browse terminals and stations to see what they sell. Search by location when you know where you are headed.",
   "catalog-ship-services":
     "Places that offer refuel, repair, or ship ammo restock. Check before long trips or after combat damage.",
+  "guides-patch-notes":
+    "RSI patch notes and StarTracker tracking notes. See what changed for log parsing and contract estimates each patch.",
+  "guides-commodities":
+    "Buy and sell prices per SCU for trade commodities. Compare spread and open a row for terminal breakdown.",
+  "guides-mining":
+    "Sell prices per SCU for mined and harvested materials. Use when planning mining runs and refinery drops.",
+  "guides-smuggling":
+    "Curated smuggling routes with risk level, commodity hints, and location notes. Verify prices before hauling.",
+  "guides-loops":
+    "Short guides for common game loops with tips and links to related StarTracker tabs.",
+  "guides-combat":
+    "Look up weapon DPS, armor, and ship stats. Fleet compare and Ship builder are one click away from here.",
+  "guides-fleet":
+    "Every flyable ship, sortable like a fleet chart. Hull, shields, speed, cargo, and signatures from the wiki datamine.",
+  "guides-loadout":
+    "Pick a hull, see stock hardpoints, swap guns, and compare simplified total DPS. Great for quick what-if loadouts.",
+};
+
+const TAB_ICONS = {
+  overview: "◎",
+  missions: "◈",
+  rewards: "✦",
+  fines: "△",
+  insurance: "◇",
+  shopping: "◆",
+  loadout: "⬡",
+  blueprints: "▣",
+  deaths: "✕",
+  kills: "◉",
+  ships: "✧",
+  history: "⏱",
+  "catalog-ships": "🛸",
+  "catalog-weapons": "⚔",
+  "catalog-armor": "⬢",
+  "catalog-ship-weapons": "✹",
+  "catalog-ship-parts": "⚙",
+  "catalog-shops": "◫",
+  "catalog-ship-services": "⛽",
+  "guides-patch-notes": "📡",
+  "guides-commodities": "◫",
+  "guides-mining": "⛏",
+  "guides-smuggling": "◐",
+  "guides-loops": "↻",
+  "guides-combat": "⚔",
+  "guides-fleet": "🚀",
+  "guides-loadout": "🔧",
+};
+
+const QUICK_NAV = [
+  { id: "overview", label: "Overview" },
+  { id: "guides-fleet", label: "Fleet compare" },
+  { id: "guides-loadout", label: "Ship builder" },
+  { id: "guides-commodities", label: "Trade prices" },
+  { id: "guides-combat", label: "Combat intel" },
+  { id: "catalog-ships", label: "Ship catalog" },
+];
+
+const EMPTY_TIPS = {
+  missions: "Accept a contract in-game and StarTracker will pick it up from Game.log.",
+  rewards: "Complete missions with aUEC payouts. Awarded popups in the log are the most reliable source.",
+  "guides-fleet": "Tap Refresh index to pull the latest ship list from the wiki.",
+  "guides-loadout": "Try gladius, cutlass-black, or hurricane as a starting slug.",
+  loadout: "Change gear or respawn in-game to capture a loadout snapshot.",
 };
 
 let activeTab = "overview";
@@ -245,6 +376,18 @@ const catalogQueryByTab = {
   "catalog-shops": { query: "", offset: 0 },
   "catalog-ship-services": { query: "", offset: 0 },
 };
+const guideQueryByTab = {
+  "guides-commodities": { query: "", offset: 0, sort: "name", filter: "trade" },
+  "guides-mining": { query: "", offset: 0, sort: "sell", filter: "mining" },
+  "guides-fleet": { query: "", offset: 0, sort: "hull" },
+};
+let guideCommodityMeta = null;
+let fleetCompareMeta = null;
+let loadoutBuilderState = { shipSlug: null, slotAssignments: {} };
+let loadoutBuilderBlueprint = null;
+let guideCommodityRefreshBusy = false;
+let guideDetailCommodityId = null;
+let loadoutCombatBusy = false;
 let catalogDetailKey = null;
 
 const STAT_KEYS = [
@@ -269,6 +412,14 @@ function debounce(fn, ms) {
 
 const debouncedCatalogSearch = debounce((tabId) => {
   if (activeTab === tabId) loadCatalogTab(tabId, { resetOffset: true });
+}, 320);
+
+const debouncedGuideSearch = debounce((tabId) => {
+  if (activeTab === tabId) loadGuideTab(tabId, { resetOffset: true });
+}, 320);
+
+const debouncedFleetSearch = debounce((tabId) => {
+  if (activeTab === tabId) loadFleetCompareTab(tabId, { resetOffset: true });
 }, 320);
 
 function fmtTime(iso) {
@@ -379,14 +530,53 @@ function panelShell(tab, innerHtml) {
 function updateTabDescription(tabId) {
   const el = $("tabDescription");
   if (!el) return;
-  const text = TAB_DESCRIPTIONS[tabId] || "";
-  el.textContent = text;
-  el.hidden = !text;
+  const tab = tabById(tabId);
+  const text = TAB_DESCRIPTIONS[tabId] || tab?.hint || "";
+  if (!text) {
+    el.hidden = true;
+    el.innerHTML = "";
+    return;
+  }
+  const icon = TAB_ICONS[tabId] || "✦";
+  el.innerHTML = `<div class="tab-briefing">
+    <span class="tab-briefing-icon" aria-hidden="true">${icon}</span>
+    <div>
+      <strong class="tab-briefing-title">${escapeHtml(tab?.label || tabId)}</strong>
+      <p class="tab-briefing-text">${escapeHtml(text)}</p>
+    </div>
+  </div>`;
+  el.hidden = false;
+}
+
+function updateQuickNavActive(tabId) {
+  document.querySelectorAll(".quick-nav-chip").forEach((chip) => {
+    chip.classList.toggle("is-active", chip.dataset.tab === tabId);
+  });
+}
+
+function initQuickNav() {
+  const nav = $("quickNav");
+  if (!nav) return;
+  nav.innerHTML = `<span class="quick-nav-label">Jump to</span>${QUICK_NAV.map(
+    (item) =>
+      `<button type="button" class="quick-nav-chip${item.id === activeTab ? " is-active" : ""}" data-tab="${escapeAttr(item.id)}">${escapeHtml(item.label)}</button>`
+  ).join("")}`;
+  nav.querySelectorAll(".quick-nav-chip").forEach((chip) => {
+    chip.addEventListener("click", () => setActiveTab(chip.dataset.tab));
+  });
 }
 
 function emptyPanel(tab) {
+  const icon = TAB_ICONS[tab.id] || "✦";
+  const tip = EMPTY_TIPS[tab.id];
+  const tipBlock = tip
+    ? `<p class="empty-state-tip"><strong>Tip:</strong> ${escapeHtml(tip)}</p>`
+    : "";
   return `<div class="empty-state">
+    <div class="empty-state-icon" aria-hidden="true">${icon}</div>
+    <p class="empty-state-title">Nothing here yet</p>
     <p>${escapeHtml(tab.empty)}</p>
+    ${tipBlock}
   </div>`;
 }
 
@@ -407,7 +597,12 @@ function initStats() {
 
 function tabButtonHtml(tab) {
   const selected = tab.id === activeTab;
-  const groupClass = tab.group === "catalog" ? " tab-btn-catalog" : "";
+  const groupClass =
+    tab.group === "catalog"
+      ? " tab-btn-catalog"
+      : tab.group === "guides"
+        ? " tab-btn-guides"
+        : "";
   return `<button type="button" class="tab-btn${groupClass} ${selected ? "is-active" : ""}" role="tab" id="tab-${tab.id}" data-tab="${tab.id}" aria-selected="${selected}" aria-controls="panel-${tab.id}"><span class="tab-label">${escapeHtml(tab.label)}</span><span class="tab-count" aria-hidden="true"></span></button>`;
 }
 
@@ -416,10 +611,19 @@ function initTabs() {
   const panels = $("tabPanels");
   const sessionButtons = SESSION_TABS.map(tabButtonHtml).join("");
   const catalogButtons = CATALOG_TABS.map(tabButtonHtml).join("");
+  const guideButtons = GUIDE_TABS.map(tabButtonHtml).join("");
   nav.innerHTML = `<div class="tabs-scroll">
-    <div class="tabs-group tabs-group-session" role="presentation">${sessionButtons}</div>
+    <div class="tabs-group tabs-group-session" role="presentation">
+      <span class="tabs-group-label">Session</span>${sessionButtons}
+    </div>
     <span class="tabs-divider" role="presentation" aria-hidden="true"></span>
-    <div class="tabs-group tabs-group-catalog" role="presentation">${catalogButtons}</div>
+    <div class="tabs-group tabs-group-catalog" role="presentation">
+      <span class="tabs-group-label">Catalog</span>${catalogButtons}
+    </div>
+    <span class="tabs-divider" role="presentation" aria-hidden="true"></span>
+    <div class="tabs-group tabs-group-guides" role="presentation">
+      <span class="tabs-group-label">Intel</span>${guideButtons}
+    </div>
   </div>`;
   panels.innerHTML = TABS.map((t) => panelShell(t, emptyPanel(t))).join("");
 
@@ -468,6 +672,8 @@ function tabBadgeCount(tabId, rollup) {
       return rollup.insuranceClaims?.length || 0;
     case "shopping":
       return rollup.shopPurchases?.length || 0;
+    case "loadout":
+      return rollup.loadoutSnapshots?.length || 0;
     case "history":
       return logArchiveList.length;
     case "catalog-ships":
@@ -505,6 +711,12 @@ function setActiveTab(id) {
   if (id.startsWith("catalog-")) {
     loadCatalogTab(id);
   }
+  if (id.startsWith("guides-")) {
+    loadGuideTab(id);
+  }
+  if (id === "loadout") {
+    enrichLoadoutCombatPanel();
+  }
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     const on = btn.dataset.tab === id;
     btn.classList.toggle("is-active", on);
@@ -517,6 +729,7 @@ function setActiveTab(id) {
     else panel.setAttribute("hidden", "");
   });
   updateTabDescription(id);
+  updateQuickNavActive(id);
   scrollActiveTabIntoView();
 }
 
@@ -652,7 +865,11 @@ function buildOverview(session) {
   const t = r.rewardTotals;
   const pilot = r.playerNick || session.playerNick || "Pilot";
   const lines = [
-    `<p class="overview-lead"><strong>${escapeHtml(pilot)}</strong>, session length <strong>${escapeHtml(r.durationLabel || "?")}</strong>.</p>`,
+    `<div class="overview-welcome">
+      <h2>Welcome back, ${escapeHtml(pilot)}</h2>
+      <p>Here is your flight log for this session (${escapeHtml(r.durationLabel || "in progress")}). Everything below updates as you play.</p>
+    </div>`,
+    `<p class="overview-lead">Session at a glance</p>`,
     `<ul class="overview-list">`,
     `<li><strong>${s.contractsCompleted}</strong> contract${s.contractsCompleted === 1 ? "" : "s"} completed${(() => {
       const open =
@@ -665,7 +882,7 @@ function buildOverview(session) {
     `<li><strong>${s.deaths}</strong> death${s.deaths === 1 ? "" : "s"} · <strong>${s.kills}</strong> kill${s.kills === 1 ? "" : "s"} · <strong>${s.vehiclesLost}</strong> ship${s.vehiclesLost === 1 ? "" : "s"} lost</li>`,
     `<li><strong>${s.rewards}</strong> payout popup${s.rewards === 1 ? "" : "s"} logged</li>`,
     `<li>aUEC confirmed: <strong>${(t?.totalAuec ?? 0).toLocaleString()}</strong>${(t?.totalAuecEstimated ?? 0) > 0 ? ` · estimated: <strong>~${t.totalAuecEstimated.toLocaleString()}</strong> (not confirmed)` : ""}</li>`,
-    `<li>Fines: <strong>${(r.finesTotal ?? 0).toLocaleString()}</strong> UEC · Insurance claims: <strong>${r.insuranceClaims?.length ?? 0}</strong> · Shop spend: <strong>${Math.round(r.shopSpendTotal ?? 0).toLocaleString()}</strong> aUEC</li>`,
+    `<li>Fines: <strong>${(r.finesTotal ?? 0).toLocaleString()}</strong> UEC · Insurance claims: <strong>${r.insuranceClaims?.length ?? 0}</strong> · Shop spend: <strong>${Math.round(r.shopSpendTotal ?? 0).toLocaleString()}</strong> aUEC · Loadout snapshots: <strong>${r.loadoutSnapshots?.length ?? 0}</strong></li>`,
   ];
   if (t?.repByFaction?.length) {
     for (const { faction, rep } of t.repByFaction) {
@@ -681,7 +898,7 @@ function buildOverview(session) {
   }
   lines.push(
     `</ul>`,
-    `<p class="overview-foot muted">Use the tabs above for the full breakdown. <strong>Rewards</strong> counts <strong>Awarded X aUEC</strong> HUD lines when Game.log has them (best source). Rep and blueprints can come from contract titles. This is not your wallet balance.</p>`
+    `<p class="overview-foot muted">Open the tabs above for details, or use <strong>Jump to</strong> for Fleet compare, trade prices, and combat tools. Rewards uses <strong>Awarded X aUEC</strong> HUD lines when logged. This is not your wallet balance.</p>`
   );
 
   if (session.status === "active") {
@@ -1086,6 +1303,43 @@ function buildShopping(rollup) {
   return head + rows;
 }
 
+function buildLoadout(rollup) {
+  if (!rollup?.loadoutSnapshots?.length) return emptyPanel(tabById("loadout"));
+  return rollup.loadoutSnapshots
+    .slice()
+    .reverse()
+    .map((snap) => {
+      const gear = (snap.items || []).filter((i) => i.category !== "cosmetic");
+      const badge =
+        snap.reason === "gear_change"
+          ? "Gear change"
+          : snap.reason === "spawn"
+            ? "Spawn"
+            : "Loadout";
+      const rows = gear
+        .map(
+          (i) =>
+            `<li><strong>${escapeHtml(i.slotLabel || i.port || "Slot")}:</strong> ${escapeHtml(i.label || i.className || "?")}${i.verified ? "" : " <span class=\"muted\">(estimated name)</span>"}</li>`
+        )
+        .join("");
+      const cosmeticN = (snap.items || []).length - gear.length;
+      const foot =
+        cosmeticN > 0
+          ? `<p class="muted" style="margin-top:8px;font-size:0.85rem">${cosmeticN} cosmetic/DNA attachment${cosmeticN === 1 ? "" : "s"} hidden.</p>`
+          : "";
+      return entryCard({
+        time: fmtDateTime(snap.at),
+        badge,
+        badgeClass: "",
+        title: snap.summary || badge,
+        description: rows
+          ? `<ul class="loadout-list">${rows}</ul>${foot}`
+          : "No combat gear in this snapshot.",
+      });
+    })
+    .join("");
+}
+
 async function refreshLogArchiveList() {
   logArchiveLoading = true;
   logArchiveError = null;
@@ -1228,7 +1482,7 @@ function renderCatalogItemRows(rows, tabId) {
   if (!rows.length) return emptyPanel(tabById(tabId));
   return `<div class="catalog-table-wrap"><table class="catalog-table">
     <thead><tr>
-      <th>Item</th><th>Type</th><th>Manufacturer</th><th>Best price</th><th>Shop / location</th>
+      <th>Item</th><th>Type</th><th>Manufacturer</th><th>Best price</th><th>Combat</th><th>Shop / location</th>
     </tr></thead>
     <tbody>${rows
       .map((row) => {
@@ -1245,6 +1499,7 @@ function renderCatalogItemRows(rows, tabId) {
           <td>${displayText(row.category || row.section || "")}</td>
           <td>${displayText(row.manufacturer || "")}</td>
           <td>${escapeHtml(fmtAuec(min))}</td>
+          <td class="muted small">Click row for DPS / DR stats</td>
           <td>${displayText(loc)}${listings.length > 1 ? ` <span class="muted small">(+${listings.length - 1})</span>` : ""}</td>
         </tr>`;
       })
@@ -1255,7 +1510,7 @@ function renderCatalogShipRows(rows) {
   if (!rows.length) return emptyPanel(tabById("catalog-ships"));
   return `<div class="catalog-table-wrap"><table class="catalog-table">
     <thead><tr>
-      <th>Ship</th><th>Manufacturer</th><th>Cargo</th><th>Crew</th><th>Buy / rent</th><th>Location</th>
+      <th>Ship</th><th>Manufacturer</th><th>Cargo</th><th>Crew</th><th>Buy / rent</th><th>Hull / shields</th><th>Location</th>
     </tr></thead>
     <tbody>${rows
       .map((row) => {
@@ -1277,6 +1532,7 @@ function renderCatalogShipRows(rows) {
           <td>${row.cargo != null ? `${row.cargo} SCU` : EMPTY_DISPLAY}</td>
           <td>${row.crew != null ? String(row.crew) : EMPTY_DISPLAY}</td>
           <td>${escapeHtml(priceBits.join(" / ") || EMPTY_DISPLAY)}</td>
+          <td class="muted small">Hull, fuel, power · SPViewer link in detail</td>
           <td>${displayText(loc)}</td>
         </tr>`;
       })
@@ -1404,6 +1660,425 @@ function renderCatalogDetail(detail, kind) {
   </article>`;
 }
 
+function combatKindLabel(kind) {
+  const map = {
+    fps_weapon: "FPS weapon",
+    ship_weapon: "Ship weapon",
+    armor: "Armor",
+    shield: "Shield",
+    power_plant: "Power plant",
+    cooler: "Cooler",
+    vehicle: "Ship",
+  };
+  return map[kind] || kind || "Combat";
+}
+
+function renderCombatStatGrid(profile) {
+  if (!profile?.stats?.length) {
+    return `<p class="muted small">No combat stats available for this item.</p>`;
+  }
+  const cells = profile.stats
+    .map(
+      (s) => `<div class="combat-stat${s.highlight ? " combat-stat-highlight" : ""}">
+        <span class="combat-stat-label">${escapeHtml(s.label)}</span>
+        <span class="combat-stat-value">${escapeHtml(String(s.value))}</span>
+      </div>`
+    )
+    .join("");
+  return `<div class="combat-stat-grid">${cells}</div>`;
+}
+
+function renderCombatPerformanceSections(profile) {
+  if (!profile?.sections?.length) return renderCombatStatGrid(profile);
+  return profile.sections
+    .map(
+      (section) => `<div class="combat-performance-section">
+        <h5 class="combat-performance-title">${escapeHtml(section.title)}</h5>
+        ${renderCombatStatGrid({ stats: section.stats })}
+      </div>`
+    )
+    .join("");
+}
+
+function renderDamageTypeChips(damageTypes) {
+  if (!damageTypes?.length) return "";
+  const chips = damageTypes
+    .map(
+      (d) =>
+        `<span class="combat-damage-chip" data-damage-type="${escapeAttr(d.type)}">${escapeHtml(d.type)} ${escapeHtml(String(d.value))}</span>`
+    )
+    .join("");
+  return `<div class="combat-damage-types">${chips}</div>`;
+}
+
+function renderExternalToolLinks(links) {
+  if (!links?.length) return "";
+  const btns = links
+    .map(
+      (l) =>
+        `<button type="button" class="btn btn-sm btn-ghost combat-tool-link" data-guide-external="${escapeAttr(l.url)}">${escapeHtml(l.label)}</button>`
+    )
+    .join("");
+  return `<div class="combat-external-links">${btns}</div>`;
+}
+
+function renderAdvancedToolsFooter(links, tools) {
+  const inline = renderExternalToolLinks(links);
+  const toolBtns = (tools || [])
+    .map(
+      (t) =>
+        `<button type="button" class="btn btn-sm btn-ghost combat-tool-link" data-guide-external="${escapeAttr(t.url)}">${escapeHtml(t.name)}</button>`
+    )
+    .join("");
+  if (!inline && !toolBtns) return "";
+  return `<details class="combat-advanced-tools">
+    <summary class="muted small">Advanced external tools</summary>
+    ${inline}
+    ${toolBtns ? `<div class="combat-advanced-tools-grid">${toolBtns}</div>` : ""}
+    <p class="muted small">Optional: heat sims, cutaways, and community charts not built into StarTracker.</p>
+  </details>`;
+}
+
+function renderCombatProfilePanel(data, options = {}) {
+  if (!data?.ok && !data?.profile) {
+    return `<section class="combat-profile-panel guide-card">
+      <p class="muted small">${escapeHtml(data?.error || "Combat stats unavailable.")}</p>
+    </section>`;
+  }
+  const profile = data.profile;
+  const kind = combatKindLabel(profile?.kind);
+  const modes = profile?.modes?.length
+    ? `<p class="muted small">Fire modes: ${escapeHtml(profile.modes.join(", "))}</p>`
+    : "";
+  const perfTitle = profile?.kind === "vehicle" ? "Ship performance" : "Combat stats";
+  const sourceNote = profile?.performanceSource
+    ? `Source: ${profile.performanceSource}.`
+    : "Datamine via star-citizen.wiki.";
+  const advancedTools = options.advancedTools || [];
+  return `<section class="combat-profile-panel guide-card">
+    <header class="combat-profile-head">
+      <h4>${escapeHtml(perfTitle)}</h4>
+      <span class="combat-kind-badge">${escapeHtml(kind)}</span>
+    </header>
+    ${data.headline ? `<p class="combat-headline">${escapeHtml(data.headline)}</p>` : ""}
+    ${profile?.kind === "vehicle" ? renderCombatPerformanceSections(profile) : renderCombatStatGrid(profile)}
+    ${renderDamageTypeChips(profile?.damageTypes)}
+    ${modes}
+    ${renderAdvancedToolsFooter(data.externalLinks, advancedTools)}
+    <p class="muted small combat-source-note">${escapeHtml(sourceNote)} Patch changes may lag the live game.</p>
+  </section>`;
+}
+
+function renderLoadoutCombatSummary(items) {
+  if (!items?.length) return "";
+  const cards = items
+    .map((row) => {
+      if (!row.combat?.headline && !row.combat?.profile?.stats?.length) {
+        return `<article class="combat-loadout-card">
+          <h4>${displayText(row.label || row.className)}</h4>
+          <p class="muted small">${displayText(row.slotLabel || row.port || "Gear")} · stats not found</p>
+        </article>`;
+      }
+      return `<article class="combat-loadout-card">
+        <header><h4>${displayText(row.label || row.className)}</h4><span class="combat-kind-badge">${escapeHtml(combatKindLabel(row.combat.kind))}</span></header>
+        <p class="muted small">${displayText(row.slotLabel || row.port || "Gear")}</p>
+        ${row.combat.headline ? `<p class="combat-headline">${escapeHtml(row.combat.headline)}</p>` : ""}
+        ${renderCombatStatGrid(row.combat.profile)}
+      </article>`;
+    })
+    .join("");
+  return `<section class="combat-loadout-summary"><h3 class="guide-section-title">Combat breakdown</h3><div class="combat-loadout-grid">${cards}</div></section>`;
+}
+
+function renderCombatHubPanel(toolsData, searchHtml) {
+  const intro = `<div class="hub-intro">
+    <strong>Your combat command center.</strong> Look up weapons, armor, and ship stats without leaving the app.
+    Fleet rankings and loadout planning live here too. Need heat sims or cutaways? Expand Advanced tools at the bottom.
+  </div>`;
+  const inApp = `<section class="guide-section">
+    <h2 class="guide-section-title">Start here</h2>
+    <div class="combat-inapp-grid">
+      <button type="button" class="guide-tab-link combat-inapp-card" data-tab="guides-fleet">
+        <span class="inapp-icon" aria-hidden="true">🚀</span>
+        <h3>Fleet compare</h3>
+        <p class="muted small">Rank every flyable ship by hull, shields, speed, cargo, and signatures.</p>
+      </button>
+      <button type="button" class="guide-tab-link combat-inapp-card" data-tab="guides-loadout">
+        <span class="inapp-icon" aria-hidden="true">🔧</span>
+        <h3>Ship builder</h3>
+        <p class="muted small">Load a hull, see stock guns, swap weapons, and compare total DPS.</p>
+      </button>
+    </div>
+  </section>`;
+  const advanced = renderAdvancedToolsFooter([], toolsData?.tools || []);
+  return `${intro}${inApp}
+    <section class="guide-section"><h2 class="guide-section-title">Search any item or ship</h2>${searchHtml}</section>
+    <section class="guide-section"><div id="combatSearchResults"></div></section>
+    ${advanced}`;
+}
+
+function renderCombatSearchResults(rows) {
+  if (!rows?.length) return `<p class="muted">No matches. Try a weapon, armor, or ship name.</p>`;
+  return `<div class="catalog-table-wrap"><table class="catalog-table">
+    <thead><tr><th>Name</th><th>Type</th><th></th></tr></thead>
+    <tbody>${rows
+      .map((r) => {
+        const key = r.className || r.slug;
+        const kind = r.resourceType === "vehicle" ? "vehicle" : "item";
+        return `<tr>
+          <td>${displayText(r.name)}</td>
+          <td class="muted small">${escapeHtml(kind)}</td>
+          <td><button type="button" class="link combat-search-open" data-combat-kind="${escapeAttr(kind)}" data-combat-key="${escapeAttr(key)}">View stats</button></td>
+        </tr>`;
+      })
+      .join("")}</tbody></table></div>
+    <div id="combatSearchDetail"></div>`;
+}
+
+function formatFleetCell(n) {
+  if (n == null || Number.isNaN(Number(n))) return "—";
+  const v = Number(n);
+  if (Math.abs(v) >= 1000) return Math.round(v).toLocaleString();
+  if (Number.isInteger(v)) return String(v);
+  return v.toFixed(1);
+}
+
+function fleetMetaLine(meta) {
+  if (!meta?.fetchedAt) return "";
+  const stale = meta.stale ? " · index may be refreshing" : "";
+  const total = meta.indexTotal ?? meta.total ?? "?";
+  return `<p class="guides-meta muted small">${total} ships in index · updated ${new Date(meta.fetchedAt).toLocaleString()}${stale}</p>`;
+}
+
+function fleetCompareToolbar(tabId) {
+  const state = guideQueryByTab[tabId] || { query: "", sort: "hull", offset: 0 };
+  const sorts = [
+    ["hull", "Hull HP"],
+    ["shield", "Shield HP"],
+    ["scm", "SCM speed"],
+    ["cargo", "Cargo SCU"],
+    ["mass", "Mass (low first)"],
+    ["h2", "H2 capacity"],
+    ["ir", "IR signature"],
+    ["name", "Name"],
+  ];
+  const options = sorts
+    .map(
+      ([val, label]) =>
+        `<option value="${escapeAttr(val)}"${state.sort === val ? " selected" : ""}>${escapeHtml(label)}</option>`
+    )
+    .join("");
+  return `<div class="catalog-toolbar">
+    <input type="search" class="catalog-search" data-fleet-search="${escapeAttr(tabId)}" placeholder="Filter ships…" value="${escapeAttr(state.query || "")}" />
+    <select class="guide-sort-select" data-fleet-sort="${escapeAttr(tabId)}">${options}</select>
+    <button type="button" class="btn btn-sm" data-fleet-refresh>Refresh index</button>
+  </div>`;
+}
+
+function renderFleetCompareRows(rows) {
+  if (!rows?.length) return `<p class="muted">No ships match this filter.</p>`;
+  const body = rows
+    .map(
+      (r) => `<tr>
+        <td>${displayText(r.name)}</td>
+        <td class="muted small">${displayText(r.manufacturer || r.size || "—")}</td>
+        <td>${formatFleetCell(r.hullHp)}</td>
+        <td>${formatFleetCell(r.shieldHp)}</td>
+        <td>${formatFleetCell(r.scm)}</td>
+        <td>${formatFleetCell(r.cargo)}</td>
+        <td>${formatFleetCell(r.mass)}</td>
+        <td><button type="button" class="link fleet-row-open" data-fleet-slug="${escapeAttr(r.slug)}" data-fleet-key="${escapeAttr(r.className || r.slug)}">Stats</button></td>
+      </tr>`
+    )
+    .join("");
+  return `<div class="catalog-table-wrap"><table class="catalog-table fleet-compare-table">
+    <thead><tr><th>Ship</th><th>Mfg / size</th><th>Hull</th><th>Shield</th><th>SCM</th><th>Cargo</th><th>Mass</th><th></th></tr></thead>
+    <tbody>${body}</tbody>
+  </table></div>
+  <div id="fleetCompareDetail"></div>`;
+}
+
+function renderLoadoutBuilderShell() {
+  const slug = loadoutBuilderState.shipSlug || "";
+  return `<div class="hub-intro">
+    <strong>Plan your loadout in minutes.</strong> Pick a ship, review its stock hardpoints from the wiki,
+    then swap guns and see combined DPS. This is a simplified builder, not a full heat or power simulator.
+  </div>
+  <section class="guide-section">
+    <div class="catalog-toolbar">
+      <input type="search" id="loadoutShipInput" class="catalog-search" placeholder="Ship wiki slug (e.g. gladius, cutlass-black)" value="${escapeAttr(slug)}" />
+      <button type="button" class="btn btn-sm" id="loadoutLoadShipBtn">Load ship</button>
+    </div>
+  </section>
+  <div id="loadoutBuilderBody"><p class="muted small">Enter a ship slug above and tap Load ship to begin.</p></div>`;
+}
+
+function renderLoadoutBuilderBody(blueprint, summary) {
+  if (!blueprint?.ok) {
+    return `<p class="muted">${escapeHtml(blueprint?.error || "Could not load ship.")}</p>`;
+  }
+  const weapons = summary?.weapons || blueprint.stockSummary?.weapons || [];
+  const totals = summary || blueprint.stockSummary;
+  const rows = weapons
+    .map((w) => {
+      const assigned =
+        loadoutBuilderState.slotAssignments[w.portId] || w.className || w.stockClassName || "";
+      return `<tr>
+        <td>${displayText(w.label)}</td>
+        <td>S${displayText(w.sizeMax ?? "—")}</td>
+        <td>${displayText(w.name || assigned || "Empty")}</td>
+        <td>${formatFleetCell(w.dps)}</td>
+        <td>
+          <input type="search" class="loadout-slot-input catalog-search" data-loadout-port="${escapeAttr(w.portId)}" placeholder="Weapon slug or class" value="${escapeAttr(assigned)}" />
+          <button type="button" class="btn btn-sm btn-ghost loadout-slot-search" data-loadout-port="${escapeAttr(w.portId)}" data-loadout-size="${escapeAttr(w.sizeMax ?? "")}">Find</button>
+          <div class="loadout-slot-results" data-loadout-results="${escapeAttr(w.portId)}"></div>
+        </td>
+      </tr>`;
+    })
+    .join("");
+  const components = (blueprint.stockComponents || [])
+    .slice(0, 12)
+    .map((c) => `<li class="muted small">${displayText(c.type)} · ${displayText(c.name)}${c.size ? ` (S${c.size})` : ""}</li>`)
+    .join("");
+  return `<section class="guide-card loadout-builder-panel">
+    <header class="combat-profile-head">
+      <h3>${displayText(blueprint.ship?.name)}</h3>
+      <button type="button" class="btn btn-sm" id="loadoutRecalcBtn">Recalculate</button>
+    </header>
+    <p class="combat-headline">Combined DPS: ${formatFleetCell(totals?.totalDps)} · Alpha burst: ${formatFleetCell(totals?.totalAlpha)} · ${totals?.weaponCount ?? weapons.length} guns</p>
+    <p class="muted small">${displayText(totals?.note || blueprint.limitations || "")}</p>
+    <div class="catalog-table-wrap"><table class="catalog-table">
+      <thead><tr><th>Hardpoint</th><th>Size</th><th>Weapon</th><th>DPS</th><th>Swap</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    ${components ? `<h4 class="guide-section-title">Stock components</h4><ul class="guide-list">${components}</ul>` : ""}
+    <div id="loadoutHullProfile"></div>
+  </section>`;
+}
+
+async function loadFleetCompareTab(tabId, options = {}) {
+  const state = guideQueryByTab[tabId] || { query: "", offset: 0, sort: "hull" };
+  if (options.resetOffset) state.offset = 0;
+  guideQueryByTab[tabId] = state;
+
+  setPanelHtml(
+    tabId,
+    `<div class="hub-intro"><strong>Compare the whole fleet.</strong> Sort ships by hull, shields, SCM, cargo, mass, and IR signature. Click Stats on any row for the full performance breakdown.</div>${fleetMetaLine(fleetCompareMeta)}${fleetCompareToolbar(tabId)}<p class="muted small">Loading fleet index…</p>`
+  );
+
+  try {
+    const result = await window.debrief.fleetCompareQuery({
+      query: state.query,
+      sort: state.sort,
+      offset: state.offset,
+      limit: 80,
+      forceRefresh: options.forceRefresh,
+    });
+    if (!result.ok) throw new Error(result.error || "fleet compare failed");
+    fleetCompareMeta = result.meta;
+    setPanelHtml(
+      tabId,
+      `<div class="hub-intro"><strong>Compare the whole fleet.</strong> Sort ships by hull, shields, SCM, cargo, mass, and IR signature. Click Stats on any row for the full performance breakdown.</div>${fleetMetaLine(result.meta)}${fleetCompareToolbar(tabId)}${renderFleetCompareRows(result.rows)}`
+    );
+  } catch (e) {
+    setPanelHtml(
+      tabId,
+      `${fleetMetaLine(fleetCompareMeta)}${fleetCompareToolbar(tabId)}<p class="muted">Fleet compare error: ${escapeHtml(e.message || String(e))}</p>`
+    );
+  }
+}
+
+async function loadLoadoutBuilderTab(tabId) {
+  setPanelHtml(tabId, renderLoadoutBuilderShell());
+  if (!loadoutBuilderState.shipSlug) return;
+
+  const body = document.getElementById("loadoutBuilderBody");
+  if (!body) return;
+  body.innerHTML = `<p class="muted small">Loading ${escapeHtml(loadoutBuilderState.shipSlug)}…</p>`;
+  try {
+    const blueprint = await window.debrief.loadoutGetBlueprint(loadoutBuilderState.shipSlug);
+    loadoutBuilderBlueprint = blueprint;
+    const sim = await window.debrief.loadoutSimulate({
+      shipSlug: loadoutBuilderState.shipSlug,
+      slotAssignments: loadoutBuilderState.slotAssignments,
+    });
+    body.innerHTML = renderLoadoutBuilderBody(blueprint, sim.summary);
+    if (sim.hullProfile) {
+      document.getElementById("loadoutHullProfile")?.insertAdjacentHTML(
+        "beforeend",
+        renderCombatPerformanceSections(sim.hullProfile)
+      );
+    }
+  } catch (e) {
+    body.innerHTML = `<p class="muted">Loadout error: ${escapeHtml(e.message || String(e))}</p>`;
+  }
+}
+
+async function enrichLoadoutCombatPanel() {
+  const panel = document.querySelector("#panel-loadout .panel-body");
+  if (!panel || loadoutCombatBusy) return;
+  const rollup = getViewRollup(lastKnownState);
+  const snap = rollup?.loadoutSnapshots?.[rollup.loadoutSnapshots.length - 1];
+  if (!snap?.items?.length) return;
+
+  loadoutCombatBusy = true;
+  panel.querySelector(".combat-loadout-summary")?.remove();
+  panel.insertAdjacentHTML(
+    "beforeend",
+    `<section class="combat-loadout-summary"><p class="muted small">Loading combat stats for your gear…</p></section>`
+  );
+  try {
+    const gear = snap.items.filter((i) => i.category !== "cosmetic");
+    const result = await window.debrief.combatGetLoadoutSummary(
+      gear.map((i) => ({
+        port: i.port,
+        slotLabel: i.slotLabel,
+        className: i.className,
+        label: i.label,
+        category: i.category,
+      }))
+    );
+    panel.querySelector(".combat-loadout-summary")?.remove();
+    panel.insertAdjacentHTML("beforeend", renderLoadoutCombatSummary(result.items));
+  } catch (e) {
+    panel.querySelector(".combat-loadout-summary")?.remove();
+    panel.insertAdjacentHTML(
+      "beforeend",
+      `<p class="muted small">Could not load combat stats: ${escapeHtml(e.message || String(e))}</p>`
+    );
+  } finally {
+    loadoutCombatBusy = false;
+  }
+}
+
+async function attachCombatProfileToDetail(detail, kind) {
+  const panel = document.querySelector(`#panel-${activeTab} .panel-body`);
+  if (!panel || !detail) return;
+  const key = detail.className || detail.slug || catalogDetailKey;
+  if (!key) return;
+
+  panel.querySelector(".combat-profile-panel")?.remove();
+  panel.insertAdjacentHTML(
+    "beforeend",
+    `<section class="combat-profile-panel guide-card"><p class="muted small">Loading combat stats…</p></section>`
+  );
+
+  const isVehicle = activeTab === "catalog-ships" || kind === "vehicle";
+  try {
+    const data = isVehicle
+      ? await window.debrief.combatGetVehicleProfile({ className: key, slug: detail.slug || key })
+      : await window.debrief.combatGetItemProfile({ className: key, slug: detail.slug || key });
+    panel.querySelector(".combat-profile-panel")?.remove();
+    panel.insertAdjacentHTML("beforeend", renderCombatProfilePanel(data));
+  } catch (e) {
+    panel.querySelector(".combat-profile-panel")?.remove();
+    panel.insertAdjacentHTML(
+      "beforeend",
+      renderCombatProfilePanel({ ok: false, error: e.message || String(e) })
+    );
+  }
+}
+
 async function loadCatalogTab(tabId, options = {}) {
   if (!tabId.startsWith("catalog-")) return;
   const state = catalogQueryByTab[tabId] || { query: "", offset: 0 };
@@ -1491,6 +2166,590 @@ async function showCatalogDetail(key, kind) {
   const existing = panel.querySelector(".catalog-detail");
   if (existing) existing.remove();
   panel.insertAdjacentHTML("beforeend", renderCatalogDetail(detail, kind));
+  await attachCombatProfileToDetail(detail, kind);
+}
+
+function fmtScuPrice(n) {
+  if (n == null || n <= 0) return EMPTY_DISPLAY;
+  return `${Number(n).toLocaleString()} aUEC/SCU`;
+}
+
+function guidesMetaLine(meta) {
+  const fetchedAt =
+    meta && typeof meta === "object" ? meta.fetchedAt : meta || null;
+  const stale = meta && typeof meta === "object" && meta.stale;
+  const when = fetchedAt ? fmtDateTime(fetchedAt) : null;
+  const busy = guideCommodityRefreshBusy ? " Refreshing prices…" : "";
+  const base = when
+    ? `Prices from UEX Corp community data. Cached ${escapeHtml(when)}.${busy}`
+    : `Prices from UEX Corp community data. Not cached yet.${busy}`;
+  const staleNote = stale ? " Using cached copy." : "";
+  return `<p class="guides-meta muted small">${base}${staleNote} Per SCU at trading terminals.</p>`;
+}
+
+function guidesCommodityToolbar(tabId) {
+  const state = guideQueryByTab[tabId] || { query: "", sort: "name" };
+  const busy = guideCommodityRefreshBusy ? " disabled" : "";
+  return `<div class="catalog-toolbar">
+    <input type="search" class="catalog-search" data-guide-search="${escapeAttr(tabId)}" placeholder="Search name, code, kind…" value="${escapeAttr(state.query || "")}" />
+    <button type="button" class="btn btn-sm btn-ghost" data-guide-search-btn="${escapeAttr(tabId)}">Search</button>
+    <select class="guide-sort-select" data-guide-sort="${escapeAttr(tabId)}" aria-label="Sort commodities">
+      <option value="name"${state.sort === "name" ? " selected" : ""}>Sort: name</option>
+      <option value="spread"${state.sort === "spread" ? " selected" : ""}>Sort: spread</option>
+      <option value="sell"${state.sort === "sell" ? " selected" : ""}>Sort: sell</option>
+      <option value="buy"${state.sort === "buy" ? " selected" : ""}>Sort: buy</option>
+    </select>
+    <button type="button" class="btn btn-sm" data-guide-refresh${busy}>Refresh prices</button>
+  </div>
+  <p class="muted small">Refresh with catalog sync or the Refresh prices button above.</p>`;
+}
+
+function renderGuideCommodityRows(rows, tabId) {
+  if (!rows?.length) {
+    return tabId ? emptyPanel(tabById(tabId)) : `<p class="muted">No commodities match your search.</p>`;
+  }
+  const body = rows
+    .map((row) => {
+      const spreadClass =
+        row.spread != null && row.spread > 0 ? " commodity-spread-positive" : "";
+      const illegal = row.isIllegal ? "Yes" : EMPTY_DISPLAY;
+      return `<tr class="guide-commodity-row" data-guide-commodity="${row.id}">
+        <td><button type="button" class="catalog-link" data-guide-commodity="${row.id}">${displayText(row.name)}</button><div class="muted small mono">${escapeHtml(row.code || "")}</div></td>
+        <td>${displayText(row.kind)}</td>
+        <td>${escapeHtml(fmtScuPrice(row.priceBuy))}</td>
+        <td>${escapeHtml(fmtScuPrice(row.priceSell))}</td>
+        <td class="${spreadClass.trim()}">${row.spread != null && row.spread > 0 ? escapeHtml(fmtScuPrice(row.spread)) : EMPTY_DISPLAY}</td>
+        <td>${escapeHtml(illegal)}</td>
+      </tr>`;
+    })
+    .join("");
+  return `<div class="catalog-table-wrap"><table class="catalog-table">
+    <thead><tr><th>Name</th><th>Kind</th><th>Buy (aUEC/SCU)</th><th>Sell (aUEC/SCU)</th><th>Spread</th><th>Illegal</th></tr></thead>
+    <tbody>${body}</tbody>
+  </table></div>`;
+}
+
+function renderGuideCommodityPager(tabId, result) {
+  if (!result || result.total <= result.limit) return "";
+  const prevDisabled = result.offset <= 0 ? " disabled" : "";
+  const nextDisabled = result.offset + result.limit >= result.total ? " disabled" : "";
+  const page = Math.floor(result.offset / result.limit) + 1;
+  const pages = Math.max(1, Math.ceil(result.total / result.limit));
+  return `<div class="catalog-pager">
+    <button type="button" class="btn btn-sm btn-ghost" data-guide-page="${escapeAttr(tabId)}" data-guide-dir="prev"${prevDisabled}>Previous</button>
+    <span class="muted small">Page ${page} of ${pages} (${result.total} total)</span>
+    <button type="button" class="btn btn-sm btn-ghost" data-guide-page="${escapeAttr(tabId)}" data-guide-dir="next"${nextDisabled}>Next</button>
+  </div>`;
+}
+
+function renderGuideCommodityDetail(detail) {
+  if (!detail?.commodity) return "";
+  const c = detail.commodity;
+  const terminals = detail.terminals || [];
+  const topBuy = terminals
+    .filter((t) => t.priceBuy > 0)
+    .sort((a, b) => a.priceBuy - b.priceBuy)
+    .slice(0, 8);
+  const topSell = terminals
+    .filter((t) => t.priceSell > 0)
+    .sort((a, b) => b.priceSell - a.priceSell)
+    .slice(0, 8);
+  const termRows = (rows, kind) =>
+    rows
+      .map(
+        (t) => `<tr>
+          <td>${displayText(t.terminal)}</td>
+          <td>${displayText(t.location || t.system)}</td>
+          <td>${escapeHtml(fmtScuPrice(kind === "buy" ? t.priceBuy : t.priceSell))}</td>
+        </tr>`
+      )
+      .join("");
+
+  const bestBuy = detail.bestBuy
+    ? `<p class="muted small">Best buy: <strong>${escapeHtml(fmtScuPrice(detail.bestBuy.priceBuy))}</strong> at ${displayText(detail.bestBuy.terminal || detail.bestBuy.location)}</p>`
+    : "";
+  const bestSell = detail.bestSell
+    ? `<p class="muted small">Best sell: <strong>${escapeHtml(fmtScuPrice(detail.bestSell.priceSell))}</strong> at ${displayText(detail.bestSell.terminal || detail.bestSell.location)}</p>`
+    : "";
+
+  return `<article class="catalog-detail guide-detail">
+    <header class="catalog-detail-head">
+      <h3>${displayText(c.name)}</h3>
+      <button type="button" class="link" data-guide-detail-close>Close</button>
+    </header>
+    <p class="muted small">${displayText(c.kind)} · ${escapeHtml(c.code || "")}${c.isIllegal ? " · Illegal" : ""}</p>
+    ${bestBuy}${bestSell}
+    <h4 class="guide-detail-sub">Top buy terminals</h4>
+    <div class="catalog-table-wrap"><table class="catalog-table"><thead><tr><th>Terminal</th><th>Location</th><th>Buy</th></tr></thead><tbody>${termRows(topBuy, "buy") || `<tr><td colspan="3" class="muted">No buy prices</td></tr>`}</tbody></table></div>
+    <h4 class="guide-detail-sub">Top sell terminals</h4>
+    <div class="catalog-table-wrap"><table class="catalog-table"><thead><tr><th>Terminal</th><th>Location</th><th>Sell</th></tr></thead><tbody>${termRows(topSell, "sell") || `<tr><td colspan="3" class="muted">No sell prices</td></tr>`}</tbody></table></div>
+  </article>`;
+}
+
+function buildPatchNotesPanel(data) {
+  const localCards = (data.local || [])
+    .map((note) => {
+      const stNotes = (note.startrackerNotes || [])
+        .map((n) => `<li>${displayText(n)}</li>`)
+        .join("");
+      const plNotes = (note.playerNotes || [])
+        .map((n) => `<li>${displayText(n)}</li>`)
+        .join("");
+      const rsi = note.rsiUrl
+        ? `<p><button type="button" class="link" data-guide-external="${escapeAttr(note.rsiUrl)}">Read on RSI</button></p>`
+        : "";
+      return `<article class="patch-note-card guide-card">
+        <header><h3>${displayText(note.title || note.version)}</h3><span class="muted small">${escapeHtml(note.date || note.version || "")}</span></header>
+        ${stNotes ? `<h4 class="guide-detail-sub">StarTracker</h4><ul class="guide-list">${stNotes}</ul>` : ""}
+        ${plNotes ? `<h4 class="guide-detail-sub">For players</h4><ul class="guide-list">${plNotes}</ul>` : ""}
+        ${rsi}
+      </article>`;
+    })
+    .join("");
+
+  const remoteCards = (data.remote || [])
+    .map((link) => {
+      const url = link.rsiUrl || "";
+      const titleBtn = url
+        ? `<button type="button" class="catalog-link" data-guide-external="${escapeAttr(url)}">${displayText(link.title)}</button>`
+        : displayText(link.title);
+      return `<article class="patch-note-card guide-card guide-card-remote">
+        <header><h3>${titleBtn}</h3><span class="muted small">${escapeHtml(link.dateHuman || link.channel || "")}</span></header>
+        ${link.series ? `<p class="muted small">${displayText(link.series)}</p>` : ""}
+      </article>`;
+    })
+    .join("");
+
+  const meta = data.meta?.fetchedAt
+    ? `<p class="guides-meta muted small">Wiki comm-links cached ${escapeHtml(fmtDateTime(data.meta.fetchedAt))}.</p>`
+    : "";
+
+  return `${meta}${localCards || ""}${remoteCards ? `<h3 class="guide-section-title">Recent from RSI / Wiki</h3>${remoteCards}` : ""}${!localCards && !remoteCards ? `<p class="muted">No patch notes available.</p>` : ""}`;
+}
+
+function buildSmugglerRoutesPanel(data) {
+  const routes = data.routes || [];
+  if (!routes.length) return `<p class="muted">No smuggler routes loaded.</p>`;
+  const cards = routes
+    .map((route) => {
+      const hints = (route.commodityHints || []).map((h) => displayText(h)).join(", ");
+      const buys = (route.buyLocations || []).map((l) => `<li>${displayText(l)}</li>`).join("");
+      const sells = (route.sellLocations || []).map((l) => `<li>${displayText(l)}</li>`).join("");
+      return `<article class="guide-route-card guide-card">
+        <header><h3>${displayText(route.name)}</h3><span class="entry-badge">${escapeHtml(route.risk || "Unknown")} risk</span></header>
+        ${hints ? `<p class="muted small"><strong>Commodities:</strong> ${hints}</p>` : ""}
+        ${buys ? `<h4 class="guide-detail-sub">Buy</h4><ul class="guide-list">${buys}</ul>` : ""}
+        ${sells ? `<h4 class="guide-detail-sub">Sell</h4><ul class="guide-list">${sells}</ul>` : ""}
+        ${route.notes ? `<p class="overview-prose">${displayText(route.notes)}</p>` : ""}
+      </article>`;
+    })
+    .join("");
+  const disclaimer = data.disclaimer
+    ? `<p class="guides-meta muted small">${displayText(data.disclaimer)}</p>`
+    : "";
+  return `${disclaimer}${cards}`;
+}
+
+function buildGameLoopsPanel(data) {
+  const loops = data.loops || [];
+  if (!loops.length) return `<p class="muted">No game loop guides loaded.</p>`;
+  return loops
+    .map((loop) => {
+      const tips = (loop.tips || []).map((t) => `<li>${displayText(t)}</li>`).join("");
+      const related = (loop.relatedTabs || [])
+        .map((tabId) => {
+          const tab = TABS.find((t) => t.id === tabId);
+          const label = tab?.label || tabId;
+          return `<button type="button" class="link guide-tab-link" data-tab="${escapeAttr(tabId)}">${escapeHtml(label)}</button>`;
+        })
+        .join(" · ");
+      return `<article class="guide-card">
+        <header><h3>${displayText(loop.title)}</h3></header>
+        <p>${displayText(loop.summary)}</p>
+        ${tips ? `<ul class="guide-list">${tips}</ul>` : ""}
+        ${related ? `<p class="muted small">Related: ${related}</p>` : ""}
+      </article>`;
+    })
+    .join("");
+}
+
+async function showGuideCommodityDetail(commodityId) {
+  guideDetailCommodityId = commodityId;
+  const panel = document.querySelector(`#panel-${activeTab} .panel-body`);
+  if (!panel) return;
+  const existing = panel.querySelector(".guide-detail");
+  if (existing) existing.remove();
+  panel.insertAdjacentHTML(
+    "beforeend",
+    `<p class="muted small guide-detail-loading">Loading terminal prices…</p>`
+  );
+  try {
+    const detail = await window.debrief.guidesGetCommodityDetail(commodityId);
+    panel.querySelector(".guide-detail-loading")?.remove();
+    panel.insertAdjacentHTML("beforeend", renderGuideCommodityDetail(detail));
+  } catch (e) {
+    panel.querySelector(".guide-detail-loading")?.remove();
+    panel.insertAdjacentHTML(
+      "beforeend",
+      `<p class="muted">Could not load detail: ${escapeHtml(e.message || String(e))}</p>`
+    );
+  }
+}
+
+async function loadGuideTab(tabId, options = {}) {
+  if (!tabId.startsWith("guides-")) return;
+
+  if (tabId === "guides-patch-notes") {
+    setPanelHtml(tabId, `<p class="muted small">Loading patch notes…</p>`);
+    try {
+      const data = await window.debrief.guidesGetPatchNotes();
+      setPanelHtml(tabId, buildPatchNotesPanel(data));
+    } catch (e) {
+      setPanelHtml(
+        tabId,
+        `<p class="muted">Patch notes error: ${escapeHtml(e.message || String(e))}</p>`
+      );
+    }
+    return;
+  }
+
+  if (tabId === "guides-smuggling") {
+    setPanelHtml(tabId, `<p class="muted small">Loading routes…</p>`);
+    try {
+      const data = await window.debrief.guidesGetSmugglerRoutes();
+      setPanelHtml(tabId, buildSmugglerRoutesPanel(data));
+    } catch (e) {
+      setPanelHtml(
+        tabId,
+        `<p class="muted">Routes error: ${escapeHtml(e.message || String(e))}</p>`
+      );
+    }
+    return;
+  }
+
+  if (tabId === "guides-loops") {
+    setPanelHtml(tabId, `<p class="muted small">Loading game loops…</p>`);
+    try {
+      const data = await window.debrief.guidesGetGameLoops();
+      setPanelHtml(tabId, buildGameLoopsPanel(data));
+    } catch (e) {
+      setPanelHtml(
+        tabId,
+        `<p class="muted">Game loops error: ${escapeHtml(e.message || String(e))}</p>`
+      );
+    }
+    return;
+  }
+
+  if (tabId === "guides-combat") {
+    setPanelHtml(tabId, `<p class="muted small">Loading combat intel…</p>`);
+    try {
+      const tools = await window.debrief.combatGetExternalTools();
+      const searchHtml = `<div class="catalog-toolbar">
+        <input type="search" id="combatSearchInput" class="catalog-search" placeholder="Search weapons, armor, shields, ships…" />
+        <button type="button" class="btn btn-sm" id="combatSearchBtn">Search</button>
+      </div>`;
+      setPanelHtml(tabId, renderCombatHubPanel(tools, searchHtml));
+    } catch (e) {
+      setPanelHtml(
+        tabId,
+        `<p class="muted">Combat intel error: ${escapeHtml(e.message || String(e))}</p>`
+      );
+    }
+    return;
+  }
+
+  if (tabId === "guides-fleet") {
+    await loadFleetCompareTab(tabId, options);
+    return;
+  }
+
+  if (tabId === "guides-loadout") {
+    await loadLoadoutBuilderTab(tabId);
+    return;
+  }
+
+  if (tabId === "guides-commodities" || tabId === "guides-mining") {
+    const state = guideQueryByTab[tabId] || {
+      query: "",
+      offset: 0,
+      sort: tabId === "guides-mining" ? "sell" : "name",
+      filter: tabId === "guides-mining" ? "mining" : "trade",
+    };
+    if (options.resetOffset) state.offset = 0;
+    guideQueryByTab[tabId] = state;
+
+    setPanelHtml(
+      tabId,
+      `${guidesMetaLine(guideCommodityMeta)}${guidesCommodityToolbar(tabId)}<p class="muted small">Loading commodities…</p>`
+    );
+
+    try {
+      const result = await window.debrief.guidesGetCommodities({
+        filter: state.filter,
+        query: state.query,
+        offset: state.offset,
+        limit: 80,
+        sort: state.sort,
+      });
+      guideCommodityMeta = result.meta;
+      setPanelHtml(
+        tabId,
+        `${guidesMetaLine(result.meta)}${guidesCommodityToolbar(tabId)}${renderGuideCommodityRows(result.rows, tabId)}${renderGuideCommodityPager(tabId, result)}`
+      );
+      if (guideDetailCommodityId) {
+        await showGuideCommodityDetail(guideDetailCommodityId);
+      }
+    } catch (e) {
+      setPanelHtml(
+        tabId,
+        `${guidesMetaLine(guideCommodityMeta)}${guidesCommodityToolbar(tabId)}<p class="muted">Commodity error: ${escapeHtml(e.message || String(e))}</p>`
+      );
+    }
+  }
+}
+
+function initGuidesUi() {
+  $("tabPanels")?.addEventListener("click", async (e) => {
+    const external = e.target.closest("[data-guide-external]");
+    if (external?.dataset.guideExternal) {
+      window.debrief.openUpdateUrl(external.dataset.guideExternal);
+      return;
+    }
+
+    const tabLink = e.target.closest(".guide-tab-link");
+    if (tabLink?.dataset.tab) {
+      setActiveTab(tabLink.dataset.tab);
+      return;
+    }
+
+    const searchBtn = e.target.closest("[data-guide-search-btn]");
+    if (searchBtn) {
+      const tabId = searchBtn.dataset.guideSearchBtn;
+      const input = document.querySelector(`[data-guide-search="${tabId}"]`);
+      if (input && guideQueryByTab[tabId]) {
+        guideQueryByTab[tabId].query = input.value.trim();
+        loadGuideTab(tabId, { resetOffset: true });
+      }
+      return;
+    }
+
+    const refreshBtn = e.target.closest("[data-guide-refresh]");
+    if (refreshBtn) {
+      guideCommodityRefreshBusy = true;
+      if (activeTab.startsWith("guides-")) loadGuideTab(activeTab);
+      try {
+        await window.debrief.guidesRefreshCommodities();
+      } finally {
+        guideCommodityRefreshBusy = false;
+        if (activeTab.startsWith("guides-")) loadGuideTab(activeTab);
+      }
+      return;
+    }
+
+    const pageBtn = e.target.closest("[data-guide-page]");
+    if (pageBtn && !pageBtn.disabled) {
+      const tabId = pageBtn.dataset.guidePage;
+      const dir = pageBtn.dataset.guideDir;
+      const state = guideQueryByTab[tabId];
+      if (!state) return;
+      state.offset = Math.max(0, state.offset + (dir === "next" ? 80 : -80));
+      loadGuideTab(tabId);
+      return;
+    }
+
+    const commodityBtn = e.target.closest("[data-guide-commodity]");
+    if (commodityBtn) {
+      await showGuideCommodityDetail(Number(commodityBtn.dataset.guideCommodity));
+      return;
+    }
+
+    if (e.target.closest("[data-guide-detail-close]")) {
+      guideDetailCommodityId = null;
+      document.querySelectorAll(".guide-detail").forEach((el) => el.remove());
+      return;
+    }
+
+    if (e.target.id === "combatSearchBtn" || e.target.closest("#combatSearchBtn")) {
+      const input = $("combatSearchInput");
+      const resultsEl = $("combatSearchResults");
+      if (!input || !resultsEl) return;
+      resultsEl.innerHTML = `<p class="muted small">Searching…</p>`;
+      try {
+        const data = await window.debrief.combatSearch({ query: input.value.trim(), limit: 20 });
+        resultsEl.innerHTML = renderCombatSearchResults(data.rows);
+      } catch (err) {
+        resultsEl.innerHTML = `<p class="muted">Search failed: ${escapeHtml(err.message || String(err))}</p>`;
+      }
+      return;
+    }
+
+    const combatOpen = e.target.closest(".combat-search-open");
+    if (combatOpen) {
+      const kind = combatOpen.dataset.combatKind;
+      const key = combatOpen.dataset.combatKey;
+      const detailEl = $("combatSearchDetail");
+      if (!detailEl || !key) return;
+      detailEl.innerHTML = `<p class="muted small">Loading stats…</p>`;
+      try {
+        const [data, tools] = await Promise.all([
+          kind === "vehicle"
+            ? window.debrief.combatGetVehicleProfile({ className: key, slug: key })
+            : window.debrief.combatGetItemProfile({ className: key, slug: key }),
+          window.debrief.combatGetExternalTools(),
+        ]);
+        detailEl.innerHTML = renderCombatProfilePanel(data, { advancedTools: tools.tools });
+      } catch (err) {
+        detailEl.innerHTML = renderCombatProfilePanel({ ok: false, error: err.message });
+      }
+      return;
+    }
+
+    const fleetRefresh = e.target.closest("[data-fleet-refresh]");
+    if (fleetRefresh && activeTab === "guides-fleet") {
+      loadFleetCompareTab("guides-fleet", { forceRefresh: true, resetOffset: true });
+      return;
+    }
+
+    const fleetOpen = e.target.closest(".fleet-row-open");
+    if (fleetOpen) {
+      const key = fleetOpen.dataset.fleetKey || fleetOpen.dataset.fleetSlug;
+      const detailEl = $("fleetCompareDetail");
+      if (!detailEl || !key) return;
+      detailEl.innerHTML = `<p class="muted small">Loading ship performance…</p>`;
+      try {
+        const [data, tools] = await Promise.all([
+          window.debrief.combatGetVehicleProfile({ className: key, slug: fleetOpen.dataset.fleetSlug || key }),
+          window.debrief.combatGetExternalTools(),
+        ]);
+        detailEl.innerHTML = renderCombatProfilePanel(data, { advancedTools: tools.tools });
+      } catch (err) {
+        detailEl.innerHTML = renderCombatProfilePanel({ ok: false, error: err.message });
+      }
+      return;
+    }
+
+    if (e.target.id === "loadoutLoadShipBtn" || e.target.closest("#loadoutLoadShipBtn")) {
+      const input = $("loadoutShipInput");
+      const slug = input?.value.trim().toLowerCase();
+      if (!slug) return;
+      loadoutBuilderState = { shipSlug: slug, slotAssignments: {} };
+      loadoutBuilderBlueprint = null;
+      loadLoadoutBuilderTab("guides-loadout");
+      return;
+    }
+
+    if (e.target.id === "loadoutRecalcBtn" || e.target.closest("#loadoutRecalcBtn")) {
+      const assignments = {};
+      document.querySelectorAll(".loadout-slot-input").forEach((input) => {
+        const port = input.dataset.loadoutPort;
+        const val = input.value.trim();
+        if (port && val) assignments[port] = val;
+      });
+      loadoutBuilderState.slotAssignments = assignments;
+      loadLoadoutBuilderTab("guides-loadout");
+      return;
+    }
+
+    const loadoutSearch = e.target.closest(".loadout-slot-search");
+    if (loadoutSearch) {
+      const port = loadoutSearch.dataset.loadoutPort;
+      const sizeMax = loadoutSearch.dataset.loadoutSize;
+      const input = document.querySelector(`[data-loadout-port="${port}"]`);
+      const resultsEl = document.querySelector(`[data-loadout-results="${port}"]`);
+      if (!input || !resultsEl) return;
+      resultsEl.innerHTML = `<p class="muted small">Searching…</p>`;
+      try {
+        const data = await window.debrief.loadoutSearchWeapons({
+          query: input.value.trim() || "repeater",
+          sizeMax: sizeMax ? Number(sizeMax) : null,
+        });
+        if (!data.rows?.length) {
+          resultsEl.innerHTML = `<p class="muted small">No WeaponGun matches.</p>`;
+          return;
+        }
+        resultsEl.innerHTML = data.rows
+          .map(
+            (r) =>
+              `<button type="button" class="link loadout-pick-weapon" data-loadout-port="${escapeAttr(port)}" data-loadout-weapon="${escapeAttr(r.className || r.slug)}">${displayText(r.name)}${r.dps != null ? ` · ${formatFleetCell(r.dps)} DPS` : ""}</button>`
+          )
+          .join(" ");
+      } catch (err) {
+        resultsEl.innerHTML = `<p class="muted small">${escapeHtml(err.message || String(err))}</p>`;
+      }
+      return;
+    }
+
+    const loadoutPick = e.target.closest(".loadout-pick-weapon");
+    if (loadoutPick) {
+      const port = loadoutPick.dataset.loadoutPort;
+      const weapon = loadoutPick.dataset.loadoutWeapon;
+      const input = document.querySelector(`[data-loadout-port="${port}"]`);
+      if (input && weapon) input.value = weapon;
+      if (port && weapon) {
+        loadoutBuilderState.slotAssignments[port] = weapon;
+        loadLoadoutBuilderTab("guides-loadout");
+      }
+      return;
+    }
+  });
+
+  $("tabPanels")?.addEventListener("change", (e) => {
+    const fleetSort = e.target.closest("[data-fleet-sort]");
+    if (fleetSort) {
+      const tabId = fleetSort.dataset.fleetSort;
+      if (!guideQueryByTab[tabId]) return;
+      guideQueryByTab[tabId].sort = fleetSort.value;
+      loadFleetCompareTab(tabId, { resetOffset: true });
+      return;
+    }
+
+    const sortSelect = e.target.closest("[data-guide-sort]");
+    if (!sortSelect) return;
+    const tabId = sortSelect.dataset.guideSort;
+    if (!guideQueryByTab[tabId]) return;
+    guideQueryByTab[tabId].sort = sortSelect.value;
+    loadGuideTab(tabId, { resetOffset: true });
+  });
+
+  $("tabPanels")?.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    if (e.target.id === "loadoutShipInput") {
+      $("loadoutLoadShipBtn")?.click();
+      return;
+    }
+    const fleetInput = e.target.closest("[data-fleet-search]");
+    if (fleetInput) {
+      const tabId = fleetInput.dataset.fleetSearch;
+      if (!guideQueryByTab[tabId]) return;
+      guideQueryByTab[tabId].query = fleetInput.value.trim();
+      loadFleetCompareTab(tabId, { resetOffset: true });
+      return;
+    }
+    const input = e.target.closest("[data-guide-search]");
+    if (!input) return;
+    const tabId = input.dataset.guideSearch;
+    if (!guideQueryByTab[tabId]) return;
+    guideQueryByTab[tabId].query = input.value.trim();
+    loadGuideTab(tabId, { resetOffset: true });
+  });
+
+  $("tabPanels")?.addEventListener("input", (e) => {
+    const fleetInput = e.target.closest("[data-fleet-search]");
+    if (fleetInput) {
+      const tabId = fleetInput.dataset.fleetSearch;
+      if (!guideQueryByTab[tabId]) return;
+      guideQueryByTab[tabId].query = fleetInput.value;
+      debouncedFleetSearch(tabId);
+      return;
+    }
+    const input = e.target.closest("[data-guide-search]");
+    if (!input) return;
+    const tabId = input.dataset.guideSearch;
+    if (!guideQueryByTab[tabId]) return;
+    guideQueryByTab[tabId].query = input.value;
+    debouncedGuideSearch(tabId);
+  });
 }
 
 async function refreshCatalogStats() {
@@ -1617,6 +2876,7 @@ function renderAllPanels(state) {
   setPanelHtml("fines", buildFines(rollup));
   setPanelHtml("insurance", buildInsurance(rollup));
   setPanelHtml("shopping", buildShopping(rollup));
+  setPanelHtml("loadout", buildLoadout(rollup));
   setPanelHtml("deaths", buildDeaths(rollup));
   setPanelHtml("kills", buildKills(rollup));
   setPanelHtml("ships", buildShips(rollup));
@@ -1624,6 +2884,7 @@ function renderAllPanels(state) {
     setPanelHtml("history", buildHistoryArchives());
   }
   updateTabCounts(rollup);
+  if (activeTab === "loadout") enrichLoadoutCombatPanel();
 }
 
 function resolveDisplaySession(state) {
@@ -1840,10 +3101,12 @@ function initArchiveUi() {
 initTheme();
 initStats();
 initTabs();
+initQuickNav();
 initAppInfo();
 initUpdateUi();
 initArchiveUi();
 initCatalogUi();
+initGuidesUi();
 
 $("btnTheme").addEventListener("click", toggleTheme);
 $("btnNew").addEventListener("click", () => window.debrief.startSession());

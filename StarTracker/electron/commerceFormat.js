@@ -44,7 +44,15 @@ const ITEM_WORDS = {
   helmet: "Helmet",
   armor: "Armor",
   consumable: "Consumable",
-  healing: "Med pen",
+  kap: "Kastak Arms",
+  cds: "CDS",
+  crlf: "CRLF",
+  grin: "Greycat",
+  klwe: "Klaus & Werner",
+  multitool: "Multi-tool",
+  tractorbeam: "Tractor beam",
+  combat_light: "Combat light",
+  odyssey: "Odyssey",
 };
 
 const SHOP_LABELS = {

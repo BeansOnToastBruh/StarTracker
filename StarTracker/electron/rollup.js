@@ -211,6 +211,7 @@ function buildRollup(session) {
   const fines = [];
   const insuranceClaims = [];
   const shopPurchases = [];
+  const loadoutSnapshots = [];
 
   for (const e of session.events) {
     switch (e.type) {
@@ -389,6 +390,16 @@ function buildRollup(session) {
           summary: e.summary,
         });
         break;
+      case "loadout":
+        loadoutSnapshots.push({
+          at: e.at,
+          summary: e.summary,
+          reason: e.detail?.reason || "spawn",
+          items: (e.detail?.items || []).map((item) => ({ ...item })),
+          gearCount: e.detail?.gearCount ?? 0,
+          cosmeticCount: e.detail?.cosmeticCount ?? 0,
+        });
+        break;
       default:
         break;
     }
@@ -464,6 +475,7 @@ function buildRollup(session) {
     insuranceClaims,
     shopPurchases,
     shopSpendTotal,
+    loadoutSnapshots,
     stats: { ...session.stats },
   };
 }
