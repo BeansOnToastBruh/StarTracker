@@ -1864,23 +1864,59 @@ html[data-theme="dark"] .tab-panels {
 .tab-btn-intel-combat .tab-label::before,
 .tab-btn-intel-progress .tab-label::before,
 .tab-btn-intel-reference .tab-label::before,
-.tab-btn-intel-news .tab-label::before {
+.tab-btn-intel-news .tab-label::before,
+.tab-btn-cat-economy .tab-label::after,
+.tab-btn-cat-production .tab-label::after,
+.tab-btn-cat-combat .tab-label::after,
+.tab-btn-cat-progress .tab-label::after,
+.tab-btn-cat-reference .tab-label::after,
+.tab-btn-cat-news .tab-label::after,
+.tab-btn-cat-pulse .tab-label::after,
+.tab-btn-cat-contract .tab-label::after,
+.tab-btn-cat-alert .tab-label::after,
+.tab-btn-cat-utility .tab-label::after,
+.tab-btn-cat-ships .tab-label::after {
   content: "";
   display: inline-block;
-  width: 0.4rem;
-  height: 0.4rem;
+  width: 0.35rem;
+  height: 0.35rem;
   border-radius: 50%;
-  margin-right: 0.35rem;
+  margin-left: 0.35rem;
   vertical-align: 0.08em;
-  opacity: 0.85;
+  opacity: 0.9;
+  box-shadow: 0 0 6px currentColor;
 }
 
-.tab-btn-intel-economy .tab-label::before { background: var(--accent); }
-.tab-btn-intel-production .tab-label::before { background: var(--warn); }
-.tab-btn-intel-combat .tab-label::before { background: var(--bad); }
-.tab-btn-intel-progress .tab-label::before { background: var(--contract); }
-.tab-btn-intel-reference .tab-label::before { background: var(--accent-secondary); }
-.tab-btn-intel-news .tab-label::before { background: var(--good); }
+.tab-btn-intel-economy .tab-label::before,
+.tab-btn-cat-economy .tab-label::after { background: var(--accent); color: var(--accent); }
+.tab-btn-intel-production .tab-label::before,
+.tab-btn-cat-production .tab-label::after { background: var(--warn); color: var(--warn); }
+.tab-btn-intel-combat .tab-label::before,
+.tab-btn-cat-combat .tab-label::after { background: var(--bad); color: var(--bad); }
+.tab-btn-intel-progress .tab-label::before,
+.tab-btn-cat-progress .tab-label::after { background: var(--contract); color: var(--contract); }
+.tab-btn-intel-reference .tab-label::before,
+.tab-btn-cat-reference .tab-label::after { background: var(--accent-secondary); color: var(--accent-secondary); }
+.tab-btn-intel-news .tab-label::before,
+.tab-btn-cat-news .tab-label::after { background: var(--good); color: var(--good); }
+.tab-btn-cat-pulse .tab-label::after { background: #7eb8ff; color: #7eb8ff; }
+.tab-btn-cat-contract .tab-label::after { background: #b892ff; color: #b892ff; }
+.tab-btn-cat-alert .tab-label::after { background: #f08080; color: #f08080; }
+.tab-btn-cat-utility .tab-label::after { background: #9a94ad; color: #9a94ad; }
+.tab-btn-cat-ships .tab-label::after { background: #6ecf9a; color: #6ecf9a; }
+
+.tab-icon {
+  display: inline-block;
+  margin-right: 0.28rem;
+  font-size: 0.82rem;
+  line-height: 1;
+  opacity: 0.92;
+  filter: saturate(1.15);
+}
+
+.tab-btn.is-active .tab-icon {
+  opacity: 1;
+}
 
 .tab-briefing-head {
   display: flex;
@@ -3054,4 +3090,154 @@ html[data-theme="light"] .top h1 {
 
 .loadout-summary-value {
   color: var(--accent);
+}
+
+/* —— MobiGlas / RSI-inspired frame —— */
+.content {
+  position: relative;
+}
+
+.content::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(126, 184, 255, 0.015) 2px,
+    rgba(126, 184, 255, 0.015) 3px
+  );
+  opacity: 0.55;
+  z-index: 2;
+}
+
+.tab-panel {
+  clip-path: polygon(
+    0 0,
+    calc(100% - 14px) 0,
+    100% 14px,
+    100% 100%,
+    14px 100%,
+    0 calc(100% - 14px)
+  );
+  border: 1px solid var(--hud-frame);
+  box-shadow:
+    inset 0 0 0 1px rgba(126, 184, 255, 0.06),
+    0 0 24px rgba(212, 168, 83, 0.06);
+}
+
+.loadout-panel-head {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding-bottom: 0.65rem;
+  margin-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.loadout-panel-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+  color: var(--accent);
+  filter: drop-shadow(0 0 8px var(--accent-glow));
+}
+
+.loadout-panel-title {
+  margin: 0 0 0.15rem;
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.combat-loadout-card {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+  border-color: rgba(201, 165, 92, 0.28);
+  background:
+    linear-gradient(145deg, rgba(22, 18, 36, 0.95), rgba(12, 10, 22, 0.88));
+}
+
+.combat-kind-badge {
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  padding: 0.18rem 0.4rem;
+  border: 1px solid var(--border);
+  color: var(--accent-secondary);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.ship-builder-fav-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.ship-builder-fav-chip {
+  border: 1px solid var(--border);
+  background: var(--panel-elevated);
+  color: var(--text);
+  padding: 0.35rem 0.65rem;
+  border-radius: 2px;
+  font-size: 0.76rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.ship-builder-fav-chip.is-active,
+.ship-builder-fav-chip:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.ship-builder-favorites-empty {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 2px;
+}
+
+.ship-builder-mode-nav {
+  display: flex;
+  gap: 0.45rem;
+  margin-bottom: 0.65rem;
+}
+
+.ship-fav-btn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0.15rem 0.35rem;
+  line-height: 1;
+}
+
+.ship-fav-btn.is-favorited {
+  color: var(--accent);
+}
+
+.loadout-ship-fav-btn {
+  font-size: 0.72rem;
+  margin-top: 0.25rem;
+}
+
+.loadout-builder-head-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+}
+
+.ship-picker-row.is-selected {
+  background: var(--accent-muted);
+}
+
+.smuggle-stock-live {
+  color: var(--good);
+  font-family: var(--font-mono);
 }

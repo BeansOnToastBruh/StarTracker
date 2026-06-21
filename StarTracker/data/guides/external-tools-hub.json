@@ -179,7 +179,7 @@
       "category": "reference",
       "description": "Community wiki and datamine reference. Primary source for StarTracker combat and crafting data.",
       "tags": ["wiki"],
-      "inAppTab": "guides-combat"
+      "inAppTab": "guides-fleet"
     },
     {
       "id": "rsi-starmap",

@@ -1,5 +1,17 @@
 [
   {
+    "id": "startracker-1.0.10",
+    "version": "1.0.10",
+    "title": "StarTracker 1.0.10",
+    "date": "2026-05-29",
+    "startrackerNotes": [
+      "Loadout panel matches combat card layout (weapons + armor only). Combat intel tab removed.",
+      "Smuggler routes show live UEX stock column with terminal matching and refresh.",
+      "Ship builder favorites strip (like Jump to) with star pins on hull picker.",
+      "All tabs show emoji icons and category color dots. MobiGlas-style panel framing."
+    ]
+  },
+  {
     "id": "startracker-1.0.9",
     "version": "1.0.9",
     "title": "StarTracker 1.0.9",

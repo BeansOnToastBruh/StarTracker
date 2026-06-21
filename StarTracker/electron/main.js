@@ -90,6 +90,7 @@ function defaultConfig() {
     startMinimized: true,
     updateRepo: DEFAULT_UPDATE_REPO,
     favoriteTabs: [],
+    shipBuilderFavorites: [],
   };
 }
 
@@ -109,6 +110,7 @@ function loadConfig() {
   }
   if (changed) saveConfig(cfg);
   if (!Array.isArray(cfg.favoriteTabs)) cfg.favoriteTabs = [];
+  if (!Array.isArray(cfg.shipBuilderFavorites)) cfg.shipBuilderFavorites = [];
   return cfg;
 }
 
@@ -798,22 +800,53 @@ ipcMain.handle("guides-get-commodity-detail", (_, commodityId) =>
 );
 
 ipcMain.handle("guides-get-smuggler-routes", async () => {
+  await guidesHub.refreshCommodities();
+  terminalIntel.clearTerminalCache();
   const data = await guidesHub.getSmugglerRoutes();
   const routes = data.routes || [];
   await Promise.all(
-    routes.slice(0, 8).map(async (route) => {
-      const top = route.commodities?.[0];
-      if (!top?.id) return;
+    routes.map(async (route) => {
       try {
-        const detail = await terminalIntel.getCommodityTradeRoute(top.id, 128);
-        route.terminalRoute = detail.route;
-        route.topCommodityId = top.id;
+        route.terminalRoute = await terminalIntel.getSmugglerRouteLive(route, 128);
+        if (route.terminalRoute) route.topCommodityId = route.terminalRoute.commodityId;
       } catch {
         /* optional UEX detail */
       }
     })
   );
-  return data;
+  return {
+    ...data,
+    meta: {
+      ...(data.meta || {}),
+      stockFetchedAt: new Date().toISOString(),
+      source: "UEX live terminal stock + demand",
+    },
+  };
+});
+
+ipcMain.handle("guides-refresh-smuggler-routes", async () => {
+  terminalIntel.clearTerminalCache();
+  await guidesHub.refreshCommodities();
+  const data = await guidesHub.getSmugglerRoutes();
+  const routes = data.routes || [];
+  await Promise.all(
+    routes.map(async (route) => {
+      try {
+        route.terminalRoute = await terminalIntel.getSmugglerRouteLive(route, 128);
+        if (route.terminalRoute) route.topCommodityId = route.terminalRoute.commodityId;
+      } catch {
+        /* optional */
+      }
+    })
+  );
+  return {
+    ...data,
+    meta: {
+      ...(data.meta || {}),
+      stockFetchedAt: new Date().toISOString(),
+      source: "UEX live terminal stock + demand",
+    },
+  };
 });
 
 ipcMain.handle("guides-get-game-loops", () => guidesHub.getGameLoops());
@@ -851,6 +884,32 @@ ipcMain.handle("crafting-calculate-preview", (_, options) =>
 ipcMain.handle("ui-get-favorite-tabs", () => {
   const cfg = loadConfig();
   return Array.isArray(cfg.favoriteTabs) ? cfg.favoriteTabs : [];
+});
+
+ipcMain.handle("ui-toggle-ship-favorite", (_, payload) => {
+  const slug = String(payload?.slug || "").trim();
+  if (!slug) return loadConfig().shipBuilderFavorites || [];
+  const cfg = loadConfig();
+  const fav = Array.isArray(cfg.shipBuilderFavorites) ? [...cfg.shipBuilderFavorites] : [];
+  const idx = fav.findIndex((e) => e.slug === slug);
+  if (idx >= 0) {
+    fav.splice(idx, 1);
+  } else {
+    fav.unshift({
+      slug,
+      name: String(payload?.name || slug).trim(),
+      manufacturer: String(payload?.manufacturer || "").trim() || null,
+      addedAt: new Date().toISOString(),
+    });
+  }
+  cfg.shipBuilderFavorites = fav.slice(0, 24);
+  saveConfig(cfg);
+  return cfg.shipBuilderFavorites;
+});
+
+ipcMain.handle("ui-get-ship-favorites", () => {
+  const cfg = loadConfig();
+  return Array.isArray(cfg.shipBuilderFavorites) ? cfg.shipBuilderFavorites : [];
 });
 
 ipcMain.handle("ui-toggle-favorite-tab", (_, tabId) => {

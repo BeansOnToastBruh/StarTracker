@@ -54,7 +54,7 @@
       "Missions tab tracks Foxwell defend, Headhunters ambush, and other contracts.",
       "Kills tab highlights PvP bounty completions."
     ],
-    "relatedTabs": ["missions", "rewards", "kills", "deaths", "guides-combat", "guides-reputation"]
+    "relatedTabs": ["missions", "rewards", "kills", "deaths", "guides-fleet", "guides-reputation"]
   },
   {
     "id": "refuel",

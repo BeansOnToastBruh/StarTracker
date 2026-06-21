@@ -1,5 +1,53 @@
 [
   {
+    "id": "illegal-refined-narrow",
+    "name": "Illegal refined goods (Narrow 700 spread)",
+    "risk": "Medium",
+    "illegal": true,
+    "commodityHints": ["Any commodity marked Illegal in UEX"],
+    "buyTerminalName": "Devlin Scrap and Salvage",
+    "sellTerminalName": "The Golden Revere",
+    "buyLocations": ["Devlin Scrap and Salvage"],
+    "sellLocations": ["The Golden Revere"],
+    "notes": "High spread illegal refined loop. Verify live stock at Devlin before hauling — UEX updates when players report terminal data."
+  },
+  {
+    "id": "illegal-refined-devlin-golden",
+    "name": "Illegal refined goods (Devlin → Golden Revere)",
+    "risk": "Very high",
+    "illegal": true,
+    "commodityHints": ["Any commodity marked Illegal in UEX"],
+    "buyTerminalName": "Devlin Scrap and Salvage",
+    "sellTerminalName": "The Golden Revere",
+    "buyLocations": ["Devlin Scrap and Salvage"],
+    "sellLocations": ["The Golden Revere"],
+    "notes": "Same corridor as the narrow spread route with higher risk profile. Check commodity legality and scan risk near major ports."
+  },
+  {
+    "id": "grimhex-hollowfield",
+    "name": "Grim HEX admin → Hollow Field",
+    "risk": "Medium",
+    "illegal": true,
+    "commodityHints": ["Altruciatoxin", "WiDoW", "SLAM", "E'tam", "Neon"],
+    "buyTerminalName": "Admin - Grim HEX",
+    "sellTerminalName": "Hollow Field",
+    "buyLocations": ["Admin - Grim HEX", "Grim HEX"],
+    "sellLocations": ["Hollow Field"],
+    "notes": "Classic vice loop from Grim HEX. Stock at admin terminal changes frequently — refresh before committing cargo."
+  },
+  {
+    "id": "magnus-ashland",
+    "name": "Magnus Marketing → Ashland",
+    "risk": "High",
+    "illegal": true,
+    "commodityHints": ["Any commodity marked Illegal in UEX"],
+    "buyTerminalName": "Admin - Magnus Marketing",
+    "sellTerminalName": "Ashland",
+    "buyLocations": ["Admin - Magnus Marketing"],
+    "sellLocations": ["Ashland"],
+    "notes": "Large stock potential at Magnus admin. Match commodity to what the terminal actually sells in-game before hauling."
+  },
+  {
     "id": "yela-vice-arcorp",
     "name": "Yela vice to Area 18",
     "risk": "Medium",
@@ -7,27 +55,7 @@
     "commodityHints": ["Altruciatoxin", "WiDoW", "SLAM", "E'tam"],
     "buyLocations": ["Yela (illegal outposts, drug labs)", "Grim HEX (select goods)"],
     "sellLocations": ["Area 18 TDD", "New Babbage TDD (check legality)"],
-    "notes": "Classic Stanton vice loop. Prices shift with demand. Expect scans near major ports. Verify commodity legality at your destination terminal."
-  },
-  {
-    "id": "yela-vice-lorville",
-    "name": "Yela vice to Lorville",
-    "risk": "High",
-    "illegal": true,
-    "commodityHints": ["Altruciatoxin", "SLAM", "Neon"],
-    "buyLocations": ["Yela drug production sites"],
-    "sellLocations": ["Lorville TDD (limited legal demand)", "Private buyers via missions when available"],
-    "notes": "Higher risk near Hurston security. Lorville TDD may not buy all vice goods. Compare sell prices in the Commodities tab before hauling."
-  },
-  {
-    "id": "illegal-refined-stanton",
-    "name": "Illegal refined goods (Stanton TDD spread)",
-    "risk": "Medium",
-    "illegal": true,
-    "commodityHints": ["Any commodity marked Illegal in UEX"],
-    "buyLocations": ["Low-security moons and outposts"],
-    "sellLocations": ["TDDs with highest sell price for that commodity"],
-    "notes": "Use the Commodities tab, filter mentally for illegal goods, and compare terminal spreads in the detail view. Profit is spread per SCU minus travel and scan risk."
+    "notes": "Classic Stanton vice loop. Prices shift with demand. Expect scans near major ports."
   },
   {
     "id": "pyro-smuggling",
@@ -37,6 +65,6 @@
     "commodityHints": ["Varies by patch", "Check UEX for Pyro-linked terminals when listed"],
     "buyLocations": ["Pyro outposts and stations"],
     "sellLocations": ["Stanton TDDs or Pyro buyers depending on patch economy"],
-    "notes": "Pyro routes and terminal availability change frequently between patches. Treat this as a starting point only. Refresh commodity prices before committing cargo."
+    "notes": "Pyro routes change frequently between patches. Refresh commodity prices before committing cargo."
   }
 ]

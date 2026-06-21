@@ -77,6 +77,9 @@ contextBridge.exposeInMainWorld("debrief", {
     ipcRenderer.invoke("crafting-calculate-preview", options),
   uiGetFavoriteTabs: () => ipcRenderer.invoke("ui-get-favorite-tabs"),
   uiToggleFavoriteTab: (tabId) => ipcRenderer.invoke("ui-toggle-favorite-tab", tabId),
+  uiGetShipFavorites: () => ipcRenderer.invoke("ui-get-ship-favorites"),
+  uiToggleShipFavorite: (payload) => ipcRenderer.invoke("ui-toggle-ship-favorite", payload),
+  guidesRefreshSmugglerRoutes: () => ipcRenderer.invoke("guides-refresh-smuggler-routes"),
   combatGetItemProfile: (options) =>
     ipcRenderer.invoke("combat-get-item-profile", options),
   combatGetVehicleProfile: (options) =>

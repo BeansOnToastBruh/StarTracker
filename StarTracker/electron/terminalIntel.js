@@ -4,6 +4,10 @@ const UEX_BASE = "https://api.uexcorp.space/2.0";
 const terminalCache = new Map();
 const TERMINAL_CACHE_MS = 10 * 60 * 1000;
 
+function clearTerminalCache() {
+  terminalCache.clear();
+}
+
 async function fetchJson(url) {
   const res = await fetch(url, {
     headers: { Accept: "application/json", "User-Agent": "StarTracker/1.0.5" },
@@ -45,6 +49,48 @@ async function fetchCommodityTerminals(commodityId) {
   const rows = (json.data || []).map(shapeTerminalRow).filter((t) => t.buyFromYouPrice > 0 || t.sellToYouPrice > 0);
   terminalCache.set(id, { at: Date.now(), rows });
   return rows;
+}
+
+function terminalMatchesHint(terminal, hint) {
+  const h = String(hint || "")
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ");
+  if (!h.trim()) return false;
+  const hay = `${terminal.terminal || ""} ${terminal.location || ""} ${terminal.system || ""}`.toLowerCase();
+  const tokens = h.split(/\s+/).filter((w) => w.length > 2);
+  if (!tokens.length) return hay.includes(h.trim());
+  const hits = tokens.filter((t) => hay.includes(t)).length;
+  return hits >= Math.min(2, tokens.length) || (tokens.length === 1 && hits === 1);
+}
+
+function pickTerminal(terminals, hint, mode) {
+  if (!terminals?.length) return null;
+  const h = String(hint || "").trim();
+  if (h) {
+    const matched = terminals.filter((t) => terminalMatchesHint(t, h));
+    if (matched.length) {
+      if (mode === "buy") {
+        return matched.sort((a, b) => a.sellToYouPrice - b.sellToYouPrice)[0];
+      }
+      return matched.sort((a, b) => b.buyFromYouPrice - a.buyFromYouPrice)[0];
+    }
+  }
+  return mode === "buy" ? bestBuyTerminal(terminals) : bestSellTerminal(terminals);
+}
+
+async function getSmugglerRouteLive(route, cargoScu = 128) {
+  const cache = await getCommoditiesCache(false);
+  const topId = route.commodities?.[0]?.id || route.topCommodityId;
+  const commodity = (cache.rows || []).find((r) => r.id === Number(topId));
+  if (!commodity?.id) return null;
+
+  const terminals = await fetchCommodityTerminals(commodity.id);
+  const buyHint = route.buyTerminalName || route.buyLocations?.[0] || "";
+  const sellHint = route.sellTerminalName || route.sellLocations?.[0] || "";
+  const buyTerminal = pickTerminal(terminals, buyHint, "buy");
+  const sellTerminal = pickTerminal(terminals, sellHint, "sell");
+  const shaped = commodity.spread != null ? commodity : shapeCommodityRow(commodity);
+  return routeFromTerminals(shaped, buyTerminal, sellTerminal, cargoScu);
 }
 
 function bestBuyTerminal(terminals) {
@@ -174,8 +220,11 @@ module.exports = {
   shapeTerminalRow,
   fetchCommodityTerminals,
   getCommodityTradeRoute,
+  getSmugglerRouteLive,
   buildTerminalTradeRoutes,
   bestBuyTerminal,
   bestSellTerminal,
   routeFromTerminals,
+  clearTerminalCache,
+  terminalMatchesHint,
 };

@@ -241,13 +241,6 @@ const GUIDE_TABS = [
     empty: "No game loop guides loaded yet.",
   },
   {
-    id: "guides-combat",
-    group: "guides",
-    label: "Combat intel",
-    hint: "Weapon DPS, armor values, ship hull and shield stats. Use Fleet compare and Ship builder tabs for rankings and loadouts.",
-    empty: "Combat intel not loaded yet.",
-  },
-  {
     id: "guides-fleet",
     group: "guides",
     label: "Fleet compare",
@@ -270,6 +263,32 @@ const GUIDE_TABS = [
   },
 ];
 
+const SESSION_TAB_META = {
+  overview: "pulse",
+  missions: "contract",
+  rewards: "economy",
+  fines: "alert",
+  insurance: "utility",
+  shopping: "economy",
+  loadout: "combat",
+  blueprints: "production",
+  deaths: "alert",
+  kills: "combat",
+  ships: "alert",
+  history: "reference",
+  "guides-reputation": "progress",
+};
+
+const CATALOG_TAB_META = {
+  "catalog-ships": "ships",
+  "catalog-weapons": "combat",
+  "catalog-armor": "combat",
+  "catalog-ship-weapons": "combat",
+  "catalog-ship-parts": "utility",
+  "catalog-shops": "economy",
+  "catalog-ship-services": "utility",
+};
+
 const INTEL_TAB_META = {
   "guides-patch-notes": "news",
   "guides-commodities": "economy",
@@ -280,10 +299,13 @@ const INTEL_TAB_META = {
   "guides-crafting": "production",
   "guides-reputation": "progress",
   "guides-external-tools": "reference",
-  "guides-combat": "combat",
   "guides-fleet": "combat",
   "guides-loadout": "combat",
 };
+
+function tabMetaCategory(tabId) {
+  return INTEL_TAB_META[tabId] || SESSION_TAB_META[tabId] || CATALOG_TAB_META[tabId] || "reference";
+}
 
 const TABS = [...SESSION_TABS, ...CATALOG_TABS, ...GUIDE_TABS];
 
@@ -344,8 +366,6 @@ const TAB_DESCRIPTIONS = {
     "Short guides for common game loops with tips and links to related StarTracker tabs.",
   "guides-external-tools":
     "Curated list of community tools like SC Trade Tools, Erkul, Hangar Link, and SCodex. In-app equivalents are marked.",
-  "guides-combat":
-    "Look up weapon DPS, armor, and ship stats. Fleet compare and Ship builder are one click away from here.",
   "guides-fleet":
     "Every flyable ship, sortable like a fleet chart. Hull, shields, speed, cargo, and signatures from the wiki datamine.",
   "guides-loadout":
@@ -381,7 +401,6 @@ const TAB_ICONS = {
   "guides-loops": "↻",
   "guides-reputation": "★",
   "guides-external-tools": "⊞",
-  "guides-combat": "⚔",
   "guides-fleet": "🚀",
   "guides-loadout": "🔧",
 };
@@ -390,6 +409,8 @@ const QUICK_NAV_EMPTY_HINT =
   "Star tabs you use often with Add to Jump to on the tab bar. Your favorites will appear here for one-click access.";
 
 let favoriteTabIds = [];
+let shipBuilderFavorites = [];
+let shipBuilderPickMode = "favorites";
 
 const EMPTY_TIPS = {
   missions: "Accept a contract in-game and StarTracker will pick it up from Game.log.",
@@ -857,6 +878,24 @@ function isFavoriteTab(tabId) {
   return favoriteTabIds.includes(tabId);
 }
 
+async function loadShipBuilderFavorites() {
+  try {
+    shipBuilderFavorites = await window.debrief.uiGetShipFavorites();
+    if (!Array.isArray(shipBuilderFavorites)) shipBuilderFavorites = [];
+  } catch {
+    shipBuilderFavorites = [];
+  }
+}
+
+function isShipFavorited(slug) {
+  return shipBuilderFavorites.some((s) => s.slug === slug);
+}
+
+async function toggleShipFavorite(slug, name, manufacturer) {
+  shipBuilderFavorites = await window.debrief.uiToggleShipFavorite({ slug, name, manufacturer });
+  return shipBuilderFavorites;
+}
+
 async function loadFavoriteTabs() {
   try {
     const fav = await window.debrief.uiGetFavoriteTabs();
@@ -912,7 +951,7 @@ function updateTabDescription(tabId) {
   }
   const icon = TAB_ICONS[tabId] || "✦";
   const favorited = isFavoriteTab(tabId);
-  const intelCat = INTEL_TAB_META[tabId];
+  const intelCat = tabMetaCategory(tabId);
   const intelLabels = {
     economy: "Economy",
     production: "Production",
@@ -982,15 +1021,16 @@ function initStats() {
 
 function tabButtonHtml(tab) {
   const selected = tab.id === activeTab;
+  const icon = TAB_ICONS[tab.id] || "✦";
   const groupClass =
     tab.group === "catalog"
       ? " tab-btn-catalog"
       : tab.group === "guides"
         ? " tab-btn-guides"
-        : "";
-  const intelCat = INTEL_TAB_META[tab.id];
-  const intelClass = intelCat ? ` tab-btn-intel-${intelCat}` : "";
-  return `<button type="button" class="tab-btn${groupClass}${intelClass} ${selected ? "is-active" : ""}" role="tab" id="tab-${tab.id}" data-tab="${tab.id}" aria-selected="${selected}" aria-controls="panel-${tab.id}"><span class="tab-label">${escapeHtml(tab.label)}</span><span class="tab-count" aria-hidden="true"></span></button>`;
+        : " tab-btn-session";
+  const metaCat = tabMetaCategory(tab.id);
+  const metaClass = ` tab-btn-cat-${metaCat}`;
+  return `<button type="button" class="tab-btn${groupClass}${metaClass} ${selected ? "is-active" : ""}" role="tab" id="tab-${tab.id}" data-tab="${tab.id}" aria-selected="${selected}" aria-controls="panel-${tab.id}"><span class="tab-icon" aria-hidden="true">${icon}</span><span class="tab-label">${escapeHtml(tab.label)}</span><span class="tab-count" aria-hidden="true"></span></button>`;
 }
 
 function initTabs() {
@@ -1798,16 +1838,17 @@ function renderLoadoutCombatStatStack(profile) {
 }
 
 function renderLoadoutCombatCard(row) {
+  const kind = combatKindLabel(row.combat.kind);
   const slot = capitalizeSlotLabel(row.slotLabel || row.port || "Gear");
+  const slotLine = kind ? `${kind} · ${slot}` : slot;
   return `<article class="combat-loadout-card">
     <header class="combat-loadout-card-head">
       <div class="combat-loadout-card-titles">
         <h4 class="combat-loadout-name">${loadoutGearDisplayName(row)}</h4>
-        <p class="combat-loadout-slot muted small">${escapeHtml(slot)}</p>
+        <p class="combat-loadout-slot muted small">${escapeHtml(slotLine)}</p>
       </div>
-      <span class="combat-kind-badge">${escapeHtml(combatKindLabel(row.combat.kind).toUpperCase())}</span>
+      <span class="combat-kind-badge">${escapeHtml(kind.toUpperCase() || "GEAR")}</span>
     </header>
-    ${row.combat.headline ? `<p class="combat-headline">${escapeHtml(row.combat.headline)}</p>` : ""}
     ${renderLoadoutCombatStatStack(row.combat.profile)}
   </article>`;
 }
@@ -1823,15 +1864,15 @@ function renderLoadoutCombatSummary(items) {
     return `<p class="muted small">No wiki combat stats for equipped weapons and armor.</p>`;
   }
 
-  const groups = { weapon: [], armor: [], other: [] };
+  const groups = { weapon: [], armor: [] };
   for (const row of withStats) {
-    groups[loadoutCombatGroupKind(row)].push(row);
+    const kind = loadoutCombatGroupKind(row);
+    if (kind === "weapon" || kind === "armor") groups[kind].push(row);
   }
 
   const sectionDefs = [
     ["weapon", "Weapons"],
     ["armor", "Armor"],
-    ["other", "Utility"],
   ];
 
   return sectionDefs
@@ -1886,6 +1927,13 @@ function buildLoadout(rollup) {
     : "";
 
   return `<div class="loadout-panel">
+    <header class="loadout-panel-head">
+      <span class="loadout-panel-icon" aria-hidden="true">${TAB_ICONS.loadout}</span>
+      <div>
+        <h2 class="loadout-panel-title">Loadout</h2>
+        <p class="muted small">Weapons and armor combat stats from spawn and gear changes. Pick a snapshot chip to compare loadouts.</p>
+      </div>
+    </header>
     <div class="loadout-snap-strip">${chips}</div>
     ${body}
   </div>`;
@@ -2587,50 +2635,65 @@ function renderLoadoutSummaryStrip(totals, baseline) {
 }
 
 async function renderLoadoutBuilderShell() {
+  await loadShipBuilderFavorites();
   const slug = loadoutBuilderState.shipSlug || "";
   const filter = (loadoutBuilderState.shipFilter || "").trim().toLowerCase();
-  let shipOptions = `<option value="">Choose a ship…</option>`;
   const fleet = await getLoadoutFleetIndex();
-  if (fleet.rows?.length) {
-    let lastMfg = null;
-    for (const r of fleet.rows) {
+  const favSlugs = new Set(shipBuilderFavorites.map((s) => s.slug));
+
+  const favChips = shipBuilderFavorites.length
+    ? shipBuilderFavorites
+        .map(
+          (s) =>
+            `<button type="button" class="ship-builder-fav-chip${s.slug === slug ? " is-active" : ""}" data-ship-fav-load="${escapeAttr(s.slug)}" title="${escapeAttr(s.name)}"><span aria-hidden="true">★</span> ${escapeHtml(s.name || s.slug)}</button>`
+        )
+        .join("")
+    : `<p class="ship-builder-favorites-empty muted small">No favorite hulls yet. Switch to <strong>All ships</strong> and tap ☆ on any ship to pin it here — like Jump to, but for ship builder.</p>`;
+
+  const shipRows = (fleet.rows || [])
+    .filter((r) => {
+      if (shipBuilderPickMode === "favorites" && !favSlugs.has(r.slug)) return false;
       const hay = `${r.name || ""} ${r.manufacturer || ""} ${r.slug || ""}`.toLowerCase();
-      if (filter && !hay.includes(filter)) continue;
-      const mfg = r.manufacturer || "Other";
-      if (mfg !== lastMfg) {
-        if (lastMfg != null) shipOptions += `</optgroup>`;
-        shipOptions += `<optgroup label="${escapeAttr(mfg)}">`;
-        lastMfg = mfg;
-      }
-      shipOptions += `<option value="${escapeAttr(r.slug)}"${r.slug === slug ? " selected" : ""}>${displayText(r.name)}</option>`;
-    }
-    if (lastMfg != null) shipOptions += `</optgroup>`;
-  }
-  const quickChips = LOADOUT_QUICK_SHIPS.map(
-    (s) =>
-      `<button type="button" class="loadout-quick-ship btn btn-sm btn-ghost" data-loadout-quick-ship="${escapeAttr(s.slug)}">${escapeHtml(s.label)}</button>`
-  ).join("");
+      return !filter || hay.includes(filter);
+    })
+    .slice(0, shipBuilderPickMode === "favorites" ? 24 : 80)
+    .map((r) => {
+      const starred = isShipFavorited(r.slug);
+      return `<tr class="ship-picker-row${r.slug === slug ? " is-selected" : ""}">
+        <td><button type="button" class="ship-fav-btn${starred ? " is-favorited" : ""}" data-ship-fav-toggle="${escapeAttr(r.slug)}" data-ship-name="${escapeAttr(r.name || r.slug)}" data-ship-mfg="${escapeAttr(r.manufacturer || "")}" aria-label="${starred ? "Remove from favorites" : "Add to favorites"}">${starred ? "★" : "☆"}</button></td>
+        <td>${displayText(r.manufacturer || "—")}</td>
+        <td><button type="button" class="link ship-picker-name" data-ship-pick="${escapeAttr(r.slug)}">${displayText(r.name)}</button></td>
+        <td class="muted small">${displayText(r.role || r.focus || "")}</td>
+      </tr>`;
+    })
+    .join("");
+
   const hasShip = Boolean(slug);
+  const modeFavActive = shipBuilderPickMode === "favorites" ? " is-active" : "";
+  const modeAllActive = shipBuilderPickMode === "all" ? " is-active" : "";
+
   return `<div class="hub-intro loadout-builder-intro">
-    <strong>Build and compare in four steps.</strong> Pick a hull, swap weapons, tune components, then read hull stats. Changes update DPS instantly.
+    <strong>Ship builder.</strong> Favorite hulls for quick access, swap weapons and components, read live DPS and hull stats.
   </div>
-  <div class="loadout-steps" aria-hidden="true">
-    <span class="loadout-step is-active">1. Ship</span>
-    <span class="loadout-step${hasShip ? " is-active" : ""}">2. Weapons</span>
-    <span class="loadout-step${hasShip ? " is-active" : ""}">3. Components</span>
-    <span class="loadout-step${hasShip ? " is-active" : ""}">4. Stats</span>
-  </div>
+  <nav class="ship-builder-mode-nav" aria-label="Ship picker mode">
+    <button type="button" class="filter-chip ship-builder-mode${modeFavActive}" data-ship-builder-mode="favorites">★ Favorites</button>
+    <button type="button" class="filter-chip ship-builder-mode${modeAllActive}" data-ship-builder-mode="all">All ships</button>
+  </nav>
+  <section class="guide-section ship-builder-favorites-section">
+    <h2 class="guide-section-title loadout-section-title">Favorite hulls</h2>
+    <div class="ship-builder-fav-strip">${favChips}</div>
+  </section>
   <section class="guide-section loadout-ship-pick">
-    <h2 class="guide-section-title loadout-section-title">1. Choose Your Hull</h2>
-    <div class="loadout-quick-ships">${quickChips}</div>
+    <h2 class="guide-section-title loadout-section-title">${shipBuilderPickMode === "favorites" ? "Your favorites" : "Pick a hull"}</h2>
     <div class="catalog-toolbar">
       <input type="search" id="loadoutShipFilter" class="catalog-search" placeholder="Filter ships…" value="${escapeAttr(loadoutBuilderState.shipFilter || "")}" />
-      <select id="loadoutShipSelect" class="guide-sort-select loadout-ship-select">${shipOptions}</select>
-      <button type="button" class="btn btn-sm" id="loadoutLoadShipBtn">Load ship</button>
     </div>
-    <p class="muted small">Quick picks above, or filter the full fleet list. Only items that fit each hardpoint size appear in slot dropdowns.</p>
+    <div class="catalog-table-wrap ship-picker-table-wrap"><table class="catalog-table ship-picker-table">
+      <thead><tr><th></th><th>Mfg</th><th>Ship</th><th>Role</th></tr></thead>
+      <tbody>${shipRows || `<tr><td colspan="4" class="muted">${shipBuilderPickMode === "favorites" ? "No favorites match your filter." : "No ships match your filter."}</td></tr>`}</tbody>
+    </table></div>
   </section>
-  <div id="loadoutBuilderBody">${hasShip ? `<p class="muted small">Loading ${escapeHtml(slug)}…</p>` : `<p class="muted small">Select a ship and tap Load ship to begin.</p>`}</div>`;
+  <div id="loadoutBuilderBody">${hasShip ? `<p class="muted small">Loading ${escapeHtml(slug)}…</p>` : `<p class="muted small">Select a hull above to load weapons, components, and stats.</p>`}</div>`;
 }
 
 function renderLoadoutBuilderBody(blueprint, summary) {
@@ -2684,7 +2747,10 @@ function renderLoadoutBuilderBody(blueprint, summary) {
 
   return `<section class="guide-card loadout-builder-panel">
     <header class="combat-profile-head loadout-builder-head">
-      <h3 class="loadout-ship-title">${displayText(blueprint.ship?.manufacturer ? `${blueprint.ship.manufacturer} ${blueprint.ship.name}` : blueprint.ship?.name)}</h3>
+      <div class="loadout-builder-head-main">
+        <h3 class="loadout-ship-title">${displayText(blueprint.ship?.manufacturer ? `${blueprint.ship.manufacturer} ${blueprint.ship.name}` : blueprint.ship?.name)}</h3>
+        <button type="button" class="ship-fav-btn loadout-ship-fav-btn${isShipFavorited(blueprint.ship?.slug || loadoutBuilderState.shipSlug) ? " is-favorited" : ""}" data-ship-fav-toggle="${escapeAttr(blueprint.ship?.slug || loadoutBuilderState.shipSlug)}" data-ship-name="${escapeAttr(blueprint.ship?.name || "")}" data-ship-mfg="${escapeAttr(blueprint.ship?.manufacturer || "")}" aria-label="Toggle favorite">${isShipFavorited(blueprint.ship?.slug || loadoutBuilderState.shipSlug) ? "★ Favorited" : "☆ Favorite hull"}</button>
+      </div>
       <button type="button" class="btn btn-sm btn-ghost" id="loadoutResetStockBtn">Reset to stock</button>
     </header>
     ${renderLoadoutSummaryStrip(totals, baseline)}
@@ -3686,22 +3752,27 @@ function renderSmugglerRouteInlineDetail(route) {
 function renderSmugglerRouteRows(routes) {
   if (!routes?.length) return `<p class="muted">No smuggler routes loaded.</p>`;
   const host = INLINE_HOST.SMUGGLE;
-  const colspan = 7;
+  const colspan = 8;
   const body = routes
     .map((route) => {
       const key = route.id || route.name;
       const tr = route.terminalRoute;
       const commodityName =
         tr?.name || route.commodities?.[0]?.name || route.commodityHints?.[0] || EMPTY_DISPLAY;
+      const stockScu = tr?.buyTerminal?.stockScu;
+      const stockCell =
+        stockScu != null && stockScu > 0
+          ? `<strong class="smuggle-stock-live">${formatFleetCell(stockScu)} SCU</strong><div class="muted small">live UEX</div>`
+          : `<span class="muted">—</span><div class="muted small">refresh for stock</div>`;
       const buyCell = tr?.buyTerminal
-        ? `${displayText(tr.buyTerminal.terminal)}<div class="muted small">${formatFleetCell(tr.buyTerminal.stockScu)} SCU stock · ${escapeHtml(fmtScuPrice(tr.buyTerminal.sellToYouPrice))}</div>`
-        : displayText(route.buyLocations?.[0] || EMPTY_DISPLAY);
+        ? `${displayText(tr.buyTerminal.terminal)}<div class="muted small">${escapeHtml(fmtScuPrice(tr.buyTerminal.sellToYouPrice))} buy</div>`
+        : displayText(route.buyTerminalName || route.buyLocations?.[0] || EMPTY_DISPLAY);
       const sellCell = tr?.sellTerminal
-        ? `${displayText(tr.sellTerminal.terminal)}<div class="muted small">${escapeHtml(fmtScuPrice(tr.sellTerminal.buyFromYouPrice))}</div>`
-        : displayText(route.sellLocations?.[0] || EMPTY_DISPLAY);
+        ? `${displayText(tr.sellTerminal.terminal)}<div class="muted small">${escapeHtml(fmtScuPrice(tr.sellTerminal.buyFromYouPrice))} sell</div>`
+        : displayText(route.sellTerminalName || route.sellLocations?.[0] || EMPTY_DISPLAY);
       const profitCell =
         tr?.totalProfit > 0
-          ? `<strong class="commodity-spread-positive">${fmtAuec(tr.totalProfit)}</strong><div class="muted small">128 SCU haul</div>`
+          ? `<strong class="commodity-spread-positive">${fmtAuec(tr.totalProfit)}</strong><div class="muted small">${escapeHtml(fmtScuPrice(tr.spreadPerScu || route.topSpread))}/SCU</div>`
           : route.topSpread != null
             ? `${escapeHtml(fmtScuPrice(route.topSpread))}<div class="muted small">per SCU spread</div>`
             : EMPTY_DISPLAY;
@@ -3711,6 +3782,7 @@ function renderSmugglerRouteRows(routes) {
         <td>${displayText(route.name)}</td>
         <td><strong>${displayText(commodityName)}</strong></td>
         <td><span class="risk-badge ${smugglerRiskClass(route.risk)}">${escapeHtml(route.risk || "Unknown")}</span></td>
+        <td>${stockCell}</td>
         <td>${buyCell}</td>
         <td>${sellCell}</td>
         <td>${profitCell}</td>
@@ -3718,7 +3790,7 @@ function renderSmugglerRouteRows(routes) {
     })
     .join("");
   return `<div class="catalog-table-wrap"><table class="catalog-table smuggler-routes-table">
-    <thead><tr><th></th><th>Route</th><th>Commodity</th><th>Risk</th><th>Buy</th><th>Sell</th><th>Est. profit</th></tr></thead>
+    <thead><tr><th></th><th>Route</th><th>Commodity</th><th>Risk</th><th>Stock</th><th>Buy</th><th>Sell</th><th>Est. profit</th></tr></thead>
     <tbody>${body}</tbody>
   </table></div>`;
 }
@@ -3729,10 +3801,13 @@ function buildSmugglerRoutesPanel(data) {
   const disclaimer = data.disclaimer
     ? `<p class="guides-meta muted small">${displayText(data.disclaimer)}</p>`
     : "";
-  const intro = `<div class="hub-intro hub-intro-accent"><strong>Curated smuggling loops.</strong> UEX terminal buy and sell pairs when available. Expand a row for full terminal breakdown and route notes.</div>`;
+  const stockMeta = data.meta?.stockFetchedAt
+    ? `<p class="guides-meta muted small">Live UEX stock · ${escapeHtml(fmtDateTime(data.meta.stockFetchedAt))} · <button type="button" class="link" id="smugglerRefreshStockBtn">Refresh stock</button></p>`
+    : "";
+  const intro = `<div class="hub-intro hub-intro-accent"><strong>Curated smuggling loops.</strong> Stock column shows live UEX buy-terminal SCU. Expand a row for full terminal breakdown.</div>`;
   const tableHtml = renderSmugglerRouteRows(routes);
   smugglerRoutesLastPayload = { tableHtml, routes };
-  return `${intro}${disclaimer}${tableHtml}`;
+  return `${intro}${stockMeta}${disclaimer}${tableHtml}`;
 }
 
 function buildGameLoopsPanel(data) {
@@ -4105,24 +4180,6 @@ async function loadGuideTab(tabId, options = {}) {
     return;
   }
 
-  if (tabId === "guides-combat") {
-    setPanelHtml(tabId, `<p class="muted small">Loading combat intel…</p>`);
-    try {
-      const tools = await window.debrief.combatGetExternalTools();
-      const searchHtml = `<div class="catalog-toolbar">
-        <input type="search" id="combatSearchInput" class="catalog-search" placeholder="Search weapons, armor, shields, ships…" />
-        <button type="button" class="btn btn-sm" id="combatSearchBtn">Search</button>
-      </div>`;
-      setPanelHtml(tabId, renderCombatHubPanel(tools, searchHtml));
-    } catch (e) {
-      setPanelHtml(
-        tabId,
-        `<p class="muted">Combat intel error: ${escapeHtml(e.message || String(e))}</p>`
-      );
-    }
-    return;
-  }
-
   if (tabId === "guides-fleet") {
     await loadFleetCompareTab(tabId, options);
     return;
@@ -4357,6 +4414,17 @@ function initGuidesUi() {
       return;
     }
 
+    if (e.target.closest("#smugglerRefreshStockBtn")) {
+      setPanelHtml("guides-smuggling", `<p class="muted small">Refreshing live UEX stock…</p>`);
+      try {
+        const data = await window.debrief.guidesRefreshSmugglerRoutes();
+        setPanelHtml("guides-smuggling", buildSmugglerRoutesPanel(data));
+      } catch (err) {
+        setPanelHtml("guides-smuggling", `<p class="muted">Refresh failed: ${escapeHtml(err.message || String(err))}</p>`);
+      }
+      return;
+    }
+
     if (e.target.id === "loadoutResetStockBtn" || e.target.closest("#loadoutResetStockBtn")) {
       loadoutBuilderState.slotAssignments = {};
       loadoutBuilderState.stockBaseline = null;
@@ -4364,9 +4432,20 @@ function initGuidesUi() {
       return;
     }
 
-    const quickShip = e.target.closest("[data-loadout-quick-ship]");
-    if (quickShip?.dataset.loadoutQuickShip) {
-      loadoutBuilderState.shipSlug = quickShip.dataset.loadoutQuickShip;
+    const shipFavToggle = e.target.closest("[data-ship-fav-toggle]");
+    if (shipFavToggle?.dataset.shipFavToggle) {
+      await toggleShipFavorite(
+        shipFavToggle.dataset.shipFavToggle,
+        shipFavToggle.dataset.shipName,
+        shipFavToggle.dataset.shipMfg
+      );
+      if (activeTab === "guides-loadout") await loadLoadoutBuilderTab("guides-loadout");
+      return;
+    }
+
+    const shipPick = e.target.closest("[data-ship-pick]");
+    if (shipPick?.dataset.shipPick) {
+      loadoutBuilderState.shipSlug = shipPick.dataset.shipPick;
       loadoutBuilderState.slotAssignments = {};
       loadoutBuilderState.stockBaseline = null;
       loadoutBuilderBlueprint = null;
@@ -4374,18 +4453,19 @@ function initGuidesUi() {
       return;
     }
 
-    if (e.target.id === "loadoutLoadShipBtn" || e.target.closest("#loadoutLoadShipBtn")) {
-      const select = $("loadoutShipSelect");
-      const slug = select?.value.trim().toLowerCase();
-      if (!slug) return;
-      const filter = loadoutBuilderState.shipFilter || "";
-      loadoutBuilderState = {
-        shipSlug: slug,
-        slotAssignments: {},
-        stockBaseline: null,
-        shipFilter: filter,
-      };
+    const shipFavLoad = e.target.closest("[data-ship-fav-load]");
+    if (shipFavLoad?.dataset.shipFavLoad) {
+      loadoutBuilderState.shipSlug = shipFavLoad.dataset.shipFavLoad;
+      loadoutBuilderState.slotAssignments = {};
+      loadoutBuilderState.stockBaseline = null;
       loadoutBuilderBlueprint = null;
+      loadLoadoutBuilderTab("guides-loadout");
+      return;
+    }
+
+    const shipBuilderMode = e.target.closest("[data-ship-builder-mode]");
+    if (shipBuilderMode?.dataset.shipBuilderMode) {
+      shipBuilderPickMode = shipBuilderMode.dataset.shipBuilderMode;
       loadLoadoutBuilderTab("guides-loadout");
       return;
     }
@@ -4873,6 +4953,7 @@ initTabs();
 initQuickNav();
 initFavoriteUi();
 loadFavoriteTabs();
+loadShipBuilderFavorites();
 initAppInfo();
 initUpdateUi();
 initArchiveUi();
