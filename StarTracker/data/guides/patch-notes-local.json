@@ -1,18 +1,25 @@
 [
   {
-    "id": "sc-4.8.2",
-    "version": "4.8.2",
-    "title": "Star Citizen Alpha 4.8.2",
-    "date": "2026-05-01",
-    "rsiUrl": "https://robertsspaceindustries.com/en/comm-link",
+    "id": "startracker-1.0.5",
+    "version": "1.0.5",
+    "title": "StarTracker 1.0.5",
+    "date": "2026-05-29",
     "startrackerNotes": [
-      "Awarded X aUEC HUD lines are often missing from Game.log on newer builds. StarTracker falls back to wiki payout estimates for known contracts.",
-      "Loadout snapshots now parse AttachmentReceived lines when you spawn or swap gear.",
-      "Foxwell defend and Headhunters ambush contracts get local payout estimates when cash lines are absent."
-    ],
-    "playerNotes": [
-      "Check the Commodities and Mining tabs for UEX buy and sell prices per SCU.",
-      "Smuggler routes tab lists curated illegal trade runs with commodity hints."
+      "Crafting workshop: blueprint recipes, mission sources, material quality sliders, stat previews.",
+      "Trade routes planner, refinery calculator, reputation tracker, and community Tools hub.",
+      "Market prices tab merges trade, mining, and illegal filters. Smuggler routes link to prices instead of duplicating tables.",
+      "Jump to favorites, inline row details, and UI polish beyond the color theme."
+    ]
+  },
+  {
+    "id": "startracker-1.0.4",
+    "version": "1.0.4",
+    "title": "StarTracker 1.0.4",
+    "date": "2026-05-29",
+    "startrackerNotes": [
+      "Intel hub: fleet compare, ship builder with wiki hardpoints, combat stats from the datamine.",
+      "Guides: UEX commodities, smuggler routes with live spread, mining sell prices.",
+      "Awarded X aUEC HUD lines still missing on many builds; wiki payout estimates fill the gap."
     ]
   }
 ]

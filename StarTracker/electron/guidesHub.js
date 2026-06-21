@@ -112,6 +112,9 @@ function matchesCommodityFilter(row, filter) {
       !row.name.includes("(Ore)")
     );
   }
+  if (filter === "all") {
+    return row.priceBuy > 0 || row.priceSell > 0;
+  }
   return row.priceBuy > 0 || row.priceSell > 0;
 }
 
@@ -253,32 +256,45 @@ async function getCommodityDetail(commodityId) {
   };
 }
 
-function isPatchCommLink(row) {
+function isGamePatchCommLink(row) {
   const title = String(row.title || "");
   const channel = String(row.channel || "");
-  const series = String(row.series || "");
-  if (/patch notes/i.test(channel)) return true;
-  if (/patch|alpha|live|update|weekly/i.test(series)) return true;
-  if (/Alpha\s*\d|Patch\s*\d|This Week in Star Citizen|Live\b/i.test(title)) {
-    return true;
-  }
+  if (/Star Citizen Alpha \d/i.test(title)) return true;
+  if (/Patch Notes/i.test(channel)) return true;
+  if (/^Live\b/i.test(title) && /Alpha|Patch/i.test(title)) return true;
   return false;
 }
 
+function isPatchCommLink(row) {
+  return isGamePatchCommLink(row);
+}
+
+function parsePatchVersion(title) {
+  const m = String(title || "").match(/Alpha\s*(\d+(?:\.\d+)*)/i);
+  return m ? m[1] : null;
+}
+
 async function fetchPatchNotesRemote() {
-  const json = await fetchJson(`${WIKI_COMM_LINKS}?limit=40`);
+  const json = await fetchJson(`${WIKI_COMM_LINKS}?limit=120`);
   const remote = (json.data || [])
-    .filter(isPatchCommLink)
+    .filter(isGamePatchCommLink)
     .map((row) => ({
       id: `wiki-${row.id}`,
       title: row.title,
+      version: parsePatchVersion(row.title),
       date: row.created_at || null,
       dateHuman: row.created_at_human || null,
       channel: row.channel || null,
       series: row.series || null,
       rsiUrl: row.rsi_url || null,
       source: "star-citizen.wiki",
-    }));
+      isGamePatch: true,
+    }))
+    .sort((a, b) => {
+      const da = a.date ? new Date(a.date).getTime() : 0;
+      const db = b.date ? new Date(b.date).getTime() : 0;
+      return db - da;
+    });
   const entry = {
     fetchedAt: new Date().toISOString(),
     remote,
@@ -321,11 +337,62 @@ async function getPatchNotes() {
   };
 }
 
-function getSmugglerRoutes() {
-  const routes = readSeed("smuggler-routes.json");
+function matchCommodityHint(hint, rows) {
+  const h = String(hint || "").toLowerCase();
+  if (!h || h.includes("any commodity") || h.includes("varies")) return rows;
+  return rows.filter((r) => {
+    const name = String(r.name || "").toLowerCase();
+    return name.includes(h) || h.includes(name.split(" ")[0]);
+  });
+}
+
+async function getSmugglerRoutes() {
+  const routes = readSeed("smuggler-routes.json") || [];
+  let illegalRows = [];
+  try {
+    const cache = await getCommoditiesCache(false);
+    illegalRows = (cache.rows || [])
+      .map((r) => (r.spread != null ? r : shapeCommodityRow(r)))
+      .filter((r) => r.isIllegal && r.priceBuy > 0 && r.priceSell > 0 && r.spread != null);
+    illegalRows.sort((a, b) => (b.spread || 0) - (a.spread || 0));
+  } catch {
+    illegalRows = [];
+  }
+
+  const enriched = (Array.isArray(routes) ? routes : []).map((route) => {
+    let matched = [];
+    for (const hint of route.commodityHints || []) {
+      matched.push(...matchCommodityHint(hint, illegalRows));
+    }
+    const byId = new Map();
+    for (const row of matched) byId.set(row.id, row);
+    const commodities = [...byId.values()].sort((a, b) => (b.spread || 0) - (a.spread || 0));
+    const top = commodities[0] || null;
+    return {
+      ...route,
+      commodities: commodities.slice(0, 8).map((c) => ({
+        id: c.id,
+        name: c.name,
+        buy: c.priceBuy,
+        sell: c.priceSell,
+        spread: c.spread,
+        profitPerScu: c.spread,
+      })),
+      topSpread: top?.spread ?? null,
+      topProfitPerScu: top?.spread ?? null,
+    };
+  });
+
+  enriched.sort((a, b) => (b.topSpread ?? 0) - (a.topSpread ?? 0));
+
   return {
-    routes: Array.isArray(routes) ? routes : [],
-    meta: { source: "data/guides/smuggler-routes.json" },
+    routes: enriched,
+    meta: {
+      source: "data/guides/smuggler-routes.json + UEX illegal commodities",
+      illegalCommodityCount: illegalRows.length,
+    },
+    disclaimer:
+      "Spread is sell minus buy per SCU from UEX averages. Actual profit depends on terminal, travel, and risk. Refresh Commodities before hauling.",
   };
 }
 
@@ -353,4 +420,5 @@ module.exports = {
   getSmugglerRoutes,
   getGameLoops,
   refreshCommodities,
+  getCommoditiesCache,
 };

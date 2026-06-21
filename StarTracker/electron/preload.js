@@ -66,6 +66,16 @@ contextBridge.exposeInMainWorld("debrief", {
   guidesGetSmugglerRoutes: () => ipcRenderer.invoke("guides-get-smuggler-routes"),
   guidesGetGameLoops: () => ipcRenderer.invoke("guides-get-game-loops"),
   guidesRefreshCommodities: () => ipcRenderer.invoke("guides-refresh-commodities"),
+  guidesGetRefinery: () => ipcRenderer.invoke("guides-get-refinery"),
+  guidesCalculateRefinery: (options) =>
+    ipcRenderer.invoke("guides-calculate-refinery", options),
+  craftingSearchBlueprints: (options) =>
+    ipcRenderer.invoke("crafting-search-blueprints", options),
+  craftingGetBlueprint: (id) => ipcRenderer.invoke("crafting-get-blueprint", id),
+  craftingCalculatePreview: (options) =>
+    ipcRenderer.invoke("crafting-calculate-preview", options),
+  uiGetFavoriteTabs: () => ipcRenderer.invoke("ui-get-favorite-tabs"),
+  uiToggleFavoriteTab: (tabId) => ipcRenderer.invoke("ui-toggle-favorite-tab", tabId),
   combatGetItemProfile: (options) =>
     ipcRenderer.invoke("combat-get-item-profile", options),
   combatGetVehicleProfile: (options) =>
@@ -80,4 +90,10 @@ contextBridge.exposeInMainWorld("debrief", {
   loadoutSearchWeapons: (options) =>
     ipcRenderer.invoke("loadout-search-weapons", options),
   loadoutSimulate: (options) => ipcRenderer.invoke("loadout-simulate", options),
+  guidesGetTradeRoutes: (options) =>
+    ipcRenderer.invoke("guides-get-trade-routes", options),
+  guidesGetTradePresets: () => ipcRenderer.invoke("guides-get-trade-presets"),
+  guidesGetExternalToolsHub: () =>
+    ipcRenderer.invoke("guides-get-external-tools-hub"),
+  guidesGetReputation: () => ipcRenderer.invoke("guides-get-reputation"),
 });

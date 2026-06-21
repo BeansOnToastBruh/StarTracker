@@ -1,0 +1,232 @@
+{
+  "updated": "2026-06-21",
+  "categories": [
+    { "id": "trade", "title": "Trade and economy", "summary": "Route finders, commodity prices, and cargo planning." },
+    { "id": "mining", "title": "Mining and refining", "summary": "Ore locations, refinery yields, and crew tools." },
+    { "id": "combat", "title": "Combat and loadouts", "summary": "DPS sims, ship fitting, and performance charts." },
+    { "id": "fleet", "title": "Fleet and hangar", "summary": "Pledge tracking, CCU chains, and org logistics." },
+    { "id": "reference", "title": "Reference and maps", "summary": "Datamine browsers, starmaps, and loot databases." },
+    { "id": "session", "title": "Session and utilities", "summary": "Log tools, overlays, and troubleshooting." }
+  ],
+  "tools": [
+    {
+      "id": "sc-trade-tools",
+      "name": "SC Trade Tools",
+      "url": "https://sc-trade.tools/",
+      "category": "trade",
+      "description": "Multi-stop trade route optimizer with community-reported terminal prices and starmap travel times.",
+      "tags": ["routes", "commodities", "en-route"],
+      "inAppTab": "guides-trade-routes",
+      "inAppNote": "StarTracker Trade routes tab ranks spreads by your cargo SCU using UEX averages."
+    },
+    {
+      "id": "uex",
+      "name": "UEX Corp",
+      "url": "https://uexcorp.space/",
+      "category": "trade",
+      "description": "Community commodity and equipment prices. Primary price source for StarTracker guides.",
+      "tags": ["prices", "shops"],
+      "inAppTab": "guides-commodities",
+      "inAppNote": "Commodities, Market prices, Smuggler routes, and Refinery tabs use UEX data."
+    },
+    {
+      "id": "sc-datahub",
+      "name": "SC DataHub",
+      "url": "https://www.sc-datahub.com/",
+      "category": "trade",
+      "description": "Overlay suite for trade routes, cargo capture, and fleet tracking while in-game.",
+      "tags": ["overlay", "routes"],
+      "inAppTab": null
+    },
+    {
+      "id": "sc-toolbox",
+      "name": "SC Toolbox",
+      "url": "https://github.com/ScPlaceholder/SC-Toolbox",
+      "category": "trade",
+      "description": "Always-on-top overlay with trade hub, market finder, mining loadout, and DPS calculator.",
+      "tags": ["overlay", "trade", "mining"],
+      "inAppTab": null
+    },
+    {
+      "id": "regolith",
+      "name": "Regolith Co.",
+      "url": "https://regolith.rocks/",
+      "category": "mining",
+      "description": "Mining crew sessions and scouting (operations ended; historical reference).",
+      "tags": ["crew", "sessions"],
+      "inAppTab": null,
+      "status": "deprecated"
+    },
+    {
+      "id": "golem-mining",
+      "name": "Golem Mining Suite",
+      "url": "https://github.com/ErskeN1337/Golem-Mining-Suite",
+      "category": "mining",
+      "description": "Desktop mining planner with refinery calculator, route optimizer, and Regolith import.",
+      "tags": ["refinery", "routes"],
+      "inAppTab": "guides-refinery",
+      "inAppNote": "Refinery tab covers refine-vs-sell math with UEX prices."
+    },
+    {
+      "id": "minecalc",
+      "name": "MineCalc",
+      "url": "https://github.com/itssilly4u/MineCalc",
+      "category": "mining",
+      "description": "Mining fracture simulator and fleet throughput calculator with UEX market sync.",
+      "tags": ["fracture", "fleet"],
+      "inAppTab": "guides-commodities",
+      "inAppNote": "Market prices tab with Mining filter lists extractable goods and sell prices per SCU."
+    },
+    {
+      "id": "rocks-syndicate",
+      "name": "Rocks Syndicate",
+      "url": "http://rocksyndicate.com/",
+      "category": "mining",
+      "description": "Work order and fracture calculators with optional UEX price sync.",
+      "tags": ["refinery", "fracture"],
+      "inAppTab": "guides-refinery"
+    },
+    {
+      "id": "erkul",
+      "name": "Erkul.games",
+      "url": "https://www.erkul.games/",
+      "category": "combat",
+      "description": "Full ship loadout planner with power, heat, and DPS simulations.",
+      "tags": ["dps", "loadout", "components"],
+      "inAppTab": "guides-loadout",
+      "inAppNote": "Ship builder swaps weapons with live DPS totals from wiki datamine."
+    },
+    {
+      "id": "hardpoint",
+      "name": "Hardpoint.io",
+      "url": "https://hardpoint.io/",
+      "category": "combat",
+      "description": "Ship fitting comparison with hull HP and turret coverage.",
+      "tags": ["loadout", "comparison"],
+      "inAppTab": "guides-loadout"
+    },
+    {
+      "id": "spviewer",
+      "name": "SPViewer",
+      "url": "https://www.spviewer.eu/",
+      "category": "combat",
+      "description": "Ship performance rankings, fuel range, signatures, and cutaway layouts.",
+      "tags": ["performance", "rankings"],
+      "inAppTab": "guides-fleet",
+      "inAppNote": "Fleet compare uses the same wiki datamine performance tables."
+    },
+    {
+      "id": "scmdb",
+      "name": "SC Mission Database",
+      "url": "https://scmdb.net/",
+      "category": "reference",
+      "description": "Mission, crafting blueprint, and mining resource browser.",
+      "tags": ["missions", "crafting"],
+      "inAppTab": "guides-crafting",
+      "inAppNote": "Crafting workshop pulls blueprint recipes from star-citizen.wiki."
+    },
+    {
+      "id": "scodex",
+      "name": "SCodex",
+      "url": "https://scodex.garga.net/",
+      "category": "reference",
+      "description": "Loot presets, tables, and drop archetypes from the datamine.",
+      "tags": ["loot", "datamine"],
+      "inAppTab": null,
+      "inAppNote": "Drop probabilities are not in the wiki API; use SCodex for full loot tables."
+    },
+    {
+      "id": "scunpacked",
+      "name": "SCUnpacked",
+      "url": "https://scunpacked.com/",
+      "category": "reference",
+      "description": "Raw datamine browser for items, ships, and game files.",
+      "tags": ["datamine"],
+      "inAppTab": null
+    },
+    {
+      "id": "hangar-link",
+      "name": "Hangar Link",
+      "url": "https://hangar.link/",
+      "category": "fleet",
+      "description": "Pledge hangar manager with CCU chain calculator. Sync via browser extension.",
+      "tags": ["pledges", "ccu"],
+      "inAppTab": "ships",
+      "inAppNote": "Session Ships tab logs hull losses from Game.log, not RSI pledges."
+    },
+    {
+      "id": "fleetyards",
+      "name": "FleetYards",
+      "url": "https://fleetyards.net/",
+      "category": "fleet",
+      "description": "Ship specs, variants, and fleet planning with optional RSI hangar sync.",
+      "tags": ["ships", "fleet"],
+      "inAppTab": "guides-fleet"
+    },
+    {
+      "id": "hubcitizen",
+      "name": "HubCitizen",
+      "url": "https://hubcitizen.com/",
+      "category": "fleet",
+      "description": "Combined loadout manager, commodity tracker, and org tools.",
+      "tags": ["org", "loadout"],
+      "inAppTab": null
+    },
+    {
+      "id": "starcitizen-tools",
+      "name": "Star Citizen Wiki",
+      "url": "https://starcitizen.tools/",
+      "category": "reference",
+      "description": "Community wiki and datamine reference. Primary source for StarTracker combat and crafting data.",
+      "tags": ["wiki"],
+      "inAppTab": "guides-combat"
+    },
+    {
+      "id": "rsi-starmap",
+      "name": "RSI Starmap",
+      "url": "https://robertsspaceindustries.com/en/starmap",
+      "category": "reference",
+      "description": "Official system map with jump points and POIs.",
+      "tags": ["map", "systems"],
+      "inAppTab": null
+    },
+    {
+      "id": "sc-cargo",
+      "name": "SC Cargo",
+      "url": "https://sc-cargo.space/",
+      "category": "trade",
+      "description": "3D cargo grid viewer and container optimizer for haulers.",
+      "tags": ["cargo", "grid"],
+      "inAppTab": null
+    },
+    {
+      "id": "star-citi-sync",
+      "name": "StarCitiSync",
+      "url": "https://github.com/JiyanDev/StarCitiSyncPublic",
+      "category": "session",
+      "description": "Desktop session tracker for missions, kills, and economy from Game.log.",
+      "tags": ["session", "log"],
+      "inAppTab": "overview",
+      "inAppNote": "StarTracker tracks the same Game.log events with mission and reward tabs."
+    },
+    {
+      "id": "sc-file-tools",
+      "name": "SC File Fiddler",
+      "url": "https://github.com/AlpineFrostSC/SCFileTools",
+      "category": "session",
+      "description": "Shader clears, USER folder backup, and Game.log console viewer.",
+      "tags": ["troubleshooting", "log"],
+      "inAppTab": "history",
+      "inAppNote": "History tab archives Game.log backups for past session review."
+    },
+    {
+      "id": "omnicore",
+      "name": "OmniCore",
+      "url": "https://lolindark.github.io/StarCitizen-OmniCore/",
+      "category": "reference",
+      "description": "PWA hub with ship database and HOTAS keybind editor.",
+      "tags": ["hotas", "ships"],
+      "inAppTab": null
+    }
+  ]
+}

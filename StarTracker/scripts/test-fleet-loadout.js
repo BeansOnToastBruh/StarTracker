@@ -1,5 +1,10 @@
 const assert = require("assert");
-const { compactFleetRow, queryFleetCompare } = require("../electron/fleetCompare");
+const {
+  compactFleetRow,
+  queryFleetCompare,
+  buildFleetLookup,
+  enrichVehicleRow,
+} = require("../electron/fleetCompare");
 const {
   collectWeaponGunPorts,
   weaponDpsFromProfile,
@@ -38,6 +43,20 @@ const index = {
 };
 const sorted = queryFleetCompare({ index, sort: "hull" });
 assert.strictEqual(sorted.rows[0].slug, "gladius");
+
+const lookup = buildFleetLookup(index);
+const catalogShip = {
+  section: "Ships",
+  slug: "gladius",
+  className: "AEGS_Gladius",
+  name: "Gladius",
+  cargo: 0,
+  listings: [{ terminal: "Area18", priceBuy: 1000000 }],
+};
+const enriched = enrichVehicleRow(catalogShip, lookup);
+assert.strictEqual(enriched.hullHp, 6110);
+assert.strictEqual(enriched.shieldHp, 6336);
+assert.strictEqual(enriched.listings.length, 1);
 
 const ports = [
   {

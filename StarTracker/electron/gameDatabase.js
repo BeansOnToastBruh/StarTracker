@@ -284,7 +284,11 @@ function queryVehicles(options = {}) {
   if (options.withListingsOnly) {
     rows = rows.filter((r) => (r.listings || []).length > 0);
   }
-  rows.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  rows.sort((a, b) => {
+    const ma = String(a.manufacturer || "ZZZ").localeCompare(String(b.manufacturer || "ZZZ"));
+    if (ma !== 0) return ma;
+    return String(a.name || "").localeCompare(String(b.name || ""));
+  });
   return paginate(rows, options);
 }
 

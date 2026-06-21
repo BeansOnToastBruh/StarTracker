@@ -115,6 +115,11 @@ async function getFleetIndex(options = {}) {
 
 const SORT_COMPARE = {
   name: (a, b) => String(a.name || "").localeCompare(String(b.name || "")),
+  manufacturer: (a, b) => {
+    const ma = String(a.manufacturer || "ZZZ").localeCompare(String(b.manufacturer || "ZZZ"));
+    if (ma !== 0) return ma;
+    return String(a.name || "").localeCompare(String(b.name || ""));
+  },
   hull: (a, b) => (b.hullHp ?? -1) - (a.hullHp ?? -1),
   shield: (a, b) => (b.shieldHp ?? -1) - (a.shieldHp ?? -1),
   scm: (a, b) => (b.scm ?? -1) - (a.scm ?? -1),
@@ -168,6 +173,60 @@ async function getFleetCompare(options = {}) {
   return { ok: true, ...result };
 }
 
+function buildFleetLookup(index) {
+  const bySlug = new Map();
+  const byClass = new Map();
+  for (const row of index?.rows || []) {
+    if (row.slug) bySlug.set(String(row.slug).toLowerCase(), row);
+    if (row.className) byClass.set(String(row.className).toLowerCase(), row);
+  }
+  return { bySlug, byClass };
+}
+
+function lookupFleetRow(vehicle, lookup) {
+  if (!vehicle || !lookup) return null;
+  const slug = String(vehicle.slug || "").toLowerCase();
+  const className = String(vehicle.className || "").toLowerCase();
+  return (
+    (slug && lookup.bySlug.get(slug)) ||
+    (className && lookup.byClass.get(className)) ||
+    null
+  );
+}
+
+function enrichVehicleRow(vehicle, lookup) {
+  const fleet = lookupFleetRow(vehicle, lookup);
+  if (!fleet) return vehicle;
+  return {
+    ...vehicle,
+    hullHp: fleet.hullHp ?? vehicle.hullHp ?? null,
+    shieldHp: fleet.shieldHp ?? vehicle.shieldHp ?? null,
+    scm: fleet.scm ?? vehicle.scm ?? null,
+    maxSpeed: fleet.maxSpeed ?? vehicle.maxSpeed ?? null,
+    h2Capacity: fleet.h2Capacity ?? vehicle.h2Capacity ?? null,
+    qtFuel: fleet.qtFuel ?? vehicle.qtFuel ?? null,
+    cargo: vehicle.cargo ?? fleet.cargo ?? null,
+    mass: fleet.mass ?? vehicle.mass ?? null,
+    irShields: fleet.irShields ?? vehicle.irShields ?? null,
+    emShields: fleet.emShields ?? vehicle.emShields ?? null,
+    role: fleet.role ?? vehicle.role ?? null,
+    fleetSize: fleet.size ?? vehicle.size ?? null,
+  };
+}
+
+function enrichVehicleRows(rows, index) {
+  if (!rows?.length || !index?.rows?.length) return rows || [];
+  const lookup = buildFleetLookup(index);
+  return rows.map((row) => enrichVehicleRow(row, lookup));
+}
+
+async function enrichVehicleFromIndex(vehicle) {
+  if (!vehicle) return vehicle;
+  const index = await getFleetIndex();
+  if (!index.ok) return vehicle;
+  return enrichVehicleRow(vehicle, buildFleetLookup(index));
+}
+
 module.exports = {
   init,
   compactFleetRow,
@@ -175,4 +234,9 @@ module.exports = {
   refreshFleetIndex,
   queryFleetCompare,
   getFleetCompare,
+  buildFleetLookup,
+  lookupFleetRow,
+  enrichVehicleRow,
+  enrichVehicleRows,
+  enrichVehicleFromIndex,
 };

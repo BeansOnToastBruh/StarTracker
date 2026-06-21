@@ -1,0 +1,117 @@
+{
+  "disclaimer": "Yields and fees are community estimates. In-game refinery UI is authoritative. UEX prices update separately from patch balance.",
+  "defaultStationFeePercent": 5,
+  "defaultYieldPercent": 80,
+  "oreTypes": [
+    {
+      "id": "quantainium",
+      "match": ["quantainium"],
+      "refinedMatch": ["quantainium"],
+      "excludeRefined": ["ore"],
+      "defaultYieldPercent": 65,
+      "volatile": true,
+      "notes": "Volatile crystal. Refine quickly and sell before decay."
+    },
+    {
+      "id": "bexalite",
+      "match": ["bexalite"],
+      "refinedMatch": ["bexalite"],
+      "excludeRefined": ["ore"],
+      "defaultYieldPercent": 82
+    },
+    {
+      "id": "taranite",
+      "match": ["taranite"],
+      "refinedMatch": ["taranite"],
+      "excludeRefined": ["ore"],
+      "defaultYieldPercent": 80
+    },
+    {
+      "id": "laranite",
+      "match": ["laranite"],
+      "refinedMatch": ["laranite"],
+      "excludeRefined": ["ore"],
+      "defaultYieldPercent": 78
+    },
+    {
+      "id": "broadstone",
+      "match": ["broadstone"],
+      "refinedMatch": ["broadstone"],
+      "excludeRefined": ["ore"],
+      "defaultYieldPercent": 85
+    },
+    {
+      "id": "gneiss",
+      "match": ["gneiss"],
+      "refinedMatch": ["gneiss"],
+      "excludeRefined": ["ore"],
+      "defaultYieldPercent": 88
+    },
+    {
+      "id": "dacite",
+      "match": ["dacite"],
+      "refinedMatch": ["dacite"],
+      "excludeRefined": ["ore"],
+      "defaultYieldPercent": 86
+    },
+    {
+      "id": "corundum",
+      "match": ["corundum"],
+      "refinedMatch": ["corundum"],
+      "excludeRefined": ["ore"],
+      "defaultYieldPercent": 84
+    },
+    {
+      "id": "gold",
+      "match": ["gold"],
+      "refinedMatch": ["gold"],
+      "excludeRefined": ["ore"],
+      "defaultYieldPercent": 75
+    },
+    {
+      "id": "diamond",
+      "match": ["diamond"],
+      "refinedMatch": ["diamond"],
+      "excludeRefined": ["ore"],
+      "defaultYieldPercent": 72
+    }
+  ],
+  "stations": [
+    {
+      "name": "Orison Refinery",
+      "system": "Stanton",
+      "body": "Crusader",
+      "notes": "High traffic. Good for Quantainium handoff after Pyro/Stanton mining."
+    },
+    {
+      "name": "Port Tressler Refinery",
+      "system": "Stanton",
+      "body": "MicroTech",
+      "notes": "Convenient for Lyria and Wala mining loops."
+    },
+    {
+      "name": "Everus Harbor Refinery",
+      "system": "Stanton",
+      "body": "Hurston",
+      "notes": "Pairs with Arial and Aberdeen runs."
+    },
+    {
+      "name": "Grim HEX Refinery",
+      "system": "Stanton",
+      "body": "Yela",
+      "notes": "No admin fees at station level, but longer approach from moons."
+    },
+    {
+      "name": "Ruin Station Refinery",
+      "system": "Pyro",
+      "body": "Pyro",
+      "notes": "Pyro refinery option for cross-system hauls."
+    }
+  ],
+  "loopTips": [
+    "Mine ore with a Prospector or MOLE, fill cargo, then refine before selling refined goods at TDDs.",
+    "Compare raw vs refined value in the calculator below using live UEX sell prices.",
+    "Quantainium and high-value gems favor fast refine-and-sell loops over long storage.",
+    "Pair refinery output with Market prices (Mining filter) to find best sell terminals per SCU."
+  ]
+}

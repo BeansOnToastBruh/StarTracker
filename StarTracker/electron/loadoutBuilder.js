@@ -4,6 +4,15 @@ const WIKI_BASE = "https://api.star-citizen.wiki/api";
 const FETCH_GAP_MS = 350;
 
 const blueprintCache = new Map();
+const slotOptionsCache = new Map();
+
+const WIKI_ITEM_TYPES = {
+  WeaponGun: "WeaponGun",
+  Shield: "Shield",
+  PowerPlant: "PowerPlant",
+  Cooler: "Cooler",
+  QuantumDrive: "QuantumDrive",
+};
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -45,6 +54,91 @@ function collectWeaponGunPorts(ports, parentLabel = "") {
     }
   }
   return out;
+}
+
+function collectComponentPorts(ports) {
+  const out = [];
+  for (const port of ports || []) {
+    if (port.type && port.type !== "WeaponGun" && WIKI_ITEM_TYPES[port.type]) {
+      const eq = port.equipped_item && typeof port.equipped_item === "object" ? port.equipped_item : null;
+      out.push({
+        portId: port.name,
+        label: port.name.replace(/^hardpoint_/i, "").replace(/_/g, " "),
+        componentType: port.type,
+        sizeMin: port.sizes?.min ?? null,
+        sizeMax: port.sizes?.max ?? null,
+        stockClassName: eq?.class_name || null,
+        stockName: eq?.name || null,
+        stockSlug: eq?.slug || null,
+      });
+    }
+    if (port.ports?.length) out.push(...collectComponentPorts(port.ports));
+  }
+  return out;
+}
+
+function slotOptionsKey(componentType, sizeMax) {
+  return `${componentType}:${sizeMax}`;
+}
+
+async function fetchSlotOptions(componentType, sizeMax) {
+  const wikiType = WIKI_ITEM_TYPES[componentType] || componentType;
+  const size = Number(sizeMax);
+  if (!wikiType || !Number.isFinite(size)) return { rows: [] };
+
+  const cacheKey = slotOptionsKey(componentType, size);
+  if (slotOptionsCache.has(cacheKey)) return slotOptionsCache.get(cacheKey);
+
+  const rows = [];
+  let page = 1;
+  let lastPage = 1;
+  while (page <= lastPage && rows.length < 100) {
+    const json = await fetchJson(
+      `${WIKI_BASE}/items?filter[type]=${encodeURIComponent(wikiType)}&filter[size]=${size}&per_page=50&page=${page}`
+    );
+    lastPage = json.meta?.last_page || 1;
+    for (const item of json.data || []) {
+      const preview = formatWikiItem(item);
+      const { dps } = weaponDpsFromProfile(preview);
+      rows.push({
+        name: item.name || item.game_name,
+        slug: item.slug,
+        className: item.class_name,
+        size: item.size ?? null,
+        dps,
+        headline: preview ? combatHeadline(preview) : null,
+      });
+    }
+    page += 1;
+    if (page <= lastPage) await sleep(FETCH_GAP_MS);
+  }
+
+  if (componentType === "WeaponGun") {
+    rows.sort((a, b) => (b.dps ?? -1) - (a.dps ?? -1));
+  } else {
+    rows.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  }
+
+  const payload = { rows };
+  slotOptionsCache.set(cacheKey, payload);
+  return payload;
+}
+
+async function loadSlotOptionsForBlueprint(blueprint) {
+  const slotOptions = {};
+  const keys = new Set();
+  for (const slot of blueprint.weaponSlots || []) {
+    if (slot.sizeMax != null) keys.add(slotOptionsKey("WeaponGun", slot.sizeMax));
+  }
+  for (const slot of blueprint.componentSlots || []) {
+    if (slot.sizeMax != null) keys.add(slotOptionsKey(slot.componentType, slot.sizeMax));
+  }
+  for (const key of keys) {
+    const [componentType, sizeStr] = key.split(":");
+    slotOptions[key] = await fetchSlotOptions(componentType, Number(sizeStr));
+    await sleep(FETCH_GAP_MS);
+  }
+  return slotOptions;
 }
 
 function weaponDpsFromProfile(profile) {
@@ -132,6 +226,7 @@ async function getShipBlueprint(combatIntel, slug) {
   if (!data) return { ok: false, error: "ship not found" };
 
   const weaponSlots = collectWeaponGunPorts(data.ports);
+  const componentSlots = collectComponentPorts(data.ports);
   const stockComponents = (data.components || []).map((c) => ({
     type: c.type,
     name: c.name,
@@ -140,6 +235,7 @@ async function getShipBlueprint(combatIntel, slug) {
   }));
 
   const stockSummary = await simulateWeaponSlots(combatIntel, weaponSlots, {});
+  const slotOptions = await loadSlotOptionsForBlueprint({ weaponSlots, componentSlots });
   const payload = {
     ok: true,
     ship: {
@@ -149,6 +245,8 @@ async function getShipBlueprint(combatIntel, slug) {
       manufacturer: data.manufacturer?.name || null,
     },
     weaponSlots,
+    componentSlots,
+    slotOptions,
     stockComponents,
     stockSummary,
     hullProfile: formatVehicle(data),
@@ -210,7 +308,9 @@ async function simulateLoadout(combatIntel, options = {}) {
 
 module.exports = {
   collectWeaponGunPorts,
+  collectComponentPorts,
   weaponDpsFromProfile,
+  fetchSlotOptions,
   getShipBlueprint,
   searchShipWeapons,
   simulateLoadout,

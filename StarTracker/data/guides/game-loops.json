@@ -4,22 +4,35 @@
     "title": "Cargo hauling",
     "summary": "Buy commodities low at one TDD, sell high at another. Profit is spread per SCU minus fuel, time, and risk.",
     "tips": [
+      "Trade routes tab ranks spread by your cargo SCU with hauler presets.",
       "Open Commodities for best buy and sell prices per SCU across Stanton.",
       "Large ships (C2, Caterpillar, Hull series) scale profit with SCU.",
       "Session Shopping tab logs kiosk purchases when Game.log records them."
     ],
-    "relatedTabs": ["guides-commodities", "shopping", "catalog-ships"]
+    "relatedTabs": ["guides-trade-routes", "guides-commodities", "shopping", "catalog-ships"]
   },
   {
     "id": "mining",
     "title": "Mining and selling",
     "summary": "Extract ore or harvest materials, refine when needed, then sell at TDDs. Sell price per SCU matters more than raw ore names.",
     "tips": [
-      "Mining tab lists extractable and harvestable goods with UEX sell prices.",
+      "Market prices tab (Mining filter) lists extractable and harvestable goods with UEX sell prices.",
       "Quantainium and volatile goods need fast routes after extraction.",
-      "Refined metals often sell better than ore variants listed at zero."
+      "Refined metals often sell better than ore variants listed at zero.",
+      "Crafting workshop shows which ores each blueprint needs and how quality shifts stats."
     ],
-    "relatedTabs": ["guides-mining", "guides-commodities"]
+    "relatedTabs": ["guides-commodities", "guides-refinery", "guides-crafting"]
+  },
+  {
+    "id": "crafting",
+    "title": "Crafting blueprints",
+    "summary": "Unlock schematics from missions, gather materials at the quality you want, then craft at a station. Material quality changes output stats.",
+    "tips": [
+      "Crafting workshop lists mission sources, material amounts, and quality sliders per input.",
+      "Session Blueprints tab logs unlocks when Game.log names them.",
+      "Compare projected stats at Q500 baseline vs the ore you actually mined."
+    ],
+    "relatedTabs": ["guides-crafting", "blueprints", "missions", "guides-commodities"]
   },
   {
     "id": "smuggling",
@@ -41,7 +54,7 @@
       "Missions tab tracks Foxwell defend, Headhunters ambush, and other contracts.",
       "Kills tab highlights PvP bounty completions."
     ],
-    "relatedTabs": ["missions", "rewards", "kills", "deaths", "guides-combat"]
+    "relatedTabs": ["missions", "rewards", "kills", "deaths", "guides-combat", "guides-reputation"]
   },
   {
     "id": "refuel",

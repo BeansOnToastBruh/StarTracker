@@ -91,7 +91,7 @@ const SESSION_TABS = [
     id: "loadout",
     group: "session",
     label: "Loadout",
-    hint: "Gear on your character when you spawned or swapped armor mid-session (from Game.log AttachmentReceived lines).",
+    hint: "Gear snapshots from spawn and mid-session changes. Click a row to expand slots and combat stats.",
     empty: "No loadout snapshots yet. StarTracker captures gear when you spawn into the universe.",
   },
   {
@@ -188,28 +188,42 @@ const GUIDE_TABS = [
     id: "guides-patch-notes",
     group: "guides",
     label: "Patch notes",
-    hint: "Official RSI patch notes plus StarTracker-specific tracking notes for each version.",
+    hint: "Official RSI Alpha patch notes. StarTracker app notes are at the bottom, collapsed.",
     empty: "No patch notes loaded yet.",
   },
   {
     id: "guides-commodities",
     group: "guides",
-    label: "Commodities",
-    hint: "Trade materials with buy and sell prices per SCU from UEX community data.",
+    label: "Market prices",
+    hint: "UEX buy and sell prices per SCU. Filter trade, mining, or illegal goods. Expand a row for terminal breakdown.",
     empty: "No commodity data loaded yet. Use Refresh prices below.",
   },
   {
-    id: "guides-mining",
+    id: "guides-trade-routes",
     group: "guides",
-    label: "Mining",
-    hint: "Extractable and harvestable materials with sell prices per SCU at terminals.",
-    empty: "No mining commodity data loaded yet. Use Refresh prices below.",
+    label: "Trade routes",
+    hint: "Rank commodities by spread and estimated profit for your cargo SCU. UEX average prices, not terminal pairs.",
+    empty: "No trade routes loaded yet. Set cargo SCU and refresh.",
+  },
+  {
+    id: "guides-refinery",
+    group: "guides",
+    label: "Refinery",
+    hint: "Refine-or-sell calculator, yield estimates, and refinery station notes for mining loops.",
+    empty: "Refinery data not loaded yet.",
+  },
+  {
+    id: "guides-crafting",
+    group: "guides",
+    label: "Crafting workshop",
+    hint: "Pick a blueprint, see unlock missions, material amounts, quality sliders, and projected stat boosts.",
+    empty: "Search for a blueprint to open the workshop.",
   },
   {
     id: "guides-smuggling",
     group: "guides",
     label: "Smuggler routes",
-    hint: "Curated illegal cargo routes with commodity hints and buy/sell location notes.",
+    hint: "Illegal trade routes ranked by UEX spread. See buy, sell, profit per SCU for matched commodities.",
     empty: "No smuggler routes loaded yet.",
   },
   {
@@ -218,6 +232,20 @@ const GUIDE_TABS = [
     label: "Game loops",
     hint: "Quick intros for hauling, mining, smuggling, merc work, and refuel loops with links to relevant tabs.",
     empty: "No game loop guides loaded yet.",
+  },
+  {
+    id: "guides-reputation",
+    group: "guides",
+    label: "Reputation",
+    hint: "Faction rep tracked across sessions from Game.log rewards. Tier names are wiki estimates.",
+    empty: "No faction reputation recorded yet.",
+  },
+  {
+    id: "guides-external-tools",
+    group: "guides",
+    label: "Tools hub",
+    hint: "Popular Star Citizen companion sites with links to in-app StarTracker tabs where we cover similar features.",
+    empty: "External tools list not loaded.",
   },
   {
     id: "guides-combat",
@@ -237,10 +265,25 @@ const GUIDE_TABS = [
     id: "guides-loadout",
     group: "guides",
     label: "Ship builder",
-    hint: "Pick a hull, view stock hardpoints, and swap weapons to compare simplified total DPS.",
+    hint: "Step through ship, weapons, components, and hull stats. DPS updates live as you swap guns.",
     empty: "Load a ship to start building.",
   },
 ];
+
+const INTEL_TAB_META = {
+  "guides-patch-notes": "news",
+  "guides-commodities": "economy",
+  "guides-trade-routes": "economy",
+  "guides-smuggling": "economy",
+  "guides-loops": "economy",
+  "guides-refinery": "production",
+  "guides-crafting": "production",
+  "guides-reputation": "progress",
+  "guides-external-tools": "reference",
+  "guides-combat": "combat",
+  "guides-fleet": "combat",
+  "guides-loadout": "combat",
+};
 
 const TABS = [...SESSION_TABS, ...CATALOG_TABS, ...GUIDE_TABS];
 
@@ -258,7 +301,7 @@ const TAB_DESCRIPTIONS = {
   shopping:
     "Items you bought at shops and kiosks when the log records the purchase. Useful for tracking gear you picked up during a run.",
   loadout:
-    "Armor, weapons, medpens, and backpack from Game.log when you spawn or change gear. Cosmetic DNA pieces are hidden in the list.",
+    "Click a snapshot to expand gear by slot. Combat stats load for weapons and armor when wiki data exists.",
   blueprints:
     "Blueprint unlocks when the log names them. Look here after contract payouts that grant schematics.",
   deaths:
@@ -284,21 +327,29 @@ const TAB_DESCRIPTIONS = {
   "catalog-ship-services":
     "Places that offer refuel, repair, or ship ammo restock. Check before long trips or after combat damage.",
   "guides-patch-notes":
-    "RSI patch notes and StarTracker tracking notes. See what changed for log parsing and contract estimates each patch.",
+    "Official Star Citizen patch notes from RSI, pulled via the wiki comm-link feed. StarTracker app notes are tucked at the bottom.",
   "guides-commodities":
-    "Buy and sell prices per SCU for trade commodities. Compare spread and open a row for terminal breakdown.",
-  "guides-mining":
-    "Sell prices per SCU for mined and harvested materials. Use when planning mining runs and refinery drops.",
+    "UEX terminal prices per SCU. Use filters for trade haul goods, mined materials, or illegal cargo. Expand rows for best buy and sell locations.",
+  "guides-trade-routes":
+    "Single-hop profit estimates from UEX spread times your cargo SCU. Pick a hauler preset or enter custom capacity.",
+  "guides-refinery":
+    "Decide whether to refine ore or sell raw. Calculator uses UEX sell prices and community yield estimates.",
+  "guides-crafting":
+    "Blueprint recipes from the wiki datamine. Tune material quality (0 to 1000) and preview how output stats shift.",
   "guides-smuggling":
     "Curated smuggling routes with risk level, commodity hints, and location notes. Verify prices before hauling.",
   "guides-loops":
     "Short guides for common game loops with tips and links to related StarTracker tabs.",
+  "guides-reputation":
+    "Persistent faction rep from parsed rewards plus this session's gains. Progress bars use wiki contractor tier thresholds (estimates).",
+  "guides-external-tools":
+    "Curated list of community tools like SC Trade Tools, Erkul, Hangar Link, and SCodex. In-app equivalents are marked.",
   "guides-combat":
     "Look up weapon DPS, armor, and ship stats. Fleet compare and Ship builder are one click away from here.",
   "guides-fleet":
     "Every flyable ship, sortable like a fleet chart. Hull, shields, speed, cargo, and signatures from the wiki datamine.",
   "guides-loadout":
-    "Pick a hull, see stock hardpoints, swap guns, and compare simplified total DPS. Great for quick what-if loadouts.",
+    "Step through ship, weapons, components, and hull stats. DPS updates live as you swap guns. Reset to stock anytime.",
 };
 
 const TAB_ICONS = {
@@ -323,28 +374,30 @@ const TAB_ICONS = {
   "catalog-ship-services": "⛽",
   "guides-patch-notes": "📡",
   "guides-commodities": "◫",
-  "guides-mining": "⛏",
+  "guides-trade-routes": "⇄",
+  "guides-refinery": "⚗",
+  "guides-crafting": "▣",
   "guides-smuggling": "◐",
   "guides-loops": "↻",
+  "guides-reputation": "★",
+  "guides-external-tools": "⊞",
   "guides-combat": "⚔",
   "guides-fleet": "🚀",
   "guides-loadout": "🔧",
 };
 
-const QUICK_NAV = [
-  { id: "overview", label: "Overview" },
-  { id: "guides-fleet", label: "Fleet compare" },
-  { id: "guides-loadout", label: "Ship builder" },
-  { id: "guides-commodities", label: "Trade prices" },
-  { id: "guides-combat", label: "Combat intel" },
-  { id: "catalog-ships", label: "Ship catalog" },
-];
+const QUICK_NAV_EMPTY_HINT =
+  "Star tabs you use often with Add to Jump to on the tab bar. Your favorites will appear here for one-click access.";
+
+let favoriteTabIds = [];
 
 const EMPTY_TIPS = {
   missions: "Accept a contract in-game and StarTracker will pick it up from Game.log.",
   rewards: "Complete missions with aUEC payouts. Awarded popups in the log are the most reliable source.",
   "guides-fleet": "Tap Refresh index to pull the latest ship list from the wiki.",
   "guides-loadout": "Try gladius, cutlass-black, or hurricane as a starting slug.",
+  "guides-refinery": "Start with Quantainium or Bexalite to compare refine vs raw sell value.",
+  "guides-crafting": "Try ADP Core or search your armor piece to see mission sources and quality curves.",
   loadout: "Change gear or respawn in-game to capture a loadout snapshot.",
 };
 
@@ -378,17 +431,207 @@ const catalogQueryByTab = {
 };
 const guideQueryByTab = {
   "guides-commodities": { query: "", offset: 0, sort: "name", filter: "trade" },
-  "guides-mining": { query: "", offset: 0, sort: "sell", filter: "mining" },
-  "guides-fleet": { query: "", offset: 0, sort: "hull" },
+  "guides-trade-routes": { cargoScu: 128, includeIllegal: false, minSpread: 0, query: "", sort: "profit" },
+  "guides-refinery": {
+    oreId: "quantainium",
+    oreScu: 100,
+    yieldPercent: null,
+    feePercent: 5,
+  },
+  "guides-crafting": {
+    query: "",
+    blueprintId: null,
+    qualities: {},
+    page: 1,
+  },
+  "guides-fleet": { query: "", offset: 0, sort: "manufacturer" },
 };
 let guideCommodityMeta = null;
 let fleetCompareMeta = null;
-let loadoutBuilderState = { shipSlug: null, slotAssignments: {} };
+let loadoutBuilderState = {
+  shipSlug: null,
+  slotAssignments: {},
+  stockBaseline: null,
+  shipFilter: "",
+};
 let loadoutBuilderBlueprint = null;
 let guideCommodityRefreshBusy = false;
 let guideDetailCommodityId = null;
-let loadoutCombatBusy = false;
 let catalogDetailKey = null;
+
+/** Loadout tab accordion: which snapshot is expanded (snap.at ISO key). */
+let loadoutExpandKey = null;
+let loadoutCombatByKey = Object.create(null);
+let loadoutCombatLoadingKey = null;
+
+/** Inline accordion expand: detail renders directly under the selected row. */
+let inlineExpand = {
+  host: null,
+  key: null,
+  kind: null,
+  html: null,
+  loading: false,
+};
+let fleetCompareLastRows = null;
+let catalogLastPayload = null;
+let lastCombatSearchRows = null;
+let guideCommodityLastPayload = null;
+let craftingDetailCache = null;
+let craftingSearchLastRows = null;
+
+const INLINE_HOST = {
+  FLEET: "fleet",
+  COMBAT: "combat-search",
+  CATALOG: "catalog",
+  COMMODITY: "guide-commodity",
+};
+
+function clearInlineExpand() {
+  inlineExpand = { host: null, key: null, kind: null, html: null, loading: false };
+  catalogDetailKey = null;
+  guideDetailCommodityId = null;
+}
+
+function isInlineExpanded(host, key) {
+  return inlineExpand.host === host && String(inlineExpand.key) === String(key);
+}
+
+function expandChevron(host, key) {
+  return isInlineExpanded(host, key) ? "▾" : "▸";
+}
+
+function renderInlineDetailRow(colspan, host, key) {
+  if (!isInlineExpanded(host, key)) return "";
+  const inner = inlineExpand.loading
+    ? `<p class="muted small inline-detail-loading">Loading…</p>`
+    : inlineExpand.html || "";
+  return `<tr class="inline-detail-row" data-inline-detail-for="${escapeAttr(String(key))}"><td colspan="${colspan}"><div class="inline-detail-panel">${inner}</div></td></tr>`;
+}
+
+async function fetchCombatProfileHtml(detail, kind) {
+  const key = detail?.className || detail?.slug;
+  if (!key) return "";
+  const isVehicle = activeTab === "catalog-ships" || kind === "vehicle";
+  try {
+    const [data, tools] = await Promise.all([
+      isVehicle
+        ? window.debrief.combatGetVehicleProfile({ className: key, slug: detail.slug || key })
+        : window.debrief.combatGetItemProfile({ className: key, slug: detail.slug || key }),
+      window.debrief.combatGetExternalTools(),
+    ]);
+    return renderCombatProfilePanel(data, { advancedTools: tools.tools });
+  } catch (e) {
+    return renderCombatProfilePanel({ ok: false, error: e.message || String(e) });
+  }
+}
+
+async function buildCatalogInlineHtml(key, kind) {
+  const detail =
+    kind === "shop"
+      ? await window.debrief.catalogShopDetail(key)
+      : kind === "place"
+        ? await window.debrief.catalogPlaceDetail(key)
+        : await window.debrief.catalogItemDetail(key);
+  const isShip =
+    kind === "vehicle" || activeTab === "catalog-ships" || detail?.section === "Ships";
+  if (isShip) {
+    const perfHtml = await fetchCombatProfileHtml(detail, "vehicle");
+    const listingsHtml = renderCatalogDetail(detail, "item");
+    return `${perfHtml}${listingsHtml}`;
+  }
+  let html = renderCatalogDetail(detail, kind);
+  const combatHtml = await fetchCombatProfileHtml(detail, kind);
+  if (combatHtml) html += combatHtml;
+  return html;
+}
+
+async function refreshInlineExpandHost(host) {
+  switch (host) {
+    case INLINE_HOST.FLEET:
+      if (activeTab === "guides-fleet" && fleetCompareLastRows) {
+        patchPanelTable("#panel-guides-fleet", renderFleetCompareRows(fleetCompareLastRows));
+      } else if (activeTab === "guides-fleet") {
+        await loadFleetCompareTab("guides-fleet");
+      }
+      break;
+    case INLINE_HOST.COMBAT: {
+      const el = $("combatSearchResults");
+      if (el && lastCombatSearchRows) el.innerHTML = renderCombatSearchResults(lastCombatSearchRows);
+      break;
+    }
+    case INLINE_HOST.CATALOG:
+      if (activeTab.startsWith("catalog-") && catalogLastPayload) {
+        patchPanelTable(`#panel-${catalogLastPayload.tabId}`, catalogLastPayload.html);
+      } else if (activeTab.startsWith("catalog-")) {
+        await loadCatalogTab(activeTab);
+      }
+      break;
+    case INLINE_HOST.COMMODITY:
+      if (activeTab.startsWith("guides-") && guideCommodityLastPayload) {
+        patchPanelTable(`#panel-${guideCommodityLastPayload.tabId}`, guideCommodityLastPayload.tableHtml);
+      } else if (activeTab.startsWith("guides-")) {
+        await loadGuideTab(activeTab);
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+function patchPanelTable(panelSelector, tableHtml) {
+  const panel = document.querySelector(`${panelSelector} .panel-body`);
+  const old = panel?.querySelector(".catalog-table-wrap");
+  if (old) old.outerHTML = tableHtml;
+}
+
+async function toggleInlineExpand(host, key, meta = {}) {
+  if (isInlineExpanded(host, key)) {
+    clearInlineExpand();
+    await refreshInlineExpandHost(host);
+    return;
+  }
+  inlineExpand = { host, key: String(key), kind: meta.kind || null, html: null, loading: true };
+  if (host === INLINE_HOST.CATALOG) catalogDetailKey = String(key);
+  if (host === INLINE_HOST.COMMODITY) guideDetailCommodityId = Number(key);
+  await refreshInlineExpandHost(host);
+
+  try {
+    let html = "";
+    if (host === INLINE_HOST.FLEET) {
+      const slug = meta.subKey || key;
+      const [data, tools] = await Promise.all([
+        window.debrief.combatGetVehicleProfile({ className: slug, slug }),
+        window.debrief.combatGetExternalTools(),
+      ]);
+      html = renderCombatProfilePanel(data, { advancedTools: tools.tools });
+    } else if (host === INLINE_HOST.COMBAT) {
+      const kind = meta.kind || "item";
+      const [data, tools] = await Promise.all([
+        kind === "vehicle"
+          ? window.debrief.combatGetVehicleProfile({ className: key, slug: key })
+          : window.debrief.combatGetItemProfile({ className: key, slug: key }),
+        window.debrief.combatGetExternalTools(),
+      ]);
+      html = renderCombatProfilePanel(data, { advancedTools: tools.tools });
+    } else if (host === INLINE_HOST.CATALOG) {
+      html = await buildCatalogInlineHtml(String(key), meta.kind || "item");
+    } else if (host === INLINE_HOST.COMMODITY) {
+      const detail = await window.debrief.guidesGetCommodityDetail(Number(key));
+      html = renderGuideCommodityDetail(detail);
+    }
+    if (inlineExpand.host === host && String(inlineExpand.key) === String(key)) {
+      inlineExpand.html = html;
+      inlineExpand.loading = false;
+      await refreshInlineExpandHost(host);
+    }
+  } catch (e) {
+    if (inlineExpand.host === host && String(inlineExpand.key) === String(key)) {
+      inlineExpand.html = `<p class="muted">${escapeHtml(e.message || String(e))}</p>`;
+      inlineExpand.loading = false;
+      await refreshInlineExpandHost(host);
+    }
+  }
+}
 
 const STAT_KEYS = [
   { key: "session", label: "Session" },
@@ -411,16 +654,23 @@ function debounce(fn, ms) {
 }
 
 const debouncedCatalogSearch = debounce((tabId) => {
+  clearInlineExpand();
   if (activeTab === tabId) loadCatalogTab(tabId, { resetOffset: true });
 }, 320);
 
 const debouncedGuideSearch = debounce((tabId) => {
+  clearInlineExpand();
   if (activeTab === tabId) loadGuideTab(tabId, { resetOffset: true });
 }, 320);
 
 const debouncedFleetSearch = debounce((tabId) => {
+  clearInlineExpand();
   if (activeTab === tabId) loadFleetCompareTab(tabId, { resetOffset: true });
 }, 320);
+
+const debouncedCraftingPreview = debounce(async () => {
+  await refreshCraftingPreview();
+}, 180);
 
 function fmtTime(iso) {
   try {
@@ -527,6 +777,57 @@ function panelShell(tab, innerHtml) {
   </section>`;
 }
 
+function tabLabel(tabId) {
+  return tabById(tabId)?.label || tabId;
+}
+
+function isFavoriteTab(tabId) {
+  return favoriteTabIds.includes(tabId);
+}
+
+async function loadFavoriteTabs() {
+  try {
+    const fav = await window.debrief.uiGetFavoriteTabs();
+    favoriteTabIds = Array.isArray(fav)
+      ? [...new Set(fav.map((id) => resolveTabId(id)).filter((id) => tabById(id)))]
+      : [];
+  } catch {
+    favoriteTabIds = [];
+  }
+  renderQuickNav();
+}
+
+async function toggleFavoriteTab(tabId) {
+  if (!tabById(tabId)) return;
+  try {
+    favoriteTabIds = await window.debrief.uiToggleFavoriteTab(tabId);
+    favoriteTabIds = favoriteTabIds.filter((id) => tabById(id));
+  } catch {
+    /* ignore */
+  }
+  renderQuickNav();
+  updateTabDescription(activeTab);
+}
+
+function renderQuickNav() {
+  const nav = $("quickNav");
+  if (!nav) return;
+  const favorites = favoriteTabIds.filter((id) => tabById(id));
+  if (!favorites.length) {
+    nav.innerHTML = `<span class="quick-nav-label">Jump to</span><p class="quick-nav-empty muted small">${escapeHtml(QUICK_NAV_EMPTY_HINT)}</p>`;
+    return;
+  }
+  nav.innerHTML = `<span class="quick-nav-label">Jump to</span>${favorites
+    .map(
+      (id) =>
+        `<button type="button" class="quick-nav-chip${id === activeTab ? " is-active" : ""}" data-tab="${escapeAttr(id)}" title="${escapeAttr(tabLabel(id))}"><span class="quick-nav-chip-icon" aria-hidden="true">${TAB_ICONS[id] || "✦"}</span>${escapeHtml(tabLabel(id))}</button>`
+    )
+    .join("")}`;
+  nav.querySelectorAll(".quick-nav-chip").forEach((chip) => {
+    chip.addEventListener("click", () => setActiveTab(chip.dataset.tab));
+  });
+}
+
 function updateTabDescription(tabId) {
   const el = $("tabDescription");
   if (!el) return;
@@ -538,12 +839,32 @@ function updateTabDescription(tabId) {
     return;
   }
   const icon = TAB_ICONS[tabId] || "✦";
+  const favorited = isFavoriteTab(tabId);
+  const intelCat = INTEL_TAB_META[tabId];
+  const intelLabels = {
+    economy: "Economy",
+    production: "Production",
+    combat: "Combat",
+    progress: "Progress",
+    reference: "Reference",
+    news: "News",
+  };
+  const catBadge = intelCat
+    ? `<span class="tab-intel-cat tab-intel-cat-${escapeAttr(intelCat)}">${escapeHtml(intelLabels[intelCat] || intelCat)}</span>`
+    : "";
   el.innerHTML = `<div class="tab-briefing">
     <span class="tab-briefing-icon" aria-hidden="true">${icon}</span>
-    <div>
-      <strong class="tab-briefing-title">${escapeHtml(tab?.label || tabId)}</strong>
+    <div class="tab-briefing-copy">
+      <div class="tab-briefing-head">
+        <strong class="tab-briefing-title">${escapeHtml(tab?.label || tabId)}</strong>
+        ${catBadge}
+      </div>
       <p class="tab-briefing-text">${escapeHtml(text)}</p>
     </div>
+    <button type="button" class="tab-favorite-btn${favorited ? " is-favorited" : ""}" data-favorite-tab="${escapeAttr(tabId)}" aria-pressed="${favorited}" title="${favorited ? "Remove from Jump to" : "Add to Jump to"}">
+      <span class="tab-favorite-icon" aria-hidden="true">${favorited ? "★" : "☆"}</span>
+      <span class="tab-favorite-label">${favorited ? "In Jump to" : "Add to Jump to"}</span>
+    </button>
   </div>`;
   el.hidden = false;
 }
@@ -555,15 +876,7 @@ function updateQuickNavActive(tabId) {
 }
 
 function initQuickNav() {
-  const nav = $("quickNav");
-  if (!nav) return;
-  nav.innerHTML = `<span class="quick-nav-label">Jump to</span>${QUICK_NAV.map(
-    (item) =>
-      `<button type="button" class="quick-nav-chip${item.id === activeTab ? " is-active" : ""}" data-tab="${escapeAttr(item.id)}">${escapeHtml(item.label)}</button>`
-  ).join("")}`;
-  nav.querySelectorAll(".quick-nav-chip").forEach((chip) => {
-    chip.addEventListener("click", () => setActiveTab(chip.dataset.tab));
-  });
+  renderQuickNav();
 }
 
 function emptyPanel(tab) {
@@ -603,7 +916,9 @@ function tabButtonHtml(tab) {
       : tab.group === "guides"
         ? " tab-btn-guides"
         : "";
-  return `<button type="button" class="tab-btn${groupClass} ${selected ? "is-active" : ""}" role="tab" id="tab-${tab.id}" data-tab="${tab.id}" aria-selected="${selected}" aria-controls="panel-${tab.id}"><span class="tab-label">${escapeHtml(tab.label)}</span><span class="tab-count" aria-hidden="true"></span></button>`;
+  const intelCat = INTEL_TAB_META[tab.id];
+  const intelClass = intelCat ? ` tab-btn-intel-${intelCat}` : "";
+  return `<button type="button" class="tab-btn${groupClass}${intelClass} ${selected ? "is-active" : ""}" role="tab" id="tab-${tab.id}" data-tab="${tab.id}" aria-selected="${selected}" aria-controls="panel-${tab.id}"><span class="tab-label">${escapeHtml(tab.label)}</span><span class="tab-count" aria-hidden="true"></span></button>`;
 }
 
 function initTabs() {
@@ -702,7 +1017,24 @@ function updateTabCounts(rollup) {
   });
 }
 
+function resolveTabId(id) {
+  if (id === "guides-mining") {
+    const state = guideQueryByTab["guides-commodities"] || {
+      query: "",
+      offset: 0,
+      sort: "sell",
+      filter: "mining",
+    };
+    state.filter = "mining";
+    if (!state.sort || state.sort === "name") state.sort = "sell";
+    guideQueryByTab["guides-commodities"] = state;
+    return "guides-commodities";
+  }
+  return id;
+}
+
 function setActiveTab(id) {
+  id = resolveTabId(id);
   if (!TABS.some((t) => t.id === id)) return;
   activeTab = id;
   if (id === "history" && !archiveViewSession) {
@@ -713,9 +1045,6 @@ function setActiveTab(id) {
   }
   if (id.startsWith("guides-")) {
     loadGuideTab(id);
-  }
-  if (id === "loadout") {
-    enrichLoadoutCombatPanel();
   }
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     const on = btn.dataset.tab === id;
@@ -1303,41 +1632,183 @@ function buildShopping(rollup) {
   return head + rows;
 }
 
-function buildLoadout(rollup) {
-  if (!rollup?.loadoutSnapshots?.length) return emptyPanel(tabById("loadout"));
-  return rollup.loadoutSnapshots
-    .slice()
-    .reverse()
-    .map((snap) => {
-      const gear = (snap.items || []).filter((i) => i.category !== "cosmetic");
-      const badge =
-        snap.reason === "gear_change"
-          ? "Gear change"
-          : snap.reason === "spawn"
-            ? "Spawn"
-            : "Loadout";
-      const rows = gear
+function loadoutCategoryLabel(category) {
+  const map = {
+    weapon: "Weapons",
+    armor: "Armor",
+    attachment: "Attachments",
+    medical: "Medical",
+    utility: "Utility",
+    item: "Inventory",
+    cosmetic: "Cosmetics",
+  };
+  return map[category] || "Gear";
+}
+
+function loadoutSnapshotKey(snap, index) {
+  return String(snap.at || index);
+}
+
+function findLoadoutSnapshot(key) {
+  const rollup = getViewRollup(lastKnownState);
+  const snaps = (rollup?.loadoutSnapshots || []).slice().reverse();
+  return snaps.find((s, i) => loadoutSnapshotKey(s, i) === key) || null;
+}
+
+function groupLoadoutGear(items) {
+  const order = ["weapon", "armor", "attachment", "medical", "utility", "item"];
+  const groups = new Map();
+  for (const item of items) {
+    const cat = item.category || "item";
+    if (!groups.has(cat)) groups.set(cat, []);
+    groups.get(cat).push(item);
+  }
+  const sorted = [...groups.entries()].sort((a, b) => {
+    const ai = order.indexOf(a[0]);
+    const bi = order.indexOf(b[0]);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+  return sorted;
+}
+
+function renderLoadoutGearList(snap) {
+  const gear = (snap.items || []).filter((i) => i.category !== "cosmetic");
+  if (!gear.length) return `<p class="muted small">No combat gear in this snapshot.</p>`;
+  const groups = groupLoadoutGear(gear);
+  const sections = groups
+    .map(([category, rows]) => {
+      const lis = rows
         .map(
-          (i) =>
-            `<li><strong>${escapeHtml(i.slotLabel || i.port || "Slot")}:</strong> ${escapeHtml(i.label || i.className || "?")}${i.verified ? "" : " <span class=\"muted\">(estimated name)</span>"}</li>`
+          (i) => `<li class="loadout-gear-item">
+            <span class="loadout-gear-slot">${displayText(i.slotLabel || i.port || "Slot")}</span>
+            <span class="loadout-gear-name">${displayText(i.label || i.className || "?")}</span>
+            ${i.verified ? "" : `<span class="muted small loadout-gear-est">estimated</span>`}
+          </li>`
         )
         .join("");
-      const cosmeticN = (snap.items || []).length - gear.length;
-      const foot =
-        cosmeticN > 0
-          ? `<p class="muted" style="margin-top:8px;font-size:0.85rem">${cosmeticN} cosmetic/DNA attachment${cosmeticN === 1 ? "" : "s"} hidden.</p>`
-          : "";
-      return entryCard({
-        time: fmtDateTime(snap.at),
-        badge,
-        badgeClass: "",
-        title: snap.summary || badge,
-        description: rows
-          ? `<ul class="loadout-list">${rows}</ul>${foot}`
-          : "No combat gear in this snapshot.",
-      });
+      return `<section class="loadout-gear-group">
+        <h4 class="loadout-gear-group-title">${escapeHtml(loadoutCategoryLabel(category))}</h4>
+        <ul class="loadout-list">${lis}</ul>
+      </section>`;
     })
     .join("");
+  const cosmeticN = (snap.items || []).length - gear.length;
+  const foot =
+    cosmeticN > 0
+      ? `<p class="muted small loadout-cosmetic-note">${cosmeticN} cosmetic/DNA attachment${cosmeticN === 1 ? "" : "s"} hidden.</p>`
+      : "";
+  return `<div class="loadout-gear-panel">${sections}${foot}</div>`;
+}
+
+function renderLoadoutCombatSummary(items, options = {}) {
+  if (!items?.length) return "";
+  const withStats = items.filter(
+    (row) => row.combat?.headline || row.combat?.profile?.stats?.length
+  );
+  if (!withStats.length) {
+    if (options.hideEmpty) return "";
+    return `<p class="muted small">No wiki combat stats for gear in this snapshot (food, attachments, and misc items are listed above).</p>`;
+  }
+  const cards = withStats
+    .map(
+      (row) => `<article class="combat-loadout-card">
+        <header><h4>${displayText(row.label || row.className)}</h4><span class="combat-kind-badge">${escapeHtml(combatKindLabel(row.combat.kind))}</span></header>
+        <p class="muted small">${displayText(row.slotLabel || row.port || "Gear")}</p>
+        ${row.combat.headline ? `<p class="combat-headline">${escapeHtml(row.combat.headline)}</p>` : ""}
+        ${renderCombatStatGrid(row.combat.profile)}
+      </article>`
+    )
+    .join("");
+  return `<section class="combat-loadout-summary"><h4 class="loadout-detail-sub">Combat stats</h4><div class="combat-loadout-grid">${cards}</div></section>`;
+}
+
+function renderLoadoutSnapshotBody(snap, key) {
+  const gearHtml = renderLoadoutGearList(snap);
+  if (loadoutCombatLoadingKey === key) {
+    return `${gearHtml}<p class="muted small loadout-combat-loading">Loading combat stats…</p>`;
+  }
+  const combatItems = loadoutCombatByKey[key];
+  const combatHtml = combatItems
+    ? renderLoadoutCombatSummary(combatItems, { hideEmpty: true })
+    : "";
+  return `${gearHtml}${combatHtml}`;
+}
+
+function renderLoadoutSnapshot(snap, index) {
+  const key = loadoutSnapshotKey(snap, index);
+  const gear = (snap.items || []).filter((i) => i.category !== "cosmetic");
+  const expanded = loadoutExpandKey === key;
+  const badge =
+    snap.reason === "gear_change"
+      ? "Gear change"
+      : snap.reason === "spawn"
+        ? "Spawn"
+        : "Loadout";
+  const title = snap.summary || `${gear.length} gear item${gear.length === 1 ? "" : "s"}`;
+  return `<article class="loadout-snapshot${expanded ? " is-expanded" : ""}" data-loadout-snap="${escapeAttr(key)}">
+    <button type="button" class="loadout-snap-head" aria-expanded="${expanded}">
+      <span class="expand-chevron" aria-hidden="true">${expanded ? "▾" : "▸"}</span>
+      <time class="loadout-snap-time">${escapeHtml(fmtDateTime(snap.at))}</time>
+      <span class="entry-badge loadout-snap-badge">${escapeHtml(badge)}</span>
+      <span class="loadout-snap-title">${displayText(title)}</span>
+      <span class="muted small loadout-snap-count">${gear.length} item${gear.length === 1 ? "" : "s"}</span>
+    </button>
+    ${expanded ? `<div class="loadout-snap-body">${renderLoadoutSnapshotBody(snap, key)}</div>` : ""}
+  </article>`;
+}
+
+function buildLoadout(rollup) {
+  if (!rollup?.loadoutSnapshots?.length) return emptyPanel(tabById("loadout"));
+  const snaps = rollup.loadoutSnapshots.slice().reverse();
+  if (
+    loadoutExpandKey &&
+    !snaps.some((s, i) => loadoutSnapshotKey(s, i) === loadoutExpandKey)
+  ) {
+    loadoutExpandKey = null;
+  }
+  return `<div class="loadout-snapshots">${snaps.map((snap, i) => renderLoadoutSnapshot(snap, i)).join("")}</div>`;
+}
+
+async function refreshLoadoutPanel() {
+  const rollup = getViewRollup(lastKnownState);
+  setPanelHtml("loadout", buildLoadout(rollup));
+}
+
+async function toggleLoadoutExpand(key) {
+  if (loadoutExpandKey === key) {
+    loadoutExpandKey = null;
+    await refreshLoadoutPanel();
+    return;
+  }
+  const snap = findLoadoutSnapshot(key);
+  if (!snap) return;
+  loadoutExpandKey = key;
+  await refreshLoadoutPanel();
+
+  if (loadoutCombatByKey[key]) return;
+
+  const gear = (snap.items || []).filter((i) => i.category !== "cosmetic");
+  if (!gear.length) return;
+
+  loadoutCombatLoadingKey = key;
+  await refreshLoadoutPanel();
+  try {
+    const result = await window.debrief.combatGetLoadoutSummary(
+      gear.map((i) => ({
+        port: i.port,
+        slotLabel: i.slotLabel,
+        className: i.className,
+        label: i.label,
+        category: i.category,
+      }))
+    );
+    loadoutCombatByKey[key] = result.items || [];
+  } catch {
+    loadoutCombatByKey[key] = [];
+  } finally {
+    loadoutCombatLoadingKey = null;
+    if (loadoutExpandKey === key) await refreshLoadoutPanel();
+  }
 }
 
 async function refreshLogArchiveList() {
@@ -1478,11 +1949,17 @@ function listingSummary(listings) {
   return `${fmtAuec(min)} @ ${sanitizeDisplayText(loc)}${more}`;
 }
 
+function expandableRowClass(host, key) {
+  return `expandable-row${isInlineExpanded(host, key) ? " is-expanded" : ""}`;
+}
+
 function renderCatalogItemRows(rows, tabId) {
   if (!rows.length) return emptyPanel(tabById(tabId));
+  const host = INLINE_HOST.CATALOG;
+  const colspan = 6;
   return `<div class="catalog-table-wrap"><table class="catalog-table">
     <thead><tr>
-      <th>Item</th><th>Type</th><th>Manufacturer</th><th>Best price</th><th>Combat</th><th>Shop / location</th>
+      <th></th><th>Item</th><th>Type</th><th>Manufacturer</th><th>Best price</th><th>Combat</th><th>Shop / location</th>
     </tr></thead>
     <tbody>${rows
       .map((row) => {
@@ -1494,23 +1971,27 @@ function renderCatalogItemRows(rows, tabId) {
         const loc = first
           ? `${first.terminal || ""}${first.location ? `, ${first.location}` : ""}`
           : EMPTY_DISPLAY;
-        return `<tr class="catalog-row" data-catalog-item="${escapeAttr(key)}">
-          <td><button type="button" class="catalog-link" data-catalog-item="${escapeAttr(key)}">${displayText(row.name)}</button>${row.className ? `<div class="muted small mono">${escapeHtml(row.className)}</div>` : ""}</td>
+        const expanded = isInlineExpanded(host, key);
+        return `<tr class="catalog-row ${expandableRowClass(host, key)}" data-catalog-item="${escapeAttr(key)}" data-catalog-kind="item" tabindex="0" role="button" aria-expanded="${expanded}">
+          <td class="expand-chevron-cell"><span class="expand-chevron" aria-hidden="true">${expandChevron(host, key)}</span></td>
+          <td>${displayText(row.name)}${row.className ? `<div class="muted small mono">${escapeHtml(row.className)}</div>` : ""}</td>
           <td>${displayText(row.category || row.section || "")}</td>
           <td>${displayText(row.manufacturer || "")}</td>
           <td>${escapeHtml(fmtAuec(min))}</td>
-          <td class="muted small">Click row for DPS / DR stats</td>
+          <td class="muted small">Expand for DPS / DR</td>
           <td>${displayText(loc)}${listings.length > 1 ? ` <span class="muted small">(+${listings.length - 1})</span>` : ""}</td>
-        </tr>`;
+        </tr>${renderInlineDetailRow(colspan + 1, host, key)}`;
       })
       .join("")}</tbody></table></div>`;
 }
 
 function renderCatalogShipRows(rows) {
   if (!rows.length) return emptyPanel(tabById("catalog-ships"));
-  return `<div class="catalog-table-wrap"><table class="catalog-table">
+  const host = INLINE_HOST.CATALOG;
+  const colspan = 11;
+  return `<div class="catalog-table-wrap"><table class="catalog-table fleet-compare-table">
     <thead><tr>
-      <th>Ship</th><th>Manufacturer</th><th>Cargo</th><th>Crew</th><th>Buy / rent</th><th>Hull / shields</th><th>Location</th>
+      <th></th><th>Ship</th><th>Manufacturer</th><th>Hull</th><th>Shield</th><th>SCM</th><th>Cargo</th><th>Mass</th><th>Crew</th><th>Buy / rent</th><th>Location</th>
     </tr></thead>
     <tbody>${rows
       .map((row) => {
@@ -1526,52 +2007,66 @@ function renderCatalogShipRows(rows) {
         const loc = first
           ? `${first.terminal || ""}${first.location ? `, ${first.location}` : ""}`
           : EMPTY_DISPLAY;
-        return `<tr class="catalog-row" data-catalog-item="${escapeAttr(key)}">
-          <td><button type="button" class="catalog-link" data-catalog-item="${escapeAttr(key)}">${displayText(row.name)}</button><div class="muted small mono">${escapeHtml(row.className || "")}</div></td>
+        const expanded = isInlineExpanded(host, key);
+        return `<tr class="catalog-row ${expandableRowClass(host, key)}" data-catalog-item="${escapeAttr(key)}" data-catalog-kind="vehicle" tabindex="0" role="button" aria-expanded="${expanded}">
+          <td class="expand-chevron-cell"><span class="expand-chevron" aria-hidden="true">${expandChevron(host, key)}</span></td>
+          <td>${displayText(row.name)}<div class="muted small mono">${escapeHtml(row.className || "")}</div></td>
           <td>${displayText(row.manufacturer || "")}</td>
-          <td>${row.cargo != null ? `${row.cargo} SCU` : EMPTY_DISPLAY}</td>
+          <td>${formatFleetCell(row.hullHp)}</td>
+          <td>${formatFleetCell(row.shieldHp)}</td>
+          <td>${formatFleetCell(row.scm)}</td>
+          <td>${row.cargo != null ? `${row.cargo} SCU` : formatFleetCell(row.cargo)}</td>
+          <td>${formatFleetCell(row.mass)}</td>
           <td>${row.crew != null ? String(row.crew) : EMPTY_DISPLAY}</td>
           <td>${escapeHtml(priceBits.join(" / ") || EMPTY_DISPLAY)}</td>
-          <td class="muted small">Hull, fuel, power · SPViewer link in detail</td>
           <td>${displayText(loc)}</td>
-        </tr>`;
+        </tr>${renderInlineDetailRow(colspan, host, key)}`;
       })
       .join("")}</tbody></table></div>`;
 }
 
 function renderCatalogShipServiceRows(rows) {
   if (!rows.length) return emptyPanel(tabById("catalog-ship-services"));
+  const host = INLINE_HOST.CATALOG;
+  const colspan = 4;
   let body = "";
   let lastSystem = null;
   for (const row of rows) {
     if (row.system !== lastSystem) {
       lastSystem = row.system;
-      body += `<tr class="catalog-system-row"><td colspan="3"><span class="catalog-system-label">${displayText(row.system || "Unknown system")}</span></td></tr>`;
+      body += `<tr class="catalog-system-row"><td colspan="${colspan}"><span class="catalog-system-label">${displayText(row.system || "Unknown system")}</span></td></tr>`;
     }
-    body += `<tr class="catalog-row" data-catalog-place="${escapeAttr(row.key)}">
-      <td><button type="button" class="catalog-link" data-catalog-place="${escapeAttr(row.key)}">${displayText(row.name)}</button></td>
+    const key = row.key;
+    const expanded = isInlineExpanded(host, key);
+    body += `<tr class="catalog-row ${expandableRowClass(host, key)}" data-catalog-place="${escapeAttr(key)}" data-catalog-kind="place" tabindex="0" role="button" aria-expanded="${expanded}">
+      <td class="expand-chevron-cell"><span class="expand-chevron" aria-hidden="true">${expandChevron(host, key)}</span></td>
+      <td>${displayText(row.name)}</td>
       <td class="muted small">${displayText(row.location || "")}</td>
       <td>${displayText(row.kind || "")}</td>
-    </tr>`;
+    </tr>${renderInlineDetailRow(colspan, host, key)}`;
   }
   return `<div class="catalog-table-wrap"><table class="catalog-table catalog-ship-services-table">
-    <thead><tr><th>Place</th><th>Location</th><th>Type</th></tr></thead>
+    <thead><tr><th></th><th>Place</th><th>Location</th><th>Type</th></tr></thead>
     <tbody>${body}</tbody></table></div>`;
 }
 
 function renderCatalogShopRows(rows) {
   if (!rows.length) return emptyPanel(tabById("catalog-shops"));
+  const host = INLINE_HOST.CATALOG;
+  const colspan = 5;
   return `<div class="catalog-table-wrap"><table class="catalog-table">
-    <thead><tr><th>Shop</th><th>Location</th><th>System</th><th>Items listed</th></tr></thead>
+    <thead><tr><th></th><th>Shop</th><th>Location</th><th>System</th><th>Items listed</th></tr></thead>
     <tbody>${rows
       .map((row) => {
         const key = String(row.terminalId || row.terminal);
-        return `<tr class="catalog-row" data-catalog-shop="${escapeAttr(key)}">
-          <td><button type="button" class="catalog-link" data-catalog-shop="${escapeAttr(key)}">${displayText(row.terminal || row.terminalCode || "Shop")}</button></td>
+        const expanded = isInlineExpanded(host, key);
+        return `<tr class="catalog-row ${expandableRowClass(host, key)}" data-catalog-shop="${escapeAttr(key)}" data-catalog-kind="shop" tabindex="0" role="button" aria-expanded="${expanded}">
+          <td class="expand-chevron-cell"><span class="expand-chevron" aria-hidden="true">${expandChevron(host, key)}</span></td>
+          <td>${displayText(row.terminal || row.terminalCode || "Shop")}</td>
           <td>${displayText(row.location || "")}</td>
           <td>${displayText(row.system || "")}</td>
           <td>${row.items?.length || 0}</td>
-        </tr>`;
+        </tr>${renderInlineDetailRow(colspan, host, key)}`;
       })
       .join("")}</tbody></table></div>`;
 }
@@ -1600,10 +2095,9 @@ function renderPlaceDetail(detail) {
       </tr>`
     )
     .join("");
-  return `<article class="catalog-detail">
+  return `<article class="catalog-detail inline-detail-inner">
     <header class="catalog-detail-head">
       <h3>${displayText(detail.name)}</h3>
-      <button type="button" class="link" data-catalog-detail-close>Close</button>
     </header>
     <p class="muted small">${displayText(detail.system || "")} · ${displayText(detail.location || "")}</p>
     <p class="muted small">Ship services pad and shop terminals at this location.</p>
@@ -1612,6 +2106,11 @@ function renderPlaceDetail(detail) {
       <tbody>${terminals || `<tr><td colspan="2" class="muted">No terminals listed</td></tr>`}</tbody>
     </table></div>
   </article>`;
+}
+
+function renderCatalogShipListingsIntro(detail) {
+  if (!detail?.listings?.length) return "";
+  return `<h4 class="guide-detail-sub">Where to buy or rent</h4>`;
 }
 
 function renderCatalogDetail(detail, kind) {
@@ -1649,11 +2148,11 @@ function renderCatalogDetail(detail, kind) {
       ? "<th>Item</th><th>Type</th><th>Buy</th><th>Sell</th>"
       : "<th>Shop</th><th>Location</th><th>System</th><th>Buy</th><th>Sell</th><th>Rent</th>";
 
-  return `<article class="catalog-detail">
+  return `<article class="catalog-detail inline-detail-inner">
     <header class="catalog-detail-head">
       <h3>${displayText(title)}</h3>
-      <button type="button" class="link" data-catalog-detail-close>Close</button>
     </header>
+    ${detail.section === "Ships" ? renderCatalogShipListingsIntro(detail) : ""}
     ${detail.className ? `<p class="muted small mono">${escapeHtml(detail.className)}</p>` : ""}
     ${detail.manufacturer ? `<p class="muted small">${displayText(detail.manufacturer)}</p>` : ""}
     <div class="catalog-table-wrap"><table class="catalog-table"><thead><tr>${head}</tr></thead><tbody>${rows || `<tr><td colspan="6" class="muted">No listings</td></tr>`}</tbody></table></div>
@@ -1727,15 +2226,15 @@ function renderAdvancedToolsFooter(links, tools) {
   const toolBtns = (tools || [])
     .map(
       (t) =>
-        `<button type="button" class="btn btn-sm btn-ghost combat-tool-link" data-guide-external="${escapeAttr(t.url)}">${escapeHtml(t.name)}</button>`
+        `<button type="button" class="btn btn-sm btn-ghost combat-tool-link" data-guide-external="${escapeAttr(t.url)}" title="${escapeAttr(t.description || "")}">${escapeHtml(t.name)}</button>`
     )
     .join("");
   if (!inline && !toolBtns) return "";
   return `<details class="combat-advanced-tools">
-    <summary class="muted small">Advanced external tools</summary>
+    <summary class="muted small">More community tools</summary>
     ${inline}
     ${toolBtns ? `<div class="combat-advanced-tools-grid">${toolBtns}</div>` : ""}
-    <p class="muted small">Optional: heat sims, cutaways, and community charts not built into StarTracker.</p>
+    <p class="muted small"><button type="button" class="link guide-tab-link" data-tab="guides-external-tools">Open full Tools hub</button> for overlays, loot tables, and hangar sync.</p>
   </details>`;
 }
 
@@ -1769,31 +2268,9 @@ function renderCombatProfilePanel(data, options = {}) {
   </section>`;
 }
 
-function renderLoadoutCombatSummary(items) {
-  if (!items?.length) return "";
-  const cards = items
-    .map((row) => {
-      if (!row.combat?.headline && !row.combat?.profile?.stats?.length) {
-        return `<article class="combat-loadout-card">
-          <h4>${displayText(row.label || row.className)}</h4>
-          <p class="muted small">${displayText(row.slotLabel || row.port || "Gear")} · stats not found</p>
-        </article>`;
-      }
-      return `<article class="combat-loadout-card">
-        <header><h4>${displayText(row.label || row.className)}</h4><span class="combat-kind-badge">${escapeHtml(combatKindLabel(row.combat.kind))}</span></header>
-        <p class="muted small">${displayText(row.slotLabel || row.port || "Gear")}</p>
-        ${row.combat.headline ? `<p class="combat-headline">${escapeHtml(row.combat.headline)}</p>` : ""}
-        ${renderCombatStatGrid(row.combat.profile)}
-      </article>`;
-    })
-    .join("");
-  return `<section class="combat-loadout-summary"><h3 class="guide-section-title">Combat breakdown</h3><div class="combat-loadout-grid">${cards}</div></section>`;
-}
-
 function renderCombatHubPanel(toolsData, searchHtml) {
-  const intro = `<div class="hub-intro">
-    <strong>Your combat command center.</strong> Look up weapons, armor, and ship stats without leaving the app.
-    Fleet rankings and loadout planning live here too. Need heat sims or cutaways? Expand Advanced tools at the bottom.
+  const intro = `<div class="hub-intro hub-intro-accent">
+    <strong>Combat command center.</strong> Search weapons, armor, and ships. Fleet rankings and loadout planning are one click away. Heat sims and cutaways stay in the Tools hub.
   </div>`;
   const inApp = `<section class="guide-section">
     <h2 class="guide-section-title">Start here</h2>
@@ -1810,29 +2287,39 @@ function renderCombatHubPanel(toolsData, searchHtml) {
       </button>
     </div>
   </section>`;
-  const advanced = renderAdvancedToolsFooter([], toolsData?.tools || []);
-  return `${intro}${inApp}
+  const quickTools = (toolsData?.tools || [])
+    .slice(0, 4)
+    .map(
+      (t) =>
+        `<button type="button" class="btn btn-sm btn-ghost" data-guide-external="${escapeAttr(t.url)}">${escapeHtml(t.name)}</button>`
+    )
+    .join("");
+  const toolsStrip = quickTools
+    ? `<section class="guide-section"><h2 class="guide-section-title">External sims</h2><div class="combat-advanced-tools-grid">${quickTools}</div><p class="muted small"><button type="button" class="link guide-tab-link" data-tab="guides-external-tools">Tools hub</button> lists every community site and what StarTracker replaces in-app.</p></section>`
+    : "";
+  return `${intro}${inApp}${toolsStrip}
     <section class="guide-section"><h2 class="guide-section-title">Search any item or ship</h2>${searchHtml}</section>
-    <section class="guide-section"><div id="combatSearchResults"></div></section>
-    ${advanced}`;
+    <section class="guide-section"><div id="combatSearchResults"></div></section>`;
 }
 
 function renderCombatSearchResults(rows) {
   if (!rows?.length) return `<p class="muted">No matches. Try a weapon, armor, or ship name.</p>`;
+  const host = INLINE_HOST.COMBAT;
+  const colspan = 3;
   return `<div class="catalog-table-wrap"><table class="catalog-table">
-    <thead><tr><th>Name</th><th>Type</th><th></th></tr></thead>
+    <thead><tr><th></th><th>Name</th><th>Type</th></tr></thead>
     <tbody>${rows
       .map((r) => {
         const key = r.className || r.slug;
         const kind = r.resourceType === "vehicle" ? "vehicle" : "item";
-        return `<tr>
+        const expanded = isInlineExpanded(host, key);
+        return `<tr class="${expandableRowClass(host, key)}" data-combat-key="${escapeAttr(key)}" data-combat-kind="${escapeAttr(kind)}" tabindex="0" role="button" aria-expanded="${expanded}">
+          <td class="expand-chevron-cell"><span class="expand-chevron" aria-hidden="true">${expandChevron(host, key)}</span></td>
           <td>${displayText(r.name)}</td>
           <td class="muted small">${escapeHtml(kind)}</td>
-          <td><button type="button" class="link combat-search-open" data-combat-kind="${escapeAttr(kind)}" data-combat-key="${escapeAttr(key)}">View stats</button></td>
-        </tr>`;
+        </tr>${renderInlineDetailRow(colspan, host, key)}`;
       })
-      .join("")}</tbody></table></div>
-    <div id="combatSearchDetail"></div>`;
+      .join("")}</tbody></table></div>`;
 }
 
 function formatFleetCell(n) {
@@ -1853,6 +2340,7 @@ function fleetMetaLine(meta) {
 function fleetCompareToolbar(tabId) {
   const state = guideQueryByTab[tabId] || { query: "", sort: "hull", offset: 0 };
   const sorts = [
+    ["manufacturer", "Manufacturer A–Z"],
     ["hull", "Hull HP"],
     ["shield", "Shield HP"],
     ["scm", "SCM speed"],
@@ -1877,9 +2365,14 @@ function fleetCompareToolbar(tabId) {
 
 function renderFleetCompareRows(rows) {
   if (!rows?.length) return `<p class="muted">No ships match this filter.</p>`;
+  const host = INLINE_HOST.FLEET;
+  const colspan = 8;
   const body = rows
-    .map(
-      (r) => `<tr>
+    .map((r) => {
+      const key = r.className || r.slug;
+      const expanded = isInlineExpanded(host, key);
+      return `<tr class="${expandableRowClass(host, key)}" data-fleet-key="${escapeAttr(key)}" data-fleet-slug="${escapeAttr(r.slug)}" tabindex="0" role="button" aria-expanded="${expanded}">
+        <td class="expand-chevron-cell"><span class="expand-chevron" aria-hidden="true">${expandChevron(host, key)}</span></td>
         <td>${displayText(r.name)}</td>
         <td class="muted small">${displayText(r.manufacturer || r.size || "—")}</td>
         <td>${formatFleetCell(r.hullHp)}</td>
@@ -1887,83 +2380,209 @@ function renderFleetCompareRows(rows) {
         <td>${formatFleetCell(r.scm)}</td>
         <td>${formatFleetCell(r.cargo)}</td>
         <td>${formatFleetCell(r.mass)}</td>
-        <td><button type="button" class="link fleet-row-open" data-fleet-slug="${escapeAttr(r.slug)}" data-fleet-key="${escapeAttr(r.className || r.slug)}">Stats</button></td>
-      </tr>`
-    )
+      </tr>${renderInlineDetailRow(colspan, host, key)}`;
+    })
     .join("");
   return `<div class="catalog-table-wrap"><table class="catalog-table fleet-compare-table">
-    <thead><tr><th>Ship</th><th>Mfg / size</th><th>Hull</th><th>Shield</th><th>SCM</th><th>Cargo</th><th>Mass</th><th></th></tr></thead>
+    <thead><tr><th></th><th>Ship</th><th>Mfg / size</th><th>Hull</th><th>Shield</th><th>SCM</th><th>Cargo</th><th>Mass</th></tr></thead>
     <tbody>${body}</tbody>
-  </table></div>
-  <div id="fleetCompareDetail"></div>`;
+  </table></div>`;
 }
 
-function renderLoadoutBuilderShell() {
+function renderLoadoutSlotSelect(portId, componentType, sizeMax, assigned, stockClassName, stockName, slotOptions) {
+  const key = `${componentType}:${sizeMax}`;
+  const opts = slotOptions?.[key]?.rows || [];
+  const current = assigned || stockClassName || "";
+  const optionsHtml = opts
+    .map((o) => {
+      const selected = current && (current === o.className || current === o.slug);
+      const dpsLabel = o.dps != null ? ` · ${formatFleetCell(o.dps)} DPS` : o.headline ? ` · ${o.headline}` : "";
+      return `<option value="${escapeAttr(o.className || o.slug)}"${selected ? " selected" : ""}>${displayText(o.name)}${dpsLabel}</option>`;
+    })
+    .join("");
+  const stockLabel = stockName ? `Stock: ${stockName}` : "Stock loadout";
+  return `<select class="loadout-slot-select guide-sort-select" data-loadout-port="${escapeAttr(portId)}" data-loadout-slot-type="${escapeAttr(componentType)}" aria-label="Select ${escapeAttr(componentType)} for ${escapeAttr(portId)}">
+    <option value="${escapeAttr(stockClassName || "")}"${!current || current === stockClassName ? " selected" : ""}>${displayText(stockLabel)}</option>
+    ${optionsHtml}
+  </select>`;
+}
+
+const LOADOUT_QUICK_SHIPS = [
+  { slug: "gladius", label: "Gladius" },
+  { slug: "cutlass-black", label: "Cutlass Black" },
+  { slug: "hurricane", label: "Hurricane" },
+  { slug: "prospector", label: "Prospector" },
+  { slug: "caterpillar", label: "Caterpillar" },
+  { slug: "c2-hercules", label: "C2 Hercules" },
+];
+
+function loadoutDeltaHtml(current, baseline, label) {
+  if (current == null || baseline == null || current === baseline) return "";
+  const delta = Math.round((current - baseline) * 10) / 10;
+  const sign = delta > 0 ? "+" : "";
+  const cls = delta > 0 ? " loadout-delta-up" : delta < 0 ? " loadout-delta-down" : "";
+  return `<span class="loadout-delta${cls}">${sign}${delta} ${label}</span>`;
+}
+
+function renderLoadoutSummaryStrip(totals, baseline) {
+  const guns = totals?.weaponCount ?? 0;
+  return `<div class="loadout-summary-strip">
+    <div class="loadout-summary-card">
+      <span class="loadout-summary-label">Combined DPS</span>
+      <span class="loadout-summary-value">${formatFleetCell(totals?.totalDps)}${loadoutDeltaHtml(totals?.totalDps, baseline?.totalDps, "DPS")}</span>
+    </div>
+    <div class="loadout-summary-card">
+      <span class="loadout-summary-label">Alpha strike</span>
+      <span class="loadout-summary-value">${formatFleetCell(totals?.totalAlpha)}${loadoutDeltaHtml(totals?.totalAlpha, baseline?.totalAlpha, "alpha")}</span>
+    </div>
+    <div class="loadout-summary-card">
+      <span class="loadout-summary-label">Guns</span>
+      <span class="loadout-summary-value">${guns}</span>
+    </div>
+  </div>`;
+}
+
+async function renderLoadoutBuilderShell() {
   const slug = loadoutBuilderState.shipSlug || "";
+  const filter = (loadoutBuilderState.shipFilter || "").trim().toLowerCase();
+  let shipOptions = `<option value="">Choose a ship…</option>`;
+  try {
+    const fleet = await window.debrief.fleetCompareQuery({ sort: "manufacturer", limit: 250 });
+    if (fleet.ok && fleet.rows?.length) {
+      let lastMfg = null;
+      for (const r of fleet.rows) {
+        const hay = `${r.name || ""} ${r.manufacturer || ""} ${r.slug || ""}`.toLowerCase();
+        if (filter && !hay.includes(filter)) continue;
+        const mfg = r.manufacturer || "Other";
+        if (mfg !== lastMfg) {
+          if (lastMfg != null) shipOptions += `</optgroup>`;
+          shipOptions += `<optgroup label="${escapeAttr(mfg)}">`;
+          lastMfg = mfg;
+        }
+        shipOptions += `<option value="${escapeAttr(r.slug)}"${r.slug === slug ? " selected" : ""}>${displayText(r.name)}</option>`;
+      }
+      if (lastMfg != null) shipOptions += `</optgroup>`;
+    }
+  } catch {
+    /* fleet index optional */
+  }
+  const quickChips = LOADOUT_QUICK_SHIPS.map(
+    (s) =>
+      `<button type="button" class="loadout-quick-ship btn btn-sm btn-ghost" data-loadout-quick-ship="${escapeAttr(s.slug)}">${escapeHtml(s.label)}</button>`
+  ).join("");
+  const hasShip = Boolean(slug);
   return `<div class="hub-intro">
-    <strong>Plan your loadout in minutes.</strong> Pick a ship, review its stock hardpoints from the wiki,
-    then swap guns and see combined DPS. This is a simplified builder, not a full heat or power simulator.
+    <strong>Build and compare in four steps.</strong> Pick a hull, swap weapons, tune components, then read hull stats. Changes update DPS instantly.
   </div>
-  <section class="guide-section">
+  <div class="loadout-steps" aria-hidden="true">
+    <span class="loadout-step is-active">1. Ship</span>
+    <span class="loadout-step${hasShip ? " is-active" : ""}">2. Weapons</span>
+    <span class="loadout-step${hasShip ? " is-active" : ""}">3. Components</span>
+    <span class="loadout-step${hasShip ? " is-active" : ""}">4. Stats</span>
+  </div>
+  <section class="guide-section loadout-ship-pick">
+    <h2 class="guide-section-title">1. Choose your hull</h2>
+    <div class="loadout-quick-ships">${quickChips}</div>
     <div class="catalog-toolbar">
-      <input type="search" id="loadoutShipInput" class="catalog-search" placeholder="Ship wiki slug (e.g. gladius, cutlass-black)" value="${escapeAttr(slug)}" />
+      <input type="search" id="loadoutShipFilter" class="catalog-search" placeholder="Filter ships…" value="${escapeAttr(loadoutBuilderState.shipFilter || "")}" />
+      <select id="loadoutShipSelect" class="guide-sort-select loadout-ship-select">${shipOptions}</select>
       <button type="button" class="btn btn-sm" id="loadoutLoadShipBtn">Load ship</button>
     </div>
+    <p class="muted small">Quick picks above, or filter the full fleet list. Only items that fit each hardpoint size appear in slot dropdowns.</p>
   </section>
-  <div id="loadoutBuilderBody"><p class="muted small">Enter a ship slug above and tap Load ship to begin.</p></div>`;
+  <div id="loadoutBuilderBody">${hasShip ? `<p class="muted small">Loading ${escapeHtml(slug)}…</p>` : `<p class="muted small">Select a ship and tap Load ship to begin.</p>`}</div>`;
 }
 
 function renderLoadoutBuilderBody(blueprint, summary) {
   if (!blueprint?.ok) {
     return `<p class="muted">${escapeHtml(blueprint?.error || "Could not load ship.")}</p>`;
   }
+  const slotOptions = blueprint.slotOptions || {};
   const weapons = summary?.weapons || blueprint.stockSummary?.weapons || [];
   const totals = summary || blueprint.stockSummary;
-  const rows = weapons
+  const baseline = loadoutBuilderState.stockBaseline;
+  const stockByPort = Object.fromEntries(
+    (blueprint.stockSummary?.weapons || []).map((w) => [w.portId, w])
+  );
+  const weaponRows = weapons
     .map((w) => {
       const assigned =
         loadoutBuilderState.slotAssignments[w.portId] || w.className || w.stockClassName || "";
+      const stockDps = stockByPort[w.portId]?.dps;
+      const dpsDelta =
+        w.dps != null && stockDps != null && w.dps !== stockDps
+          ? loadoutDeltaHtml(w.dps, stockDps, "")
+          : "";
       return `<tr>
         <td>${displayText(w.label)}</td>
         <td>S${displayText(w.sizeMax ?? "—")}</td>
-        <td>${displayText(w.name || assigned || "Empty")}</td>
-        <td>${formatFleetCell(w.dps)}</td>
-        <td>
-          <input type="search" class="loadout-slot-input catalog-search" data-loadout-port="${escapeAttr(w.portId)}" placeholder="Weapon slug or class" value="${escapeAttr(assigned)}" />
-          <button type="button" class="btn btn-sm btn-ghost loadout-slot-search" data-loadout-port="${escapeAttr(w.portId)}" data-loadout-size="${escapeAttr(w.sizeMax ?? "")}">Find</button>
-          <div class="loadout-slot-results" data-loadout-results="${escapeAttr(w.portId)}"></div>
-        </td>
+        <td>${formatFleetCell(w.dps)}${dpsDelta ? `<div class="muted small">stock ${formatFleetCell(stockDps)}</div>` : ""}</td>
+        <td>${renderLoadoutSlotSelect(w.portId, "WeaponGun", w.sizeMax, assigned, w.stockClassName || w.className, w.name || w.stockName, slotOptions)}</td>
       </tr>`;
     })
     .join("");
-  const components = (blueprint.stockComponents || [])
-    .slice(0, 12)
-    .map((c) => `<li class="muted small">${displayText(c.type)} · ${displayText(c.name)}${c.size ? ` (S${c.size})` : ""}</li>`)
+
+  const componentRows = (blueprint.componentSlots || [])
+    .map((c) => {
+      const assigned =
+        loadoutBuilderState.slotAssignments[c.portId] || c.stockClassName || "";
+      return `<tr>
+        <td>${displayText(c.label)}</td>
+        <td>${displayText(c.componentType)}</td>
+        <td>S${displayText(c.sizeMax ?? "—")}</td>
+        <td>${renderLoadoutSlotSelect(c.portId, c.componentType, c.sizeMax, assigned, c.stockClassName, c.stockName, slotOptions)}</td>
+      </tr>`;
+    })
     .join("");
+
+  const stockComponents = (blueprint.stockComponents || [])
+    .map(
+      (c) =>
+        `<span class="loadout-stock-chip">${displayText(c.type)} S${displayText(c.size ?? "—")} ×${c.quantity ?? 1}</span>`
+    )
+    .join("");
+
   return `<section class="guide-card loadout-builder-panel">
     <header class="combat-profile-head">
-      <h3>${displayText(blueprint.ship?.name)}</h3>
-      <button type="button" class="btn btn-sm" id="loadoutRecalcBtn">Recalculate</button>
+      <h3>${displayText(blueprint.ship?.manufacturer ? `${blueprint.ship.manufacturer} ${blueprint.ship.name}` : blueprint.ship?.name)}</h3>
+      <button type="button" class="btn btn-sm btn-ghost" id="loadoutResetStockBtn">Reset to stock</button>
     </header>
-    <p class="combat-headline">Combined DPS: ${formatFleetCell(totals?.totalDps)} · Alpha burst: ${formatFleetCell(totals?.totalAlpha)} · ${totals?.weaponCount ?? weapons.length} guns</p>
+    ${renderLoadoutSummaryStrip(totals, baseline)}
     <p class="muted small">${displayText(totals?.note || blueprint.limitations || "")}</p>
-    <div class="catalog-table-wrap"><table class="catalog-table">
-      <thead><tr><th>Hardpoint</th><th>Size</th><th>Weapon</th><th>DPS</th><th>Swap</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>
-    ${components ? `<h4 class="guide-section-title">Stock components</h4><ul class="guide-list">${components}</ul>` : ""}
-    <div id="loadoutHullProfile"></div>
+    ${stockComponents ? `<p class="loadout-stock-row muted small">Stock components: ${stockComponents}</p>` : ""}
+    <details class="loadout-builder-section" open>
+      <summary><h4 class="guide-section-title">2. Weapons</h4></summary>
+      <div class="catalog-table-wrap"><table class="catalog-table">
+        <thead><tr><th>Hardpoint</th><th>Size</th><th>DPS</th><th>Equip</th></tr></thead>
+        <tbody>${weaponRows || `<tr><td colspan="4" class="muted">No weapon hardpoints found.</td></tr>`}</tbody>
+      </table></div>
+    </details>
+    ${
+      componentRows
+        ? `<details class="loadout-builder-section" open>
+      <summary><h4 class="guide-section-title">3. Components</h4></summary>
+      <div class="catalog-table-wrap"><table class="catalog-table">
+        <thead><tr><th>Slot</th><th>Type</th><th>Size</th><th>Equip</th></tr></thead>
+        <tbody>${componentRows}</tbody>
+      </table></div>
+    </details>`
+        : ""
+    }
+    <details class="loadout-builder-section">
+      <summary><h4 class="guide-section-title">4. Hull performance</h4></summary>
+      <div id="loadoutHullProfile"></div>
+    </details>
   </section>`;
 }
 
 async function loadFleetCompareTab(tabId, options = {}) {
-  const state = guideQueryByTab[tabId] || { query: "", offset: 0, sort: "hull" };
+  const state = guideQueryByTab[tabId] || { query: "", offset: 0, sort: "manufacturer" };
   if (options.resetOffset) state.offset = 0;
   guideQueryByTab[tabId] = state;
 
   setPanelHtml(
     tabId,
-    `<div class="hub-intro"><strong>Compare the whole fleet.</strong> Sort ships by hull, shields, SCM, cargo, mass, and IR signature. Click Stats on any row for the full performance breakdown.</div>${fleetMetaLine(fleetCompareMeta)}${fleetCompareToolbar(tabId)}<p class="muted small">Loading fleet index…</p>`
+    `<div class="hub-intro"><strong>Compare the whole fleet.</strong> Sort ships by hull, shields, SCM, cargo, mass, and IR signature. Click any row for the full performance breakdown. Click again to collapse.</div>${fleetMetaLine(fleetCompareMeta)}${fleetCompareToolbar(tabId)}<p class="muted small">Loading fleet index…</p>`
   );
 
   try {
@@ -1976,9 +2595,10 @@ async function loadFleetCompareTab(tabId, options = {}) {
     });
     if (!result.ok) throw new Error(result.error || "fleet compare failed");
     fleetCompareMeta = result.meta;
+    fleetCompareLastRows = result.rows;
     setPanelHtml(
       tabId,
-      `<div class="hub-intro"><strong>Compare the whole fleet.</strong> Sort ships by hull, shields, SCM, cargo, mass, and IR signature. Click Stats on any row for the full performance breakdown.</div>${fleetMetaLine(result.meta)}${fleetCompareToolbar(tabId)}${renderFleetCompareRows(result.rows)}`
+      `<div class="hub-intro"><strong>Compare the whole fleet.</strong> Sort ships by hull, shields, SCM, cargo, mass, and IR signature. Click any row for the full performance breakdown. Click again to collapse.</div>${fleetMetaLine(result.meta)}${fleetCompareToolbar(tabId)}${renderFleetCompareRows(result.rows)}`
     );
   } catch (e) {
     setPanelHtml(
@@ -1989,7 +2609,8 @@ async function loadFleetCompareTab(tabId, options = {}) {
 }
 
 async function loadLoadoutBuilderTab(tabId) {
-  setPanelHtml(tabId, renderLoadoutBuilderShell());
+  setPanelHtml(tabId, `<p class="muted small">Loading ship list…</p>`);
+  setPanelHtml(tabId, await renderLoadoutBuilderShell());
   if (!loadoutBuilderState.shipSlug) return;
 
   const body = document.getElementById("loadoutBuilderBody");
@@ -2002,6 +2623,12 @@ async function loadLoadoutBuilderTab(tabId) {
       shipSlug: loadoutBuilderState.shipSlug,
       slotAssignments: loadoutBuilderState.slotAssignments,
     });
+    if (!loadoutBuilderState.stockBaseline && sim.summary) {
+      loadoutBuilderState.stockBaseline = {
+        totalDps: sim.summary.totalDps,
+        totalAlpha: sim.summary.totalAlpha,
+      };
+    }
     body.innerHTML = renderLoadoutBuilderBody(blueprint, sim.summary);
     if (sim.hullProfile) {
       document.getElementById("loadoutHullProfile")?.insertAdjacentHTML(
@@ -2014,68 +2641,43 @@ async function loadLoadoutBuilderTab(tabId) {
   }
 }
 
-async function enrichLoadoutCombatPanel() {
-  const panel = document.querySelector("#panel-loadout .panel-body");
-  if (!panel || loadoutCombatBusy) return;
-  const rollup = getViewRollup(lastKnownState);
-  const snap = rollup?.loadoutSnapshots?.[rollup.loadoutSnapshots.length - 1];
-  if (!snap?.items?.length) return;
-
-  loadoutCombatBusy = true;
-  panel.querySelector(".combat-loadout-summary")?.remove();
-  panel.insertAdjacentHTML(
-    "beforeend",
-    `<section class="combat-loadout-summary"><p class="muted small">Loading combat stats for your gear…</p></section>`
-  );
-  try {
-    const gear = snap.items.filter((i) => i.category !== "cosmetic");
-    const result = await window.debrief.combatGetLoadoutSummary(
-      gear.map((i) => ({
-        port: i.port,
-        slotLabel: i.slotLabel,
-        className: i.className,
-        label: i.label,
-        category: i.category,
-      }))
-    );
-    panel.querySelector(".combat-loadout-summary")?.remove();
-    panel.insertAdjacentHTML("beforeend", renderLoadoutCombatSummary(result.items));
-  } catch (e) {
-    panel.querySelector(".combat-loadout-summary")?.remove();
-    panel.insertAdjacentHTML(
-      "beforeend",
-      `<p class="muted small">Could not load combat stats: ${escapeHtml(e.message || String(e))}</p>`
-    );
-  } finally {
-    loadoutCombatBusy = false;
-  }
+function gatherLoadoutAssignments() {
+  const assignments = { ...loadoutBuilderState.slotAssignments };
+  document.querySelectorAll(".loadout-slot-select").forEach((sel) => {
+    const port = sel.dataset.loadoutPort;
+    const val = sel.value.trim();
+    if (port && val) assignments[port] = val;
+  });
+  return assignments;
 }
 
-async function attachCombatProfileToDetail(detail, kind) {
-  const panel = document.querySelector(`#panel-${activeTab} .panel-body`);
-  if (!panel || !detail) return;
-  const key = detail.className || detail.slug || catalogDetailKey;
-  if (!key) return;
-
-  panel.querySelector(".combat-profile-panel")?.remove();
-  panel.insertAdjacentHTML(
-    "beforeend",
-    `<section class="combat-profile-panel guide-card"><p class="muted small">Loading combat stats…</p></section>`
-  );
-
-  const isVehicle = activeTab === "catalog-ships" || kind === "vehicle";
+async function applyLoadoutAssignments() {
+  loadoutBuilderState.slotAssignments = gatherLoadoutAssignments();
+  const body = document.getElementById("loadoutBuilderBody");
+  if (!body || !loadoutBuilderState.shipSlug) return;
   try {
-    const data = isVehicle
-      ? await window.debrief.combatGetVehicleProfile({ className: key, slug: detail.slug || key })
-      : await window.debrief.combatGetItemProfile({ className: key, slug: detail.slug || key });
-    panel.querySelector(".combat-profile-panel")?.remove();
-    panel.insertAdjacentHTML("beforeend", renderCombatProfilePanel(data));
+    const blueprint = loadoutBuilderBlueprint?.ok
+      ? loadoutBuilderBlueprint
+      : await window.debrief.loadoutGetBlueprint(loadoutBuilderState.shipSlug);
+    const sim = await window.debrief.loadoutSimulate({
+      shipSlug: loadoutBuilderState.shipSlug,
+      slotAssignments: loadoutBuilderState.slotAssignments,
+    });
+    if (!loadoutBuilderState.stockBaseline && sim.summary) {
+      loadoutBuilderState.stockBaseline = {
+        totalDps: sim.summary.totalDps,
+        totalAlpha: sim.summary.totalAlpha,
+      };
+    }
+    body.innerHTML = renderLoadoutBuilderBody(blueprint, sim.summary);
+    if (sim.hullProfile) {
+      document.getElementById("loadoutHullProfile")?.insertAdjacentHTML(
+        "beforeend",
+        renderCombatPerformanceSections(sim.hullProfile)
+      );
+    }
   } catch (e) {
-    panel.querySelector(".combat-profile-panel")?.remove();
-    panel.insertAdjacentHTML(
-      "beforeend",
-      renderCombatProfilePanel({ ok: false, error: e.message || String(e) })
-    );
+    body.innerHTML = `<p class="muted">Loadout error: ${escapeHtml(e.message || String(e))}</p>`;
   }
 }
 
@@ -2092,6 +2694,7 @@ async function loadCatalogTab(tabId, options = {}) {
 
   try {
     let result;
+    let tableHtml;
     if (tabId === "catalog-ships") {
       result = await window.debrief.catalogQueryVehicles({
         query: state.query,
@@ -2099,9 +2702,11 @@ async function loadCatalogTab(tabId, options = {}) {
         limit: 60,
         withListingsOnly: true,
       });
+      tableHtml = renderCatalogShipRows(result.rows);
+      catalogLastPayload = { tabId, html: tableHtml };
       setPanelHtml(
         tabId,
-        `${catalogMetaLine()}${catalogToolbar(tabId)}${renderCatalogShipRows(result.rows)}${renderCatalogPager(tabId, result)}${catalogDetailKey ? "" : ""}`
+        `${catalogMetaLine()}${catalogToolbar(tabId)}${tableHtml}${renderCatalogPager(tabId, result)}`
       );
     } else if (tabId === "catalog-shops") {
       result = await window.debrief.catalogQueryShops({
@@ -2109,9 +2714,11 @@ async function loadCatalogTab(tabId, options = {}) {
         offset: state.offset,
         limit: 50,
       });
+      tableHtml = renderCatalogShopRows(result.rows);
+      catalogLastPayload = { tabId, html: tableHtml };
       setPanelHtml(
         tabId,
-        `${catalogMetaLine()}${catalogToolbar(tabId)}${renderCatalogShopRows(result.rows)}${renderCatalogPager(tabId, result)}`
+        `${catalogMetaLine()}${catalogToolbar(tabId)}${tableHtml}${renderCatalogPager(tabId, result)}`
       );
     } else if (tabId === "catalog-ship-services") {
       result = await window.debrief.catalogQueryPlaces({
@@ -2119,9 +2726,11 @@ async function loadCatalogTab(tabId, options = {}) {
         offset: state.offset,
         limit: 80,
       });
+      tableHtml = renderCatalogShipServiceRows(result.rows);
+      catalogLastPayload = { tabId, html: tableHtml };
       setPanelHtml(
         tabId,
-        `${catalogMetaLine()}${catalogToolbar(tabId)}${renderCatalogShipServiceRows(result.rows)}${renderCatalogPager(tabId, result)}`
+        `${catalogMetaLine()}${catalogToolbar(tabId)}${tableHtml}${renderCatalogPager(tabId, result)}`
       );
     } else {
       result = await window.debrief.catalogQueryItems({
@@ -2131,19 +2740,12 @@ async function loadCatalogTab(tabId, options = {}) {
         section: state.section,
         withListingsOnly: true,
       });
+      tableHtml = renderCatalogItemRows(result.rows, tabId);
+      catalogLastPayload = { tabId, html: tableHtml };
       setPanelHtml(
         tabId,
-        `${catalogMetaLine()}${catalogToolbar(tabId)}${renderCatalogItemRows(result.rows, tabId)}${renderCatalogPager(tabId, result)}`
+        `${catalogMetaLine()}${catalogToolbar(tabId)}${tableHtml}${renderCatalogPager(tabId, result)}`
       );
-    }
-    if (catalogDetailKey) {
-      const kind =
-        tabId === "catalog-shops"
-          ? "shop"
-          : tabId === "catalog-ship-services"
-            ? "place"
-            : "item";
-      await showCatalogDetail(catalogDetailKey, kind);
     }
   } catch (e) {
     setPanelHtml(
@@ -2151,22 +2753,6 @@ async function loadCatalogTab(tabId, options = {}) {
       `${catalogMetaLine()}${catalogToolbar(tabId)}<p class="muted">Catalog error: ${escapeHtml(e.message || String(e))}</p>`
     );
   }
-}
-
-async function showCatalogDetail(key, kind) {
-  catalogDetailKey = key;
-  const panel = document.querySelector(`#panel-${activeTab} .panel-body`);
-  if (!panel) return;
-  const detail =
-    kind === "shop"
-      ? await window.debrief.catalogShopDetail(key)
-      : kind === "place"
-        ? await window.debrief.catalogPlaceDetail(key)
-        : await window.debrief.catalogItemDetail(key);
-  const existing = panel.querySelector(".catalog-detail");
-  if (existing) existing.remove();
-  panel.insertAdjacentHTML("beforeend", renderCatalogDetail(detail, kind));
-  await attachCombatProfileToDetail(detail, kind);
 }
 
 function fmtScuPrice(n) {
@@ -2187,10 +2773,35 @@ function guidesMetaLine(meta) {
   return `<p class="guides-meta muted small">${base}${staleNote} Per SCU at trading terminals.</p>`;
 }
 
+function renderMarketFilterChips(state) {
+  const filters = [
+    { id: "trade", label: "Trade" },
+    { id: "mining", label: "Mining" },
+    { id: "illegal", label: "Illegal" },
+    { id: "all", label: "All" },
+  ];
+  const active = state.filter || "trade";
+  return `<div class="filter-chip-row" role="group" aria-label="Market filter">${filters
+    .map(
+      (f) =>
+        `<button type="button" class="filter-chip${active === f.id ? " is-active" : ""}" data-market-filter="${escapeAttr(f.id)}">${escapeHtml(f.label)}</button>`
+    )
+    .join("")}</div>`;
+}
+
 function guidesCommodityToolbar(tabId) {
-  const state = guideQueryByTab[tabId] || { query: "", sort: "name" };
+  const state = guideQueryByTab[tabId] || { query: "", sort: "name", filter: "trade" };
   const busy = guideCommodityRefreshBusy ? " disabled" : "";
-  return `<div class="catalog-toolbar">
+  const filterHint =
+    state.filter === "mining"
+      ? "Extractable and harvestable materials for mining loops."
+      : state.filter === "illegal"
+        ? "Illegal goods for smuggling. Pair with Smuggler routes for locations."
+        : state.filter === "all"
+          ? "All commodities with UEX prices."
+          : "Legal trade goods with buy and sell spread.";
+  return `${renderMarketFilterChips(state)}
+  <div class="catalog-toolbar catalog-toolbar-sticky">
     <input type="search" class="catalog-search" data-guide-search="${escapeAttr(tabId)}" placeholder="Search name, code, kind…" value="${escapeAttr(state.query || "")}" />
     <button type="button" class="btn btn-sm btn-ghost" data-guide-search-btn="${escapeAttr(tabId)}">Search</button>
     <select class="guide-sort-select" data-guide-sort="${escapeAttr(tabId)}" aria-label="Sort commodities">
@@ -2200,31 +2811,36 @@ function guidesCommodityToolbar(tabId) {
       <option value="buy"${state.sort === "buy" ? " selected" : ""}>Sort: buy</option>
     </select>
     <button type="button" class="btn btn-sm" data-guide-refresh${busy}>Refresh prices</button>
+    <button type="button" class="btn btn-sm btn-ghost guide-tab-link" data-tab="guides-trade-routes">Profit calculator</button>
   </div>
-  <p class="muted small">Refresh with catalog sync or the Refresh prices button above.</p>`;
+  <p class="muted small">${escapeHtml(filterHint)}</p>`;
 }
 
 function renderGuideCommodityRows(rows, tabId) {
   if (!rows?.length) {
     return tabId ? emptyPanel(tabById(tabId)) : `<p class="muted">No commodities match your search.</p>`;
   }
+  const host = INLINE_HOST.COMMODITY;
+  const colspan = 7;
   const body = rows
     .map((row) => {
       const spreadClass =
         row.spread != null && row.spread > 0 ? " commodity-spread-positive" : "";
       const illegal = row.isIllegal ? "Yes" : EMPTY_DISPLAY;
-      return `<tr class="guide-commodity-row" data-guide-commodity="${row.id}">
-        <td><button type="button" class="catalog-link" data-guide-commodity="${row.id}">${displayText(row.name)}</button><div class="muted small mono">${escapeHtml(row.code || "")}</div></td>
+      const expanded = isInlineExpanded(host, row.id);
+      return `<tr class="guide-commodity-row ${expandableRowClass(host, row.id)}" data-guide-commodity="${row.id}" tabindex="0" role="button" aria-expanded="${expanded}">
+        <td class="expand-chevron-cell"><span class="expand-chevron" aria-hidden="true">${expandChevron(host, row.id)}</span></td>
+        <td>${displayText(row.name)}<div class="muted small mono">${escapeHtml(row.code || "")}</div></td>
         <td>${displayText(row.kind)}</td>
         <td>${escapeHtml(fmtScuPrice(row.priceBuy))}</td>
         <td>${escapeHtml(fmtScuPrice(row.priceSell))}</td>
         <td class="${spreadClass.trim()}">${row.spread != null && row.spread > 0 ? escapeHtml(fmtScuPrice(row.spread)) : EMPTY_DISPLAY}</td>
         <td>${escapeHtml(illegal)}</td>
-      </tr>`;
+      </tr>${renderInlineDetailRow(colspan, host, row.id)}`;
     })
     .join("");
   return `<div class="catalog-table-wrap"><table class="catalog-table">
-    <thead><tr><th>Name</th><th>Kind</th><th>Buy (aUEC/SCU)</th><th>Sell (aUEC/SCU)</th><th>Spread</th><th>Illegal</th></tr></thead>
+    <thead><tr><th></th><th>Name</th><th>Kind</th><th>Buy (aUEC/SCU)</th><th>Sell (aUEC/SCU)</th><th>Spread</th><th>Illegal</th></tr></thead>
     <tbody>${body}</tbody>
   </table></div>`;
 }
@@ -2272,10 +2888,9 @@ function renderGuideCommodityDetail(detail) {
     ? `<p class="muted small">Best sell: <strong>${escapeHtml(fmtScuPrice(detail.bestSell.priceSell))}</strong> at ${displayText(detail.bestSell.terminal || detail.bestSell.location)}</p>`
     : "";
 
-  return `<article class="catalog-detail guide-detail">
+  return `<article class="catalog-detail guide-detail inline-detail-inner">
     <header class="catalog-detail-head">
       <h3>${displayText(c.name)}</h3>
-      <button type="button" class="link" data-guide-detail-close>Close</button>
     </header>
     <p class="muted small">${displayText(c.kind)} · ${escapeHtml(c.code || "")}${c.isIllegal ? " · Illegal" : ""}</p>
     ${bestBuy}${bestSell}
@@ -2287,67 +2902,478 @@ function renderGuideCommodityDetail(detail) {
 }
 
 function buildPatchNotesPanel(data) {
+  const remoteCards = (data.remote || [])
+    .map((link) => {
+      const url = link.rsiUrl || "";
+      const version = link.version ? `Alpha ${link.version}` : "";
+      const openBtn = url
+        ? `<button type="button" class="btn btn-sm patch-read-rsi" data-guide-external="${escapeAttr(url)}">Read full patch notes on RSI</button>`
+        : "";
+      return `<article class="patch-note-card guide-card patch-note-game">
+        <header>
+          <h3>${displayText(link.title)}</h3>
+          <span class="patch-version-badge">${escapeHtml(version || link.channel || "RSI")}</span>
+        </header>
+        <p class="muted small">${escapeHtml(link.dateHuman || link.date || "")}${link.channel ? ` · ${escapeHtml(link.channel)}` : ""}</p>
+        <p class="patch-note-lead">Official game patch from Roberts Space Industries. Open on RSI for the full notes, balance changes, and known issues.</p>
+        ${openBtn}
+      </article>`;
+    })
+    .join("");
+
   const localCards = (data.local || [])
     .map((note) => {
       const stNotes = (note.startrackerNotes || [])
         .map((n) => `<li>${displayText(n)}</li>`)
         .join("");
-      const plNotes = (note.playerNotes || [])
-        .map((n) => `<li>${displayText(n)}</li>`)
-        .join("");
-      const rsi = note.rsiUrl
-        ? `<p><button type="button" class="link" data-guide-external="${escapeAttr(note.rsiUrl)}">Read on RSI</button></p>`
-        : "";
-      return `<article class="patch-note-card guide-card">
-        <header><h3>${displayText(note.title || note.version)}</h3><span class="muted small">${escapeHtml(note.date || note.version || "")}</span></header>
-        ${stNotes ? `<h4 class="guide-detail-sub">StarTracker</h4><ul class="guide-list">${stNotes}</ul>` : ""}
-        ${plNotes ? `<h4 class="guide-detail-sub">For players</h4><ul class="guide-list">${plNotes}</ul>` : ""}
-        ${rsi}
-      </article>`;
-    })
-    .join("");
-
-  const remoteCards = (data.remote || [])
-    .map((link) => {
-      const url = link.rsiUrl || "";
-      const titleBtn = url
-        ? `<button type="button" class="catalog-link" data-guide-external="${escapeAttr(url)}">${displayText(link.title)}</button>`
-        : displayText(link.title);
-      return `<article class="patch-note-card guide-card guide-card-remote">
-        <header><h3>${titleBtn}</h3><span class="muted small">${escapeHtml(link.dateHuman || link.channel || "")}</span></header>
-        ${link.series ? `<p class="muted small">${displayText(link.series)}</p>` : ""}
+      return `<article class="patch-note-card guide-card patch-note-app">
+        <header><h3>${displayText(note.title || `StarTracker ${note.version || ""}`)}</h3><span class="muted small">${escapeHtml(note.date || "")}</span></header>
+        ${stNotes ? `<ul class="guide-list">${stNotes}</ul>` : ""}
       </article>`;
     })
     .join("");
 
   const meta = data.meta?.fetchedAt
-    ? `<p class="guides-meta muted small">Wiki comm-links cached ${escapeHtml(fmtDateTime(data.meta.fetchedAt))}.</p>`
+    ? `<p class="guides-meta muted small">Game patches from RSI comm-links · cached ${escapeHtml(fmtDateTime(data.meta.fetchedAt))}</p>`
     : "";
 
-  return `${meta}${localCards || ""}${remoteCards ? `<h3 class="guide-section-title">Recent from RSI / Wiki</h3>${remoteCards}` : ""}${!localCards && !remoteCards ? `<p class="muted">No patch notes available.</p>` : ""}`;
+  const appSection = localCards
+    ? `<details class="patch-app-notes"><summary>StarTracker app release notes (not game patches)</summary>${localCards}</details>`
+    : "";
+
+  if (!remoteCards && !localCards) {
+    return `${meta}<p class="muted">No patch notes available. Check back after RSI publishes the next comm-link.</p>`;
+  }
+
+  return `${meta}
+    <section class="guide-section"><h2 class="guide-section-title">Star Citizen game patches</h2>${remoteCards || `<p class="muted">No Alpha patch comm-links in cache. Use Refresh below or open RSI directly.</p>`}</section>
+    ${appSection}
+    <p class="guides-meta muted small"><button type="button" class="link" data-guide-external="https://robertsspaceindustries.com/en/comm-link">Browse all RSI comm-links</button></p>`;
+}
+
+function buildRefineryPanel(data, calcResult) {
+  const state = guideQueryByTab["guides-refinery"] || {};
+  const oreOptions = (data.oreCatalog || [])
+    .map((o) => {
+      const volatile = o.volatile ? " · volatile" : "";
+      const priceHint =
+        o.refined?.priceSell > 0
+          ? ` · ${fmtScuPrice(o.refined.priceSell)} sell`
+          : "";
+      return `<option value="${escapeAttr(o.id)}"${state.oreId === o.id ? " selected" : ""}>${displayText(o.label)}${priceHint}${volatile}</option>`;
+    })
+    .join("");
+  const selectedOre = (data.oreCatalog || []).find((o) => o.id === state.oreId);
+  const yieldVal =
+    state.yieldPercent != null ? state.yieldPercent : selectedOre?.defaultYieldPercent ?? data.defaultYieldPercent ?? 80;
+  const feeVal = state.feePercent ?? data.defaultStationFeePercent ?? 5;
+  const result = calcResult?.ok ? calcResult.result : null;
+  const worthClass = result?.worthRefining ? " refinery-profit-positive" : result ? " refinery-profit-negative" : "";
+  const resultHtml = result
+    ? `<div class="refinery-result-grid${worthClass}">
+        <div class="refinery-result-card"><span class="refinery-result-label">Refined SCU out</span><strong>${formatFleetCell(result.refinedScu)}</strong></div>
+        <div class="refinery-result-card"><span class="refinery-result-label">Raw sell total</span><strong>${fmtAuec(result.grossRaw)}</strong></div>
+        <div class="refinery-result-card"><span class="refinery-result-label">Refined sell (gross)</span><strong>${fmtAuec(result.grossRefined)}</strong></div>
+        <div class="refinery-result-card"><span class="refinery-result-label">Refinery fee</span><strong>${fmtAuec(result.refineryFee)}</strong></div>
+        <div class="refinery-result-card refinery-result-highlight"><span class="refinery-result-label">Net vs selling raw</span><strong>${fmtAuec(result.profitVsRaw)}</strong><span class="muted small">${fmtAuec(result.profitPerOreScu)} per ore SCU</span></div>
+      </div>
+      <p class="muted small refinery-verdict">${result.worthRefining ? "Refining looks profitable at these UEX sell prices." : "Selling raw may beat refining at these prices. Adjust yield or check terminals."}</p>`
+    : `<p class="muted small">Pick an ore and SCU amount to run the calculator.</p>`;
+
+  const stations = (data.stations || [])
+    .map(
+      (s) => `<tr>
+        <td>${displayText(s.name)}</td>
+        <td>${displayText(s.system || "")}</td>
+        <td>${displayText(s.body || "")}</td>
+        <td class="muted small">${displayText(s.notes || "")}</td>
+      </tr>`
+    )
+    .join("");
+  const tips = (data.loopTips || [])
+    .map((t) => `<li>${displayText(t)}</li>`)
+    .join("");
+  const meta = data.meta?.fetchedAt
+    ? `<p class="guides-meta muted small">Prices from UEX · cached ${escapeHtml(fmtDateTime(data.meta.fetchedAt))}${data.meta.stale ? " (stale)" : ""}</p>`
+    : "";
+  const disclaimer = data.disclaimer
+    ? `<p class="guides-meta muted small">${displayText(data.disclaimer)}</p>`
+    : "";
+
+  return `${meta}${disclaimer}
+    <div class="hub-intro"><strong>Refine or sell?</strong> Compare raw ore value against refined output using community yield estimates and live sell prices.</div>
+    <section class="guide-section refinery-calc-section">
+      <h2 class="guide-section-title">Refinery calculator</h2>
+      <div class="refinery-calc-form catalog-toolbar">
+        <label class="refinery-field"><span>Ore type</span>
+          <select id="refineryOreSelect" class="guide-sort-select">${oreOptions}</select>
+        </label>
+        <label class="refinery-field"><span>Ore SCU</span>
+          <input type="number" id="refineryOreScu" class="catalog-search refinery-num-input" min="0" step="1" value="${escapeAttr(String(state.oreScu ?? 100))}" />
+        </label>
+        <label class="refinery-field"><span>Yield %</span>
+          <input type="number" id="refineryYield" class="catalog-search refinery-num-input" min="1" max="100" step="1" value="${escapeAttr(String(yieldVal))}" />
+        </label>
+        <label class="refinery-field"><span>Station fee %</span>
+          <input type="number" id="refineryFee" class="catalog-search refinery-num-input" min="0" max="50" step="0.5" value="${escapeAttr(String(feeVal))}" />
+        </label>
+        <button type="button" class="btn btn-sm" id="refineryCalcBtn">Recalculate</button>
+      </div>
+      ${calcResult?.prices?.rawName ? `<p class="muted small">Raw: ${displayText(calcResult.prices.rawName)} (${fmtScuPrice(calcResult.prices.rawSellPerScu)}) · Refined: ${displayText(calcResult.prices.refinedName || "—")} (${fmtScuPrice(calcResult.prices.refinedSellPerScu)})</p>` : ""}
+      ${selectedOre?.notes ? `<p class="muted small refinery-ore-note">${displayText(selectedOre.notes)}</p>` : ""}
+      ${resultHtml}
+    </section>
+    <section class="guide-section">
+      <h2 class="guide-section-title">Refinery stations</h2>
+      <div class="catalog-table-wrap"><table class="catalog-table">
+        <thead><tr><th>Station</th><th>System</th><th>Body</th><th>Notes</th></tr></thead>
+        <tbody>${stations || `<tr><td colspan="4" class="muted">No stations listed.</td></tr>`}</tbody>
+      </table></div>
+    </section>
+    <section class="guide-section">
+      <h2 class="guide-section-title">Mining loop tips</h2>
+      <ul class="guide-list">${tips}</ul>
+      <p class="muted small"><button type="button" class="link guide-tab-link" data-tab="guides-commodities">Market prices</button> · <button type="button" class="link guide-tab-link" data-tab="guides-loops">Game loops</button></p>
+    </section>`;
+}
+
+async function loadRefineryTab(tabId) {
+  setPanelHtml(tabId, `<p class="muted small">Loading refinery data…</p>`);
+  try {
+    const data = await window.debrief.guidesGetRefinery();
+    const state = guideQueryByTab[tabId] || {};
+    const calc = await window.debrief.guidesCalculateRefinery({
+      oreId: state.oreId,
+      oreScu: state.oreScu,
+      yieldPercent: state.yieldPercent,
+      stationFeePercent: state.feePercent,
+    });
+    setPanelHtml(tabId, buildRefineryPanel(data, calc));
+  } catch (e) {
+    setPanelHtml(tabId, `<p class="muted">Refinery error: ${escapeHtml(e.message || String(e))}</p>`);
+  }
+}
+
+function renderCraftingSearchRows(rows, selectedId) {
+  if (!rows?.length) {
+    return `<p class="muted small">No blueprints matched. Try a ship weapon, armor piece, or component name.</p>`;
+  }
+  return `<div class="catalog-table-wrap"><table class="catalog-table crafting-search-table">
+    <thead><tr><th></th><th>Output</th><th>Type</th><th>Craft time</th><th>Materials</th><th>Missions</th></tr></thead>
+    <tbody>${rows
+      .map((row) => {
+        const id = row.slug || row.uuid || row.id;
+        const selected = id === selectedId;
+        return `<tr class="crafting-blueprint-row expandable-row${selected ? " is-selected" : ""}" data-crafting-blueprint="${escapeAttr(id)}">
+          <td class="expand-chevron" aria-hidden="true">${selected ? "▾" : "▸"}</td>
+          <td>${displayText(row.outputName)}</td>
+          <td class="muted small">${displayText(row.outputTypeLabel || "—")}</td>
+          <td>${displayText(row.craftTimeLabel || "—")}</td>
+          <td>${formatFleetCell(row.ingredientCount)}</td>
+          <td>${formatFleetCell(row.missionCount)}</td>
+        </tr>`;
+      })
+      .join("")}</tbody></table></div>`;
+}
+
+function buildCraftingMaterialsSection(detail, state) {
+  const inputs = detail?.inputs || [];
+  if (!inputs.length) {
+    return `<p class="muted small">No material requirements listed for this blueprint.</p>`;
+  }
+  const qualities = state.qualities || {};
+  const rows = inputs
+    .map((input) => {
+      const q = qualities[input.inputKey] ?? input.defaultQuality ?? 500;
+      const modLabels = (input.modifiers || [])
+        .map((m) => displayText(m.label || m.property_key))
+        .join(", ");
+      return `<tr>
+        <td>
+          <strong>${displayText(input.name)}</strong>
+          <div class="muted small">${displayText(input.groupName)}${modLabels ? ` · affects ${modLabels}` : ""}</div>
+        </td>
+        <td>${input.quantityScu != null ? `${formatFleetCell(input.quantityScu)} SCU` : "—"}</td>
+        <td class="crafting-quality-cell">
+          <div class="crafting-quality-control">
+            <input type="range" class="crafting-quality-slider" min="0" max="1000" step="1"
+              data-crafting-input="${escapeAttr(input.inputKey)}" value="${escapeAttr(String(q))}" />
+            <output class="crafting-quality-value">${escapeHtml(String(q))}</output>
+          </div>
+          <div class="muted small">Min ${input.minQuality ?? 0}</div>
+        </td>
+      </tr>`;
+    })
+    .join("");
+  return `<div class="catalog-table-wrap"><table class="catalog-table crafting-materials-table">
+    <thead><tr><th>Material</th><th>Amount</th><th>Quality (0–1000)</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+function buildCraftingStatsSection(preview) {
+  const stats = preview?.stats || [];
+  if (!stats.length) {
+    return `<p class="muted small">No quality-driven stats listed. Output may still craft at base wiki values.</p>`;
+  }
+  const rows = stats
+    .map((stat) => {
+      const deltaClass = stat.deltaGood ? "crafting-stat-boost" : stat.delta ? "crafting-stat-drop" : "";
+      const deltaCell = stat.deltaFormatted
+        ? `<span class="${deltaClass}">${escapeHtml(stat.deltaFormatted)}</span>`
+        : `<span class="muted">—</span>`;
+      const via = stat.inputName
+        ? `<div class="muted small">via ${displayText(stat.inputName)} @ Q${stat.quality}</div>`
+        : "";
+      return `<tr>
+        <td>${displayText(stat.label)}${via}</td>
+        <td>${escapeHtml(stat.baselineFormatted || "—")}</td>
+        <td><strong>${escapeHtml(stat.projectedFormatted || "—")}</strong></td>
+        <td>${deltaCell}</td>
+      </tr>`;
+    })
+    .join("");
+  return `<div class="catalog-table-wrap"><table class="catalog-table crafting-stats-table">
+    <thead><tr><th>Stat</th><th>Baseline (Q500)</th><th>Your preview</th><th>Delta</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+function buildCraftingMissionsSection(detail) {
+  const missions = detail?.blueprint?.unlockingMissions || [];
+  if (!missions.length) {
+    return `<p class="muted small">No mission unlock sources listed. This schematic may be default or vendor-only.</p>`;
+  }
+  const rows = missions
+    .slice(0, 40)
+    .map((m) => {
+      const title =
+        m.title && !m.title.includes("UNINITIALIZED") ? m.title : m.debug_name || m.title || "Unknown mission";
+      const chance =
+        m.chance != null && m.chance < 1
+          ? `${Math.round(m.chance * 100)}%`
+          : "Guaranteed";
+      const link = m.web_url
+        ? `<button type="button" class="link" data-guide-external="${escapeAttr(m.web_url)}">Wiki</button>`
+        : "";
+      return `<tr>
+        <td>${displayText(title)}</td>
+        <td>${displayText(m.reward_scope || "—")}</td>
+        <td>${escapeHtml(chance)}</td>
+        <td>${link}</td>
+      </tr>`;
+    })
+    .join("");
+  const more =
+    missions.length > 40
+      ? `<p class="muted small">Showing 40 of ${missions.length} mission sources.</p>`
+      : "";
+  return `${more}<div class="catalog-table-wrap"><table class="catalog-table crafting-missions-table">
+    <thead><tr><th>Mission</th><th>Type</th><th>Drop chance</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+function buildCraftingPanel(searchData, detail, previewOverride) {
+  const state = guideQueryByTab["guides-crafting"] || {};
+  const query = state.query || "";
+  const selectedId = state.blueprintId || null;
+  const preview = previewOverride || detail?.preview || null;
+  const meta = detail?.meta?.fetchedAt
+    ? `<p class="guides-meta muted small">Blueprint data from star-citizen.wiki · cached ${escapeHtml(fmtDateTime(detail.meta.fetchedAt))}${detail.meta.gameVersion ? ` · ${escapeHtml(detail.meta.gameVersion)}` : ""}</p>`
+    : searchData?.meta?.fetchedAt
+      ? `<p class="guides-meta muted small">Search from star-citizen.wiki · ${escapeHtml(fmtDateTime(searchData.meta.fetchedAt))}</p>`
+      : "";
+  const disclaimer = detail?.disclaimer
+    ? `<p class="guides-meta muted small">${displayText(detail.disclaimer)}</p>`
+    : "";
+
+  const searchBlock = `<section class="guide-section crafting-search-section">
+    <h2 class="guide-section-title">Find a blueprint</h2>
+    <div class="catalog-toolbar">
+      <input type="search" id="craftingSearchInput" class="catalog-search" data-crafting-search="guides-crafting"
+        placeholder="Search blueprints: ADP Core, Omnisky, ship part…" value="${escapeAttr(query)}" />
+      <button type="button" class="btn btn-sm" id="craftingSearchBtn">Search</button>
+    </div>
+    <div id="craftingSearchResults">${renderCraftingSearchRows(craftingSearchLastRows || searchData?.rows || [], selectedId)}</div>
+  </section>`;
+
+  if (!detail?.ok) {
+    return `${meta}${disclaimer}
+      <div class="hub-intro"><strong>Crafting workshop</strong> Pick a blueprint to see mission sources, material amounts, quality sliders, and projected stat changes.</div>
+      ${searchBlock}
+      <p class="muted small">Select a row above or search, then click a blueprint to load the workshop.</p>
+      <p class="muted small"><button type="button" class="link guide-tab-link" data-tab="blueprints">Session blueprint unlocks</button> · <button type="button" class="link guide-tab-link" data-tab="guides-loops">Game loops</button></p>`;
+  }
+
+  const bp = detail.blueprint;
+  const output = detail.outputItem;
+  const ingredientList = (bp.ingredients || [])
+    .map((i) => `${displayText(i.name)}${i.quantity_scu != null ? ` (${formatFleetCell(i.quantity_scu)} SCU)` : ""}`)
+    .join(", ");
+  const outputMeta = [
+    output?.typeLabel,
+    output?.subType,
+    output?.grade ? `Grade ${output.grade}` : null,
+    bp.craftTimeLabel,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const baseStatsList = (output?.descriptionData || [])
+    .map((row) => `<li><strong>${displayText(row.name)}:</strong> ${displayText(row.value)}</li>`)
+    .join("");
+
+  return `${meta}${disclaimer}
+    <div class="hub-intro"><strong>${displayText(bp.outputName || "Blueprint")}</strong>${outputMeta ? `<span class="muted"> · ${escapeHtml(outputMeta)}</span>` : ""}</div>
+    ${searchBlock}
+    <section class="guide-section">
+      <h2 class="guide-section-title">Recipe overview</h2>
+      <p class="muted small">${ingredientList || "No flat ingredient list."}${bp.isAvailableByDefault ? " · Available by default" : " · Mission or loot unlock"}</p>
+      ${baseStatsList ? `<h3 class="guide-detail-sub">Wiki base output stats</h3><ul class="guide-list">${baseStatsList}</ul>` : ""}
+      ${bp.webUrl ? `<p class="muted small"><button type="button" class="link" data-guide-external="${escapeAttr(bp.webUrl)}">Open blueprint on wiki</button>${bp.outputItemWebUrl ? ` · <button type="button" class="link" data-guide-external="${escapeAttr(bp.outputItemWebUrl)}">Output item</button>` : ""}</p>` : ""}
+    </section>
+    <section class="guide-section">
+      <h2 class="guide-section-title">Materials and quality</h2>
+      <p class="muted small">Slide each material quality (0–1000). Baseline column uses Q500 when that value is in range.</p>
+      ${buildCraftingMaterialsSection(detail, state)}
+    </section>
+    <section class="guide-section">
+      <h2 class="guide-section-title">Projected stats</h2>
+      <div id="craftingStatsPreview">${buildCraftingStatsSection(preview)}</div>
+    </section>
+    <section class="guide-section">
+      <h2 class="guide-section-title">Unlock missions</h2>
+      ${buildCraftingMissionsSection(detail)}
+      <p class="muted small"><button type="button" class="link guide-tab-link" data-tab="missions">Session missions</button> · <button type="button" class="link guide-tab-link" data-tab="blueprints">Blueprint unlocks</button> · <button type="button" class="link" data-market-jump="mining">Market: mining</button></p>
+    </section>`;
+}
+
+async function loadCraftingTab(tabId, options = {}) {
+  const state = guideQueryByTab[tabId] || {};
+  if (!options.keepHtml) {
+    setPanelHtml(tabId, `<p class="muted small">Loading crafting workshop…</p>`);
+  }
+  try {
+    let searchData = await window.debrief.craftingSearchBlueprints({
+      query: state.query || "",
+      page: state.page || 1,
+      perPage: 25,
+    });
+    craftingSearchLastRows = searchData.rows || [];
+
+    let detail = null;
+    if (state.blueprintId) {
+      detail = await window.debrief.craftingGetBlueprint(state.blueprintId);
+      if (detail?.ok) {
+        craftingDetailCache = detail;
+        if (!state.qualities || !Object.keys(state.qualities).length) {
+          state.qualities = { ...(detail.preview?.qualities || {}) };
+          guideQueryByTab[tabId] = state;
+        } else {
+          const calc = await window.debrief.craftingCalculatePreview({
+            blueprintId: state.blueprintId,
+            qualities: state.qualities,
+          });
+          if (calc?.ok) detail.preview = calc.preview;
+        }
+      }
+    }
+
+    setPanelHtml(tabId, buildCraftingPanel(searchData, detail));
+  } catch (e) {
+    setPanelHtml(tabId, `<p class="muted">Crafting error: ${escapeHtml(e.message || String(e))}</p>`);
+  }
+}
+
+async function refreshCraftingPreview() {
+  if (activeTab !== "guides-crafting") return;
+  const state = guideQueryByTab["guides-crafting"] || {};
+  if (!state.blueprintId) return;
+
+  document.querySelectorAll(".crafting-quality-slider").forEach((slider) => {
+    const key = slider.dataset.craftingInput;
+    if (!key) return;
+    state.qualities[key] = Number(slider.value) || 0;
+    const out = slider.parentElement?.querySelector(".crafting-quality-value");
+    if (out) out.textContent = slider.value;
+  });
+  guideQueryByTab["guides-crafting"] = state;
+
+  const statsEl = $("craftingStatsPreview");
+  if (statsEl) statsEl.innerHTML = `<p class="muted small">Updating preview…</p>`;
+
+  try {
+    const calc = await window.debrief.craftingCalculatePreview({
+      blueprintId: state.blueprintId,
+      qualities: state.qualities,
+    });
+    if (statsEl && calc?.ok) {
+      statsEl.innerHTML = buildCraftingStatsSection(calc.preview);
+    }
+  } catch {
+    if (statsEl) statsEl.innerHTML = `<p class="muted">Preview update failed.</p>`;
+  }
+}
+
+async function selectCraftingBlueprint(blueprintId) {
+  const state = guideQueryByTab["guides-crafting"] || {};
+  state.blueprintId = blueprintId;
+  state.qualities = {};
+  guideQueryByTab["guides-crafting"] = state;
+  await loadCraftingTab("guides-crafting");
+}
+
+async function refreshRefineryCalculator() {
+  if (activeTab !== "guides-refinery") return;
+  const state = guideQueryByTab["guides-refinery"] || {};
+  const oreSelect = $("refineryOreSelect");
+  const oreScu = $("refineryOreScu");
+  const yieldInput = $("refineryYield");
+  const feeInput = $("refineryFee");
+  if (oreSelect) state.oreId = oreSelect.value;
+  if (oreScu) state.oreScu = Number(oreScu.value) || 0;
+  if (yieldInput) state.yieldPercent = Number(yieldInput.value) || null;
+  if (feeInput) state.feePercent = Number(feeInput.value) || 0;
+  guideQueryByTab["guides-refinery"] = state;
+  await loadRefineryTab("guides-refinery");
 }
 
 function buildSmugglerRoutesPanel(data) {
   const routes = data.routes || [];
   if (!routes.length) return `<p class="muted">No smuggler routes loaded.</p>`;
+  const disclaimer = data.disclaimer
+    ? `<p class="guides-meta muted small">${displayText(data.disclaimer)}</p>`
+    : "";
+  const intro = `<div class="hub-intro hub-intro-accent"><strong>Curated smuggling loops.</strong> Location notes and risk levels live here. Prices and spreads come from Market prices (Illegal filter) and Trade routes.</div>`;
   const cards = routes
     .map((route) => {
-      const hints = (route.commodityHints || []).map((h) => displayText(h)).join(", ");
+      const topCommodity = route.commodities?.[0];
+      const topLine = topCommodity
+        ? `<p class="muted small">Top UEX spread: <strong>${displayText(topCommodity.name)}</strong> · ${formatFleetCell(topCommodity.spread)} aUEC/SCU</p>`
+        : route.topSpread != null
+          ? `<p class="combat-headline">Best spread: ${formatFleetCell(route.topSpread)} aUEC per SCU</p>`
+          : "";
+      const moreCommodities =
+        route.commodities?.length > 1
+          ? `<p class="muted small">+ ${route.commodities.length - 1} more illegal commodities on UEX</p>`
+          : "";
       const buys = (route.buyLocations || []).map((l) => `<li>${displayText(l)}</li>`).join("");
       const sells = (route.sellLocations || []).map((l) => `<li>${displayText(l)}</li>`).join("");
       return `<article class="guide-route-card guide-card">
         <header><h3>${displayText(route.name)}</h3><span class="entry-badge">${escapeHtml(route.risk || "Unknown")} risk</span></header>
-        ${hints ? `<p class="muted small"><strong>Commodities:</strong> ${hints}</p>` : ""}
-        ${buys ? `<h4 class="guide-detail-sub">Buy</h4><ul class="guide-list">${buys}</ul>` : ""}
-        ${sells ? `<h4 class="guide-detail-sub">Sell</h4><ul class="guide-list">${sells}</ul>` : ""}
-        ${route.notes ? `<p class="overview-prose">${displayText(route.notes)}</p>` : ""}
+        ${topLine}${moreCommodities}
+        <p class="muted small route-action-links">
+          <button type="button" class="link" data-market-jump="illegal">Market: illegal</button>
+          · <button type="button" class="link guide-tab-link" data-tab="guides-trade-routes">Trade routes</button>
+        </p>
+        ${buys ? `<h4 class="guide-detail-sub">Typical buy</h4><ul class="guide-list">${buys}</ul>` : ""}
+        ${sells ? `<h4 class="guide-detail-sub">Typical sell</h4><ul class="guide-list">${sells}</ul>` : ""}
+        ${route.notes ? `<p class="overview-prose muted small">${displayText(route.notes)}</p>` : ""}
       </article>`;
     })
     .join("");
-  const disclaimer = data.disclaimer
-    ? `<p class="guides-meta muted small">${displayText(data.disclaimer)}</p>`
-    : "";
-  return `${disclaimer}${cards}`;
+  return `${intro}${disclaimer}${cards}`;
 }
 
 function buildGameLoopsPanel(data) {
@@ -2373,27 +3399,168 @@ function buildGameLoopsPanel(data) {
     .join("");
 }
 
-async function showGuideCommodityDetail(commodityId) {
-  guideDetailCommodityId = commodityId;
-  const panel = document.querySelector(`#panel-${activeTab} .panel-body`);
-  if (!panel) return;
-  const existing = panel.querySelector(".guide-detail");
-  if (existing) existing.remove();
-  panel.insertAdjacentHTML(
-    "beforeend",
-    `<p class="muted small guide-detail-loading">Loading terminal prices…</p>`
-  );
-  try {
-    const detail = await window.debrief.guidesGetCommodityDetail(commodityId);
-    panel.querySelector(".guide-detail-loading")?.remove();
-    panel.insertAdjacentHTML("beforeend", renderGuideCommodityDetail(detail));
-  } catch (e) {
-    panel.querySelector(".guide-detail-loading")?.remove();
-    panel.insertAdjacentHTML(
-      "beforeend",
-      `<p class="muted">Could not load detail: ${escapeHtml(e.message || String(e))}</p>`
-    );
+function buildTradeRoutesToolbar(state, presets) {
+  const presetOptions = (presets || [])
+    .map((p) => {
+      const val = p.scu != null ? p.scu : state.cargoScu || 128;
+      const selected =
+        p.scu != null && Number(state.cargoScu) === p.scu ? " selected" : "";
+      return `<option value="${escapeAttr(String(val))}" data-preset="${escapeAttr(p.id)}"${selected}>${escapeHtml(p.label)}${p.scu != null ? ` (${p.scu} SCU)` : ""}</option>`;
+    })
+    .join("");
+  const illegalChecked = state.includeIllegal ? " checked" : "";
+  return `<div class="catalog-toolbar trade-routes-toolbar">
+    <label class="trade-field"><span class="muted small">Cargo SCU</span>
+      <input type="number" id="tradeCargoScu" min="1" max="100000" value="${escapeAttr(String(state.cargoScu || 128))}" />
+    </label>
+    <select id="tradeShipPreset" class="guide-sort-select" aria-label="Hauler preset">${presetOptions}</select>
+    <input type="search" id="tradeRouteSearch" class="catalog-search" placeholder="Filter commodities…" value="${escapeAttr(state.query || "")}" />
+    <label class="trade-field trade-checkbox"><input type="checkbox" id="tradeIncludeIllegal"${illegalChecked} /> Include illegal</label>
+    <select id="tradeRouteSort" class="guide-sort-select">
+      <option value="profit"${state.sort !== "spread" ? " selected" : ""}>Sort: total profit</option>
+      <option value="spread"${state.sort === "spread" ? " selected" : ""}>Sort: spread / SCU</option>
+    </select>
+    <button type="button" class="btn btn-sm" id="tradeRouteCalcBtn">Calculate</button>
+    <button type="button" class="btn btn-sm btn-ghost" data-guide-refresh>Refresh prices</button>
+  </div>`;
+}
+
+function buildTradeRoutesPanel(data, presets) {
+  const state = guideQueryByTab["guides-trade-routes"] || {};
+  const routes = data.routes || [];
+  const toolbar = buildTradeRoutesToolbar(state, presets);
+  const disclaimer = data.disclaimer
+    ? `<p class="guides-meta muted small">${displayText(data.disclaimer)}</p>`
+    : "";
+  const meta = data.meta?.fetchedAt
+    ? `<p class="guides-meta muted small">${data.meta.totalCandidates ?? routes.length} commodities with spread · UEX cached ${escapeHtml(fmtDateTime(data.meta.fetchedAt))}${data.meta.stale ? " · using stale cache" : ""}</p>`
+    : "";
+
+  if (!routes.length) {
+    return `${meta}${toolbar}${disclaimer}<p class="muted">No profitable routes match your filters. Try lowering min spread or refreshing UEX prices.</p>`;
   }
+
+  const rows = routes
+    .map((r) => {
+      const illegal = r.isIllegal ? `<span class="badge badge-warn">Illegal</span>` : "";
+      return `<tr>
+        <td>${displayText(r.name)}${illegal ? ` ${illegal}` : ""}<div class="muted small mono">${escapeHtml(r.code || "")}</div></td>
+        <td>${escapeHtml(fmtScuPrice(r.priceBuy))}</td>
+        <td>${escapeHtml(fmtScuPrice(r.priceSell))}</td>
+        <td class="commodity-spread-positive">${escapeHtml(fmtScuPrice(r.spread))}</td>
+        <td>${formatFleetCell(r.commodityScu)}</td>
+        <td>${fmtAuec(r.investAuec)}</td>
+        <td class="commodity-spread-positive"><strong>${fmtAuec(r.totalProfit)}</strong></td>
+        <td>${r.roiPercent != null ? `${formatFleetCell(r.roiPercent)}%` : EMPTY_DISPLAY}</td>
+      </tr>`;
+    })
+    .join("");
+
+  return `${meta}
+    <div class="hub-intro"><strong>Single-hop haul planner.</strong> Ranks commodities by estimated profit for ${escapeHtml(String(data.cargoScu || state.cargoScu || 128))} SCU of cargo. Uses UEX average buy and sell, not a specific terminal pair. For multi-stop routes with travel time, see Tools hub → SC Trade Tools.</div>
+    ${toolbar}
+    ${disclaimer}
+    <div class="catalog-table-wrap"><table class="catalog-table trade-routes-table">
+      <thead><tr><th>Commodity</th><th>Buy</th><th>Sell</th><th>Spread</th><th>Units</th><th>Buy cost</th><th>Est. profit</th><th>ROI</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <p class="muted small"><button type="button" class="link guide-tab-link" data-tab="guides-commodities">Terminal breakdown</button> · <button type="button" class="link guide-tab-link" data-tab="guides-smuggling">Smuggler routes</button></p>`;
+}
+
+function buildExternalToolsHubPanel(data) {
+  const categories = data.categories || [];
+  const inAppCount = data.inAppCount || 0;
+  const disclaimer = data.disclaimer
+    ? `<p class="guides-meta muted small">${displayText(data.disclaimer)}</p>`
+    : "";
+  const intro = `<div class="hub-intro"><strong>Community tools directory.</strong> ${inAppCount} tools have a similar feature inside StarTracker. External links open in your browser.</div>`;
+
+  const sections = categories
+    .map((cat) => {
+      const cards = (cat.tools || [])
+        .map((tool) => {
+          const status =
+            tool.status === "deprecated"
+              ? `<span class="badge badge-muted">Ended</span> `
+              : "";
+          const inApp = tool.inAppTab
+            ? `<p class="external-tool-inapp"><span class="badge badge-success">In StarTracker</span> <button type="button" class="link guide-tab-link" data-tab="${escapeAttr(tool.inAppTab)}">${escapeHtml(TABS.find((t) => t.id === tool.inAppTab)?.label || tool.inAppTab)}</button>${tool.inAppNote ? `<span class="muted small"> · ${displayText(tool.inAppNote)}</span>` : ""}</p>`
+            : `<p class="muted small external-tool-external-only">External only${tool.inAppNote ? `: ${displayText(tool.inAppNote)}` : ""}</p>`;
+          const tags = (tool.tags || [])
+            .map((t) => `<span class="tag-chip">${escapeHtml(t)}</span>`)
+            .join("");
+          return `<article class="guide-card external-tool-card">
+            <header><h3>${status}${displayText(tool.name)}</h3>${tags ? `<div class="tag-row">${tags}</div>` : ""}</header>
+            <p>${displayText(tool.description)}</p>
+            ${inApp}
+            <button type="button" class="btn btn-sm btn-ghost" data-guide-external="${escapeAttr(tool.url)}">Open site</button>
+          </article>`;
+        })
+        .join("");
+      if (!cards) return "";
+      return `<section class="guide-section"><h2 class="guide-section-title">${displayText(cat.title)}</h2><p class="muted small">${displayText(cat.summary || "")}</p><div class="external-tools-grid">${cards}</div></section>`;
+    })
+    .join("");
+
+  return `${intro}${disclaimer}${sections || `<p class="muted">No tools listed.</p>`}`;
+}
+
+function buildReputationPanel(data) {
+  const factions = data.factions || [];
+  const disclaimer = data.disclaimer
+    ? `<p class="guides-meta muted small">${displayText(data.disclaimer)}</p>`
+    : "";
+  const sessionLine =
+    data.sessionTotal > 0
+      ? `<p class="guides-meta muted small">This session: <strong>${formatFleetCell(data.sessionTotal)}</strong> rep from confirmed Game.log rewards.</p>`
+      : `<p class="guides-meta muted small">No reputation rewards logged this session yet.</p>`;
+
+  if (!factions.length) {
+    return `${sessionLine}${disclaimer}<p class="muted">Complete contracts that award reputation. StarTracker accumulates totals locally across sessions.</p>
+      <p class="muted small"><button type="button" class="link guide-tab-link" data-tab="rewards">Open Rewards tab</button></p>`;
+  }
+
+  const tierLegend = (data.tiers || [])
+    .map((t) => `<span class="rep-tier-chip">${escapeHtml(t.name)} (${formatFleetCell(t.min)}+)</span>`)
+    .join(" ");
+
+  const rows = factions
+    .map((f) => {
+      const bar =
+        f.nextStanding && f.progressPercent != null
+          ? `<div class="rep-progress" role="progressbar" aria-valuenow="${f.progressPercent}" aria-valuemin="0" aria-valuemax="100"><div class="rep-progress-fill" style="width:${Math.min(100, f.progressPercent)}%"></div></div><p class="muted small">${formatFleetCell(f.repToNext)} rep to ${escapeHtml(f.nextStanding)} (est.)</p>`
+          : `<p class="muted small">Max wiki tier reached (est.)</p>`;
+      const sessionBadge =
+        f.sessionRep > 0
+          ? `<span class="badge badge-success">+${formatFleetCell(f.sessionRep)} session</span>`
+          : "";
+      return `<article class="guide-card rep-faction-card">
+        <header><h3>${displayText(f.faction)} ${sessionBadge}</h3><span class="rep-standing-badge">${escapeHtml(f.standing)}</span></header>
+        <p><strong>${formatFleetCell(f.totalRep)}</strong> total rep <span class="muted small">(persistent)</span></p>
+        ${bar}
+      </article>`;
+    })
+    .join("");
+
+  return `${sessionLine}${disclaimer}
+    <section class="guide-section"><h2 class="guide-section-title">Faction standing</h2><div class="rep-faction-grid">${rows}</div></section>
+    <details class="rep-tier-legend"><summary class="muted small">Wiki contractor tiers (estimates)</summary><p class="muted small">${tierLegend}</p></details>
+    <p class="muted small"><button type="button" class="link guide-tab-link" data-tab="rewards">Session rewards</button> · <button type="button" class="link guide-tab-link" data-tab="missions">Missions</button></p>`;
+}
+
+async function refreshTradeRoutesTab() {
+  if (activeTab !== "guides-trade-routes") return;
+  const state = guideQueryByTab["guides-trade-routes"] || {};
+  const cargoInput = $("tradeCargoScu");
+  const searchInput = $("tradeRouteSearch");
+  const illegalInput = $("tradeIncludeIllegal");
+  const sortInput = $("tradeRouteSort");
+  if (cargoInput) state.cargoScu = Math.max(1, Number(cargoInput.value) || 128);
+  if (searchInput) state.query = searchInput.value.trim();
+  if (illegalInput) state.includeIllegal = illegalInput.checked;
+  if (sortInput) state.sort = sortInput.value || "profit";
+  guideQueryByTab["guides-trade-routes"] = state;
+  await loadGuideTab("guides-trade-routes");
 }
 
 async function loadGuideTab(tabId, options = {}) {
@@ -2410,6 +3577,16 @@ async function loadGuideTab(tabId, options = {}) {
         `<p class="muted">Patch notes error: ${escapeHtml(e.message || String(e))}</p>`
       );
     }
+    return;
+  }
+
+  if (tabId === "guides-refinery") {
+    await loadRefineryTab(tabId);
+    return;
+  }
+
+  if (tabId === "guides-crafting") {
+    await loadCraftingTab(tabId, options);
     return;
   }
 
@@ -2436,6 +3613,61 @@ async function loadGuideTab(tabId, options = {}) {
       setPanelHtml(
         tabId,
         `<p class="muted">Game loops error: ${escapeHtml(e.message || String(e))}</p>`
+      );
+    }
+    return;
+  }
+
+  if (tabId === "guides-trade-routes") {
+    const state = guideQueryByTab["guides-trade-routes"] || {};
+    setPanelHtml(tabId, `<p class="muted small">Calculating trade routes…</p>`);
+    try {
+      const [presetsData, data] = await Promise.all([
+        window.debrief.guidesGetTradePresets(),
+        window.debrief.guidesGetTradeRoutes({
+          cargoScu: state.cargoScu || 128,
+          includeIllegal: !!state.includeIllegal,
+          minSpread: state.minSpread || 0,
+          query: state.query || "",
+          sort: state.sort || "profit",
+        }),
+      ]);
+      setPanelHtml(
+        tabId,
+        buildTradeRoutesPanel(data, presetsData.presets || [])
+      );
+    } catch (e) {
+      setPanelHtml(
+        tabId,
+        `<p class="muted">Trade routes error: ${escapeHtml(e.message || String(e))}</p>`
+      );
+    }
+    return;
+  }
+
+  if (tabId === "guides-reputation") {
+    setPanelHtml(tabId, `<p class="muted small">Loading reputation…</p>`);
+    try {
+      const data = await window.debrief.guidesGetReputation();
+      setPanelHtml(tabId, buildReputationPanel(data));
+    } catch (e) {
+      setPanelHtml(
+        tabId,
+        `<p class="muted">Reputation error: ${escapeHtml(e.message || String(e))}</p>`
+      );
+    }
+    return;
+  }
+
+  if (tabId === "guides-external-tools") {
+    setPanelHtml(tabId, `<p class="muted small">Loading tools hub…</p>`);
+    try {
+      const data = await window.debrief.guidesGetExternalToolsHub();
+      setPanelHtml(tabId, buildExternalToolsHubPanel(data));
+    } catch (e) {
+      setPanelHtml(
+        tabId,
+        `<p class="muted">Tools hub error: ${escapeHtml(e.message || String(e))}</p>`
       );
     }
     return;
@@ -2469,12 +3701,12 @@ async function loadGuideTab(tabId, options = {}) {
     return;
   }
 
-  if (tabId === "guides-commodities" || tabId === "guides-mining") {
+  if (tabId === "guides-commodities") {
     const state = guideQueryByTab[tabId] || {
       query: "",
       offset: 0,
-      sort: tabId === "guides-mining" ? "sell" : "name",
-      filter: tabId === "guides-mining" ? "mining" : "trade",
+      sort: "name",
+      filter: "trade",
     };
     if (options.resetOffset) state.offset = 0;
     guideQueryByTab[tabId] = state;
@@ -2493,13 +3725,12 @@ async function loadGuideTab(tabId, options = {}) {
         sort: state.sort,
       });
       guideCommodityMeta = result.meta;
+      const tableHtml = renderGuideCommodityRows(result.rows, tabId);
+      guideCommodityLastPayload = { tabId, tableHtml };
       setPanelHtml(
         tabId,
-        `${guidesMetaLine(result.meta)}${guidesCommodityToolbar(tabId)}${renderGuideCommodityRows(result.rows, tabId)}${renderGuideCommodityPager(tabId, result)}`
+        `${guidesMetaLine(result.meta)}${guidesCommodityToolbar(tabId)}${tableHtml}${renderGuideCommodityPager(tabId, result)}`
       );
-      if (guideDetailCommodityId) {
-        await showGuideCommodityDetail(guideDetailCommodityId);
-      }
     } catch (e) {
       setPanelHtml(
         tabId,
@@ -2523,11 +3754,43 @@ function initGuidesUi() {
       return;
     }
 
+    const marketJump = e.target.closest("[data-market-jump]");
+    if (marketJump?.dataset.marketJump) {
+      const filter = marketJump.dataset.marketJump;
+      const state = guideQueryByTab["guides-commodities"] || {
+        query: "",
+        offset: 0,
+        sort: filter === "mining" ? "sell" : "spread",
+        filter,
+      };
+      state.filter = filter;
+      state.offset = 0;
+      if (filter === "mining") state.sort = "sell";
+      if (filter === "illegal") state.sort = "spread";
+      guideQueryByTab["guides-commodities"] = state;
+      setActiveTab("guides-commodities");
+      return;
+    }
+
+    const marketFilter = e.target.closest("[data-market-filter]");
+    if (marketFilter?.dataset.marketFilter) {
+      const tabId = "guides-commodities";
+      const state = guideQueryByTab[tabId] || { query: "", offset: 0, sort: "name", filter: "trade" };
+      state.filter = marketFilter.dataset.marketFilter;
+      state.offset = 0;
+      if (state.filter === "mining" && state.sort === "name") state.sort = "sell";
+      guideQueryByTab[tabId] = state;
+      clearInlineExpand();
+      loadGuideTab(tabId, { resetOffset: true });
+      return;
+    }
+
     const searchBtn = e.target.closest("[data-guide-search-btn]");
     if (searchBtn) {
       const tabId = searchBtn.dataset.guideSearchBtn;
       const input = document.querySelector(`[data-guide-search="${tabId}"]`);
       if (input && guideQueryByTab[tabId]) {
+        clearInlineExpand();
         guideQueryByTab[tabId].query = input.value.trim();
         loadGuideTab(tabId, { resetOffset: true });
       }
@@ -2553,20 +3816,15 @@ function initGuidesUi() {
       const dir = pageBtn.dataset.guideDir;
       const state = guideQueryByTab[tabId];
       if (!state) return;
+      clearInlineExpand();
       state.offset = Math.max(0, state.offset + (dir === "next" ? 80 : -80));
       loadGuideTab(tabId);
       return;
     }
 
-    const commodityBtn = e.target.closest("[data-guide-commodity]");
-    if (commodityBtn) {
-      await showGuideCommodityDetail(Number(commodityBtn.dataset.guideCommodity));
-      return;
-    }
-
-    if (e.target.closest("[data-guide-detail-close]")) {
-      guideDetailCommodityId = null;
-      document.querySelectorAll(".guide-detail").forEach((el) => el.remove());
+    const commodityRow = e.target.closest(".guide-commodity-row.expandable-row");
+    if (commodityRow?.dataset.guideCommodity) {
+      await toggleInlineExpand(INLINE_HOST.COMMODITY, commodityRow.dataset.guideCommodity);
       return;
     }
 
@@ -2574,9 +3832,11 @@ function initGuidesUi() {
       const input = $("combatSearchInput");
       const resultsEl = $("combatSearchResults");
       if (!input || !resultsEl) return;
+      clearInlineExpand();
       resultsEl.innerHTML = `<p class="muted small">Searching…</p>`;
       try {
         const data = await window.debrief.combatSearch({ query: input.value.trim(), limit: 20 });
+        lastCombatSearchRows = data.rows;
         resultsEl.innerHTML = renderCombatSearchResults(data.rows);
       } catch (err) {
         resultsEl.innerHTML = `<p class="muted">Search failed: ${escapeHtml(err.message || String(err))}</p>`;
@@ -2584,121 +3844,121 @@ function initGuidesUi() {
       return;
     }
 
-    const combatOpen = e.target.closest(".combat-search-open");
-    if (combatOpen) {
-      const kind = combatOpen.dataset.combatKind;
-      const key = combatOpen.dataset.combatKey;
-      const detailEl = $("combatSearchDetail");
-      if (!detailEl || !key) return;
-      detailEl.innerHTML = `<p class="muted small">Loading stats…</p>`;
-      try {
-        const [data, tools] = await Promise.all([
-          kind === "vehicle"
-            ? window.debrief.combatGetVehicleProfile({ className: key, slug: key })
-            : window.debrief.combatGetItemProfile({ className: key, slug: key }),
-          window.debrief.combatGetExternalTools(),
-        ]);
-        detailEl.innerHTML = renderCombatProfilePanel(data, { advancedTools: tools.tools });
-      } catch (err) {
-        detailEl.innerHTML = renderCombatProfilePanel({ ok: false, error: err.message });
-      }
+    const combatRow = e.target.closest("tr[data-combat-key]");
+    if (combatRow?.dataset.combatKey) {
+      await toggleInlineExpand(INLINE_HOST.COMBAT, combatRow.dataset.combatKey, {
+        kind: combatRow.dataset.combatKind || "item",
+      });
       return;
     }
 
     const fleetRefresh = e.target.closest("[data-fleet-refresh]");
     if (fleetRefresh && activeTab === "guides-fleet") {
+      clearInlineExpand();
       loadFleetCompareTab("guides-fleet", { forceRefresh: true, resetOffset: true });
       return;
     }
 
-    const fleetOpen = e.target.closest(".fleet-row-open");
-    if (fleetOpen) {
-      const key = fleetOpen.dataset.fleetKey || fleetOpen.dataset.fleetSlug;
-      const detailEl = $("fleetCompareDetail");
-      if (!detailEl || !key) return;
-      detailEl.innerHTML = `<p class="muted small">Loading ship performance…</p>`;
-      try {
-        const [data, tools] = await Promise.all([
-          window.debrief.combatGetVehicleProfile({ className: key, slug: fleetOpen.dataset.fleetSlug || key }),
-          window.debrief.combatGetExternalTools(),
-        ]);
-        detailEl.innerHTML = renderCombatProfilePanel(data, { advancedTools: tools.tools });
-      } catch (err) {
-        detailEl.innerHTML = renderCombatProfilePanel({ ok: false, error: err.message });
-      }
+    const fleetRow = e.target.closest("tr[data-fleet-key]");
+    if (fleetRow?.dataset.fleetKey) {
+      await toggleInlineExpand(INLINE_HOST.FLEET, fleetRow.dataset.fleetKey, {
+        subKey: fleetRow.dataset.fleetSlug || fleetRow.dataset.fleetKey,
+      });
       return;
     }
 
-    if (e.target.id === "loadoutLoadShipBtn" || e.target.closest("#loadoutLoadShipBtn")) {
-      const input = $("loadoutShipInput");
-      const slug = input?.value.trim().toLowerCase();
-      if (!slug) return;
-      loadoutBuilderState = { shipSlug: slug, slotAssignments: {} };
+    if (e.target.id === "refineryCalcBtn" || e.target.closest("#refineryCalcBtn")) {
+      await refreshRefineryCalculator();
+      return;
+    }
+
+    if (e.target.id === "tradeRouteCalcBtn" || e.target.closest("#tradeRouteCalcBtn")) {
+      await refreshTradeRoutesTab();
+      return;
+    }
+
+    if (e.target.id === "craftingSearchBtn" || e.target.closest("#craftingSearchBtn")) {
+      const input = $("craftingSearchInput");
+      const state = guideQueryByTab["guides-crafting"] || {};
+      if (input) state.query = input.value.trim();
+      state.page = 1;
+      guideQueryByTab["guides-crafting"] = state;
+      await loadCraftingTab("guides-crafting");
+      return;
+    }
+
+    const craftingRow = e.target.closest("[data-crafting-blueprint]");
+    if (craftingRow?.dataset.craftingBlueprint) {
+      await selectCraftingBlueprint(craftingRow.dataset.craftingBlueprint);
+      return;
+    }
+
+    if (e.target.id === "loadoutResetStockBtn" || e.target.closest("#loadoutResetStockBtn")) {
+      loadoutBuilderState.slotAssignments = {};
+      loadoutBuilderState.stockBaseline = null;
+      applyLoadoutAssignments();
+      return;
+    }
+
+    const quickShip = e.target.closest("[data-loadout-quick-ship]");
+    if (quickShip?.dataset.loadoutQuickShip) {
+      loadoutBuilderState.shipSlug = quickShip.dataset.loadoutQuickShip;
+      loadoutBuilderState.slotAssignments = {};
+      loadoutBuilderState.stockBaseline = null;
       loadoutBuilderBlueprint = null;
       loadLoadoutBuilderTab("guides-loadout");
       return;
     }
 
-    if (e.target.id === "loadoutRecalcBtn" || e.target.closest("#loadoutRecalcBtn")) {
-      const assignments = {};
-      document.querySelectorAll(".loadout-slot-input").forEach((input) => {
-        const port = input.dataset.loadoutPort;
-        const val = input.value.trim();
-        if (port && val) assignments[port] = val;
-      });
-      loadoutBuilderState.slotAssignments = assignments;
+    if (e.target.id === "loadoutLoadShipBtn" || e.target.closest("#loadoutLoadShipBtn")) {
+      const select = $("loadoutShipSelect");
+      const slug = select?.value.trim().toLowerCase();
+      if (!slug) return;
+      const filter = loadoutBuilderState.shipFilter || "";
+      loadoutBuilderState = {
+        shipSlug: slug,
+        slotAssignments: {},
+        stockBaseline: null,
+        shipFilter: filter,
+      };
+      loadoutBuilderBlueprint = null;
       loadLoadoutBuilderTab("guides-loadout");
-      return;
-    }
-
-    const loadoutSearch = e.target.closest(".loadout-slot-search");
-    if (loadoutSearch) {
-      const port = loadoutSearch.dataset.loadoutPort;
-      const sizeMax = loadoutSearch.dataset.loadoutSize;
-      const input = document.querySelector(`[data-loadout-port="${port}"]`);
-      const resultsEl = document.querySelector(`[data-loadout-results="${port}"]`);
-      if (!input || !resultsEl) return;
-      resultsEl.innerHTML = `<p class="muted small">Searching…</p>`;
-      try {
-        const data = await window.debrief.loadoutSearchWeapons({
-          query: input.value.trim() || "repeater",
-          sizeMax: sizeMax ? Number(sizeMax) : null,
-        });
-        if (!data.rows?.length) {
-          resultsEl.innerHTML = `<p class="muted small">No WeaponGun matches.</p>`;
-          return;
-        }
-        resultsEl.innerHTML = data.rows
-          .map(
-            (r) =>
-              `<button type="button" class="link loadout-pick-weapon" data-loadout-port="${escapeAttr(port)}" data-loadout-weapon="${escapeAttr(r.className || r.slug)}">${displayText(r.name)}${r.dps != null ? ` · ${formatFleetCell(r.dps)} DPS` : ""}</button>`
-          )
-          .join(" ");
-      } catch (err) {
-        resultsEl.innerHTML = `<p class="muted small">${escapeHtml(err.message || String(err))}</p>`;
-      }
-      return;
-    }
-
-    const loadoutPick = e.target.closest(".loadout-pick-weapon");
-    if (loadoutPick) {
-      const port = loadoutPick.dataset.loadoutPort;
-      const weapon = loadoutPick.dataset.loadoutWeapon;
-      const input = document.querySelector(`[data-loadout-port="${port}"]`);
-      if (input && weapon) input.value = weapon;
-      if (port && weapon) {
-        loadoutBuilderState.slotAssignments[port] = weapon;
-        loadLoadoutBuilderTab("guides-loadout");
-      }
       return;
     }
   });
 
   $("tabPanels")?.addEventListener("change", (e) => {
+    if (e.target.id === "refineryOreSelect") {
+      refreshRefineryCalculator();
+      return;
+    }
+
+    if (e.target.id === "tradeShipPreset") {
+      const scu = Number(e.target.value);
+      if (Number.isFinite(scu) && scu > 0) {
+        const cargoInput = $("tradeCargoScu");
+        if (cargoInput) cargoInput.value = String(scu);
+        refreshTradeRoutesTab();
+      }
+      return;
+    }
+
+    if (e.target.id === "tradeRouteSort" || e.target.id === "tradeIncludeIllegal") {
+      refreshTradeRoutesTab();
+      return;
+    }
+
+    const loadoutSlot = e.target.closest(".loadout-slot-select");
+    if (loadoutSlot) {
+      applyLoadoutAssignments();
+      return;
+    }
+
     const fleetSort = e.target.closest("[data-fleet-sort]");
     if (fleetSort) {
       const tabId = fleetSort.dataset.fleetSort;
       if (!guideQueryByTab[tabId]) return;
+      clearInlineExpand();
       guideQueryByTab[tabId].sort = fleetSort.value;
       loadFleetCompareTab(tabId, { resetOffset: true });
       return;
@@ -2708,20 +3968,35 @@ function initGuidesUi() {
     if (!sortSelect) return;
     const tabId = sortSelect.dataset.guideSort;
     if (!guideQueryByTab[tabId]) return;
+    clearInlineExpand();
     guideQueryByTab[tabId].sort = sortSelect.value;
     loadGuideTab(tabId, { resetOffset: true });
   });
 
   $("tabPanels")?.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const row = e.target.closest(".expandable-row");
+    if (!row) return;
+    e.preventDefault();
+    row.click();
+  });
+
+  $("tabPanels")?.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
-    if (e.target.id === "loadoutShipInput") {
-      $("loadoutLoadShipBtn")?.click();
+    const craftingInput = e.target.closest("[data-crafting-search]");
+    if (craftingInput) {
+      const state = guideQueryByTab["guides-crafting"] || {};
+      state.query = craftingInput.value.trim();
+      state.page = 1;
+      guideQueryByTab["guides-crafting"] = state;
+      loadCraftingTab("guides-crafting");
       return;
     }
     const fleetInput = e.target.closest("[data-fleet-search]");
     if (fleetInput) {
       const tabId = fleetInput.dataset.fleetSearch;
       if (!guideQueryByTab[tabId]) return;
+      clearInlineExpand();
       guideQueryByTab[tabId].query = fleetInput.value.trim();
       loadFleetCompareTab(tabId, { resetOffset: true });
       return;
@@ -2730,11 +4005,22 @@ function initGuidesUi() {
     if (!input) return;
     const tabId = input.dataset.guideSearch;
     if (!guideQueryByTab[tabId]) return;
+    clearInlineExpand();
     guideQueryByTab[tabId].query = input.value.trim();
     loadGuideTab(tabId, { resetOffset: true });
   });
 
   $("tabPanels")?.addEventListener("input", (e) => {
+    if (e.target.classList?.contains("crafting-quality-slider")) {
+      debouncedCraftingPreview();
+      return;
+    }
+
+    if (e.target.id === "loadoutShipFilter") {
+      loadoutBuilderState.shipFilter = e.target.value;
+      loadLoadoutBuilderTab("guides-loadout");
+      return;
+    }
     const fleetInput = e.target.closest("[data-fleet-search]");
     if (fleetInput) {
       const tabId = fleetInput.dataset.fleetSearch;
@@ -2759,6 +4045,25 @@ async function refreshCatalogStats() {
   } catch {
     catalogStats = null;
   }
+}
+
+function initFavoriteUi() {
+  $("tabDescription")?.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-favorite-tab]");
+    if (!btn?.dataset.favoriteTab) return;
+    await toggleFavoriteTab(btn.dataset.favoriteTab);
+  });
+}
+
+function initLoadoutUi() {
+  $("tabPanels")?.addEventListener("click", async (e) => {
+    const head = e.target.closest(".loadout-snap-head");
+    if (!head) return;
+    const article = head.closest("[data-loadout-snap]");
+    const key = article?.dataset.loadoutSnap;
+    if (!key) return;
+    await toggleLoadoutExpand(key);
+  });
 }
 
 function initCatalogUi() {
@@ -2786,6 +4091,7 @@ function initCatalogUi() {
       const tabId = searchBtn.dataset.catalogSearchBtn;
       const input = document.querySelector(`[data-catalog-search="${tabId}"]`);
       if (input && catalogQueryByTab[tabId]) {
+        clearInlineExpand();
         catalogQueryByTab[tabId].query = input.value.trim();
         loadCatalogTab(tabId, { resetOffset: true });
       }
@@ -2817,31 +4123,20 @@ function initCatalogUi() {
         0,
         state.offset + (dir === "next" ? step : -step)
       );
+      clearInlineExpand();
       loadCatalogTab(tabId);
       return;
     }
 
-    const itemBtn = e.target.closest("[data-catalog-item]");
-    if (itemBtn) {
-      await showCatalogDetail(itemBtn.dataset.catalogItem, "item");
+    const catalogRow = e.target.closest(".catalog-row.expandable-row");
+    if (catalogRow) {
+      const key =
+        catalogRow.dataset.catalogItem ||
+        catalogRow.dataset.catalogShop ||
+        catalogRow.dataset.catalogPlace;
+      const kind = catalogRow.dataset.catalogKind || "item";
+      if (key) await toggleInlineExpand(INLINE_HOST.CATALOG, key, { kind });
       return;
-    }
-
-    const shopBtn = e.target.closest("[data-catalog-shop]");
-    if (shopBtn) {
-      await showCatalogDetail(shopBtn.dataset.catalogShop, "shop");
-      return;
-    }
-
-    const placeBtn = e.target.closest("[data-catalog-place]");
-    if (placeBtn) {
-      await showCatalogDetail(placeBtn.dataset.catalogPlace, "place");
-      return;
-    }
-
-    if (e.target.closest("[data-catalog-detail-close]")) {
-      catalogDetailKey = null;
-      document.querySelectorAll(".catalog-detail").forEach((el) => el.remove());
     }
   });
 
@@ -2850,6 +4145,7 @@ function initCatalogUi() {
     const input = e.target.closest("[data-catalog-search]");
     if (!input) return;
     const tabId = input.dataset.catalogSearch;
+    clearInlineExpand();
     catalogQueryByTab[tabId].query = input.value.trim();
     loadCatalogTab(tabId, { resetOffset: true });
   });
@@ -2884,7 +4180,6 @@ function renderAllPanels(state) {
     setPanelHtml("history", buildHistoryArchives());
   }
   updateTabCounts(rollup);
-  if (activeTab === "loadout") enrichLoadoutCombatPanel();
 }
 
 function resolveDisplaySession(state) {
@@ -3102,9 +4397,12 @@ initTheme();
 initStats();
 initTabs();
 initQuickNav();
+initFavoriteUi();
+loadFavoriteTabs();
 initAppInfo();
 initUpdateUi();
 initArchiveUi();
+initLoadoutUi();
 initCatalogUi();
 initGuidesUi();
 

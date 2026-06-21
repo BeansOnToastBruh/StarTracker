@@ -53,6 +53,10 @@ function getRep(faction) {
   return Number(repByFaction[key]) || 0;
 }
 
+function getAllRep() {
+  return { ...repByFaction };
+}
+
 function addRep(faction, amount) {
   const key = normalizeFaction(faction);
   const n = Number(amount);
@@ -82,6 +86,7 @@ module.exports = {
   load,
   save,
   getRep,
+  getAllRep,
   addRep,
   standingForRep,
   normalizeFaction,

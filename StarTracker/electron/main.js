@@ -28,6 +28,11 @@ const guidesHub = require("./guidesHub");
 const combatIntel = require("./combatIntel");
 const fleetCompare = require("./fleetCompare");
 const loadoutBuilder = require("./loadoutBuilder");
+const refineryIntel = require("./refineryIntel");
+const craftingIntel = require("./craftingIntel");
+const tradeIntel = require("./tradeIntel");
+const externalToolsHub = require("./externalToolsHub");
+const reputationIntel = require("./reputationIntel");
 const {
   enrichSession,
   applyLabelsToSession,
@@ -63,6 +68,7 @@ const GUIDES_SEED_DIR = () =>
 const COMBAT_CACHE_DIR = () => path.join(app.getPath("userData"), "combat-intel");
 const COMBAT_SEED_DIR = () => path.join(__dirname, "..", "data", "combat");
 const FLEET_CACHE_DIR = () => path.join(app.getPath("userData"), "fleet-compare");
+const CRAFTING_CACHE_DIR = () => path.join(app.getPath("userData"), "crafting-intel");
 
 let tray = null;
 let mainWindow = null;
@@ -82,6 +88,7 @@ function defaultConfig() {
     autoTrack: true,
     startMinimized: true,
     updateRepo: DEFAULT_UPDATE_REPO,
+    favoriteTabs: [],
   };
 }
 
@@ -100,6 +107,7 @@ function loadConfig() {
     changed = true;
   }
   if (changed) saveConfig(cfg);
+  if (!Array.isArray(cfg.favoriteTabs)) cfg.favoriteTabs = [];
   return cfg;
 }
 
@@ -483,6 +491,9 @@ app.whenReady().then(async () => {
     seedDir: COMBAT_SEED_DIR(),
   });
   fleetCompare.init({ cacheDir: FLEET_CACHE_DIR() });
+  refineryIntel.init({ seedDir: GUIDES_SEED_DIR() });
+  craftingIntel.init({ cacheDir: CRAFTING_CACHE_DIR() });
+  externalToolsHub.init({ seedDir: GUIDES_SEED_DIR() });
   gameDatabase.onSyncProgress((payload) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send("catalog-sync", payload);
@@ -708,9 +719,18 @@ ipcMain.handle("parse-log-archive", async (_, archiveId) => {
 
 ipcMain.handle("catalog-stats", () => gameDatabase.getStats());
 
-ipcMain.handle("catalog-query-vehicles", (_, options) =>
-  gameDatabase.queryVehicles(options || {})
-);
+ipcMain.handle("catalog-query-vehicles", async (_, options) => {
+  const result = gameDatabase.queryVehicles(options || {});
+  try {
+    const index = await fleetCompare.getFleetIndex();
+    if (index.ok) {
+      result.rows = fleetCompare.enrichVehicleRows(result.rows, index);
+    }
+  } catch {
+    /* fleet stats are optional enrichment */
+  }
+  return result;
+});
 
 ipcMain.handle("catalog-query-items", (_, options) =>
   gameDatabase.queryItems(options || {})
@@ -724,9 +744,18 @@ ipcMain.handle("catalog-query-places", (_, options) =>
   gameDatabase.queryPlaces(options || {})
 );
 
-ipcMain.handle("catalog-item-detail", (_, key) =>
-  gameDatabase.getItemDetail(key)
-);
+ipcMain.handle("catalog-item-detail", async (_, key) => {
+  const detail = gameDatabase.getItemDetail(key);
+  if (!detail) return null;
+  if (detail.section === "Ships") {
+    try {
+      return await fleetCompare.enrichVehicleFromIndex(detail);
+    } catch {
+      return detail;
+    }
+  }
+  return detail;
+});
 
 ipcMain.handle("catalog-shop-detail", (_, terminalKey) =>
   gameDatabase.getShopDetail(terminalKey)
@@ -758,6 +787,50 @@ ipcMain.handle("guides-refresh-commodities", () =>
   guidesHub.refreshCommodities()
 );
 
+ipcMain.handle("guides-get-refinery", () =>
+  refineryIntel.getRefineryGuide(() => guidesHub.getCommoditiesCache(false))
+);
+
+ipcMain.handle("guides-calculate-refinery", (_, options) =>
+  refineryIntel.calculateRefineryRun(
+    () => guidesHub.getCommoditiesCache(false),
+    options || {}
+  )
+);
+
+ipcMain.handle("crafting-search-blueprints", (_, options) =>
+  craftingIntel.searchBlueprints(options || {})
+);
+
+ipcMain.handle("crafting-get-blueprint", (_, id) =>
+  craftingIntel.getBlueprintDetail(id)
+);
+
+ipcMain.handle("crafting-calculate-preview", (_, options) =>
+  craftingIntel.calculateCraftPreview(
+    options?.blueprintId || options?.id,
+    options?.qualities || {}
+  )
+);
+
+ipcMain.handle("ui-get-favorite-tabs", () => {
+  const cfg = loadConfig();
+  return Array.isArray(cfg.favoriteTabs) ? cfg.favoriteTabs : [];
+});
+
+ipcMain.handle("ui-toggle-favorite-tab", (_, tabId) => {
+  const id = String(tabId || "").trim();
+  if (!id) return loadConfig().favoriteTabs || [];
+  const cfg = loadConfig();
+  const fav = Array.isArray(cfg.favoriteTabs) ? [...cfg.favoriteTabs] : [];
+  const idx = fav.indexOf(id);
+  if (idx >= 0) fav.splice(idx, 1);
+  else fav.push(id);
+  cfg.favoriteTabs = fav;
+  saveConfig(cfg);
+  return fav;
+});
+
 ipcMain.handle("combat-get-item-profile", (_, options) =>
   combatIntel.getItemCombatProfile(options || {})
 );
@@ -771,7 +844,7 @@ ipcMain.handle("combat-get-loadout-summary", (_, items) =>
 );
 
 ipcMain.handle("combat-get-external-tools", () =>
-  combatIntel.getExternalTools()
+  externalToolsHub.getCombatExternalTools()
 );
 
 ipcMain.handle("combat-search", (_, options) =>
@@ -797,3 +870,21 @@ ipcMain.handle("loadout-search-weapons", (_, options) =>
 ipcMain.handle("loadout-simulate", (_, options) =>
   loadoutBuilder.simulateLoadout(combatIntel, options || {})
 );
+
+ipcMain.handle("guides-get-trade-routes", (_, options) =>
+  tradeIntel.getTradeRoutes(options || {})
+);
+
+ipcMain.handle("guides-get-trade-presets", () => ({
+  presets: tradeIntel.getCargoPresets(),
+}));
+
+ipcMain.handle("guides-get-external-tools-hub", () =>
+  externalToolsHub.getExternalToolsHub()
+);
+
+ipcMain.handle("guides-get-reputation", () => {
+  const snap = currentSession ? snapshot(currentSession) : null;
+  const sessionRep = snap?.rollup?.rewardTotals?.repByFaction || [];
+  return reputationIntel.getReputationSummary(sessionRep);
+});
