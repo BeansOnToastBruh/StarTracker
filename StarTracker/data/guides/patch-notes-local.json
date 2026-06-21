@@ -1,5 +1,17 @@
 [
   {
+    "id": "startracker-1.0.7",
+    "version": "1.0.7",
+    "title": "StarTracker 1.0.7",
+    "date": "2026-05-29",
+    "startrackerNotes": [
+      "Refinery: full station list with fees, ore yield reference table, compact calculator layout.",
+      "Smuggler routes: row expand fixed, commodity column, buy/sell/stock detail on click.",
+      "Trade route row expand fixed. Tab order: Log archive last in Session, Credits to last in Intel.",
+      "HUD UI polish retained with cleaner refinery and smuggling panels."
+    ]
+  },
+  {
     "id": "startracker-1.0.6",
     "version": "1.0.6",
     "title": "StarTracker 1.0.6",

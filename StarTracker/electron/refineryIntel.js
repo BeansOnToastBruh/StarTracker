@@ -179,6 +179,11 @@ async function calculateRefineryRun(getCommoditiesCache, options = {}) {
   const entry = guide.oreCatalog.find((o) => o.id === oreId);
   if (!entry) return { ok: false, error: "unknown ore type" };
 
+  const stationId = String(options.stationId || "").trim();
+  const station = (guide.stations || []).find((s) => s.name === stationId) || null;
+  const stationFee =
+    station?.defaultFeePercent != null ? station.defaultFeePercent : null;
+
   const rawSellPerScu =
     options.rawSellPerScu != null
       ? Number(options.rawSellPerScu)
@@ -191,7 +196,10 @@ async function calculateRefineryRun(getCommoditiesCache, options = {}) {
   const result = calculateRefinement({
     oreScu: options.oreScu,
     yieldPercent: options.yieldPercent ?? entry.defaultYieldPercent,
-    stationFeePercent: options.stationFeePercent,
+    stationFeePercent:
+      options.stationFeePercent != null && options.stationFeePercent !== ""
+        ? options.stationFeePercent
+        : stationFee,
     rawSellPerScu,
     refinedSellPerScu,
   });
@@ -199,6 +207,7 @@ async function calculateRefineryRun(getCommoditiesCache, options = {}) {
   return {
     ok: true,
     ore: entry,
+    station,
     prices: {
       rawSellPerScu,
       refinedSellPerScu,

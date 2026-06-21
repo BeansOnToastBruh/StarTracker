@@ -123,18 +123,18 @@ const SESSION_TABS = [
     empty: "Nothing lost yet. A ship shows up here when a hull you were flying gets destroyed.",
   },
   {
-    id: "history",
-    group: "session",
-    label: "Log archive",
-    hint: "Game.log backups since patch 4.8. Click one to view everything we can parse from that file.",
-    empty: "No log archives found. Set your Game.log path to the StarCitizen LIVE folder (logbackups lives beside it).",
-  },
-  {
     id: "guides-reputation",
     group: "session",
     label: "Reputation",
     hint: "Faction rep tracked across sessions from Game.log rewards. Tier names are wiki estimates.",
     empty: "No faction reputation recorded yet.",
+  },
+  {
+    id: "history",
+    group: "session",
+    label: "Log archive",
+    hint: "Game.log backups since patch 4.8. Click one to view everything we can parse from that file.",
+    empty: "No log archives found. Set your Game.log path to the StarCitizen LIVE folder (logbackups lives beside it).",
   },
 ];
 
@@ -241,13 +241,6 @@ const GUIDE_TABS = [
     empty: "No game loop guides loaded yet.",
   },
   {
-    id: "guides-external-tools",
-    group: "guides",
-    label: "Credits to",
-    hint: "Popular Star Citizen companion sites with links to in-app StarTracker tabs where we cover similar features.",
-    empty: "External tools list not loaded.",
-  },
-  {
     id: "guides-combat",
     group: "guides",
     label: "Combat intel",
@@ -267,6 +260,13 @@ const GUIDE_TABS = [
     label: "Ship builder",
     hint: "Step through ship, weapons, components, and hull stats. DPS updates live as you swap guns.",
     empty: "Load a ship to start building.",
+  },
+  {
+    id: "guides-external-tools",
+    group: "guides",
+    label: "Credits to",
+    hint: "Popular Star Citizen companion sites with links to in-app StarTracker tabs where we cover similar features.",
+    empty: "External tools list not loaded.",
   },
 ];
 
@@ -301,7 +301,7 @@ const TAB_DESCRIPTIONS = {
   shopping:
     "Items you bought at shops and kiosks when the log records the purchase. Useful for tracking gear you picked up during a run.",
   loadout:
-    "Click a snapshot to expand gear by slot. Combat stats load for weapons and armor when wiki data exists.",
+    "Weapons and armor combat stats from spawn and gear changes. Pick a snapshot chip to compare loadouts.",
   blueprints:
     "Blueprint unlocks when the log names them. Look here after contract payouts that grant schematics.",
   deaths:
@@ -581,15 +581,21 @@ async function refreshInlineExpandHost(host) {
       }
       break;
     case INLINE_HOST.TRADE:
-      if (activeTab === "guides-trade-routes" && tradeRoutesLastPayload) {
-        patchPanelTable("#panel-guides-trade-routes", tradeRoutesLastPayload.tableHtml);
+      if (activeTab === "guides-trade-routes" && tradeRoutesLastPayload?.routes) {
+        patchPanelTable(
+          "#panel-guides-trade-routes",
+          renderTradeRouteRows(tradeRoutesLastPayload.routes)
+        );
       } else if (activeTab === "guides-trade-routes") {
         await loadGuideTab("guides-trade-routes");
       }
       break;
     case INLINE_HOST.SMUGGLE:
-      if (activeTab === "guides-smuggling" && smugglerRoutesLastPayload) {
-        patchPanelTable("#panel-guides-smuggling", smugglerRoutesLastPayload.tableHtml);
+      if (activeTab === "guides-smuggling" && smugglerRoutesLastPayload?.routes) {
+        patchPanelTable(
+          "#panel-guides-smuggling",
+          renderSmugglerRouteRows(smugglerRoutesLastPayload.routes)
+        );
       } else if (activeTab === "guides-smuggling") {
         await loadGuideTab("guides-smuggling");
       }
@@ -3100,6 +3106,32 @@ function buildPatchNotesPanel(data) {
     <p class="guides-meta muted small"><button type="button" class="link" data-guide-external="https://robertsspaceindustries.com/en/comm-link">Browse all RSI comm-links</button></p>`;
 }
 
+function buildRefineryYieldTable(oreCatalog) {
+  if (!oreCatalog?.length) return "";
+  const rows = oreCatalog
+    .map((o) => {
+      const volatile = o.volatile ? `<span class="badge badge-warn">Volatile</span>` : "";
+      const raw = o.ore?.priceSell > 0 ? fmtScuPrice(o.ore.priceSell) : EMPTY_DISPLAY;
+      const refined = o.refined?.priceSell > 0 ? fmtScuPrice(o.refined.priceSell) : EMPTY_DISPLAY;
+      return `<tr>
+        <td>${displayText(o.label)} ${volatile}</td>
+        <td>${raw}</td>
+        <td>${refined}</td>
+        <td><strong>${formatFleetCell(o.defaultYieldPercent ?? 80)}%</strong></td>
+        <td class="muted small">${displayText(o.notes || "")}</td>
+      </tr>`;
+    })
+    .join("");
+  return `<section class="guide-section">
+    <h2 class="guide-section-title">Ore yield reference</h2>
+    <p class="muted small">Community yield estimates per ore type. Select an ore below to load its default yield into the calculator.</p>
+    <div class="catalog-table-wrap refinery-yield-table-wrap"><table class="catalog-table refinery-yield-table">
+      <thead><tr><th>Ore</th><th>Raw sell</th><th>Refined sell</th><th>Default yield</th><th>Notes</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </section>`;
+}
+
 function buildRefineryPanel(data, calcResult) {
   const state = guideQueryByTab["guides-refinery"] || {};
   const oreOptions = (data.oreCatalog || [])
@@ -3119,14 +3151,20 @@ function buildRefineryPanel(data, calcResult) {
   const stationId = state.stationId || stations[0]?.name || "";
   const selectedStation = stations.find((s) => s.name === stationId) || stations[0] || null;
   const stationOptions = stations
-    .map(
-      (s) =>
-        `<option value="${escapeAttr(s.name)}"${s.name === stationId ? " selected" : ""}>${displayText(s.name)}${s.system ? ` (${displayText(s.system)})` : ""}</option>`
-    )
+    .map((s) => {
+      const fee =
+        s.defaultFeePercent != null ? ` · ${formatFleetCell(s.defaultFeePercent)}% fee` : "";
+      return `<option value="${escapeAttr(s.name)}"${s.name === stationId ? " selected" : ""}>${displayText(s.name)}${s.system ? ` (${displayText(s.system)})` : ""}${fee}</option>`;
+    })
     .join("");
   const yieldVal =
-    state.yieldPercent != null ? state.yieldPercent : selectedOre?.defaultYieldPercent ?? data.defaultYieldPercent ?? 80;
-  const feeVal = state.feePercent ?? data.defaultStationFeePercent ?? 5;
+    state.yieldPercent != null
+      ? state.yieldPercent
+      : selectedOre?.defaultYieldPercent ?? data.defaultYieldPercent ?? 80;
+  const feeVal =
+    state.feePercent != null
+      ? state.feePercent
+      : selectedStation?.defaultFeePercent ?? data.defaultStationFeePercent ?? 5;
   const result = calcResult?.ok ? calcResult.result : null;
   const worthClass = result?.worthRefining ? " refinery-profit-positive" : result ? " refinery-profit-negative" : "";
   const resultHtml = result
@@ -3147,6 +3185,7 @@ function buildRefineryPanel(data, calcResult) {
         <td>${displayText(s.name)}</td>
         <td>${displayText(s.system || "")}</td>
         <td>${displayText(s.body || "")}</td>
+        <td>${s.defaultFeePercent != null ? `${formatFleetCell(s.defaultFeePercent)}%` : EMPTY_DISPLAY}</td>
         <td class="muted small">${displayText(s.notes || "")}</td>
       </tr>`
     )
@@ -3162,37 +3201,38 @@ function buildRefineryPanel(data, calcResult) {
     : "";
 
   return `${meta}${disclaimer}
-    <div class="hub-intro"><strong>Refine or sell?</strong> Compare raw ore value against refined output using community yield estimates and live sell prices.</div>
+    <div class="hub-intro"><strong>Refine or sell?</strong> Compare raw ore value against refined output. Yields are community estimates; the in-game refinery UI is authoritative.</div>
+    ${buildRefineryYieldTable(data.oreCatalog)}
     <section class="guide-section refinery-calc-section">
       <h2 class="guide-section-title">Refinery calculator</h2>
       <div class="refinery-calc-form">
         <label class="refinery-field refinery-field-ore"><span>Ore</span>
           <select id="refineryOreSelect" class="guide-sort-select">${oreOptions}</select>
         </label>
-        <label class="refinery-field refinery-field-station"><span>Station</span>
+        <label class="refinery-field refinery-field-station"><span>Refinery station</span>
           <select id="refineryStationSelect" class="guide-sort-select">${stationOptions}</select>
         </label>
         <label class="refinery-field refinery-field-scu"><span>Ore SCU</span>
-          <input type="number" id="refineryOreScu" class="catalog-search refinery-num-input" min="0" step="1" value="${escapeAttr(String(state.oreScu ?? 100))}" />
+          <input type="number" id="refineryOreScu" class="refinery-num-input" min="0" step="1" value="${escapeAttr(String(state.oreScu ?? 100))}" />
         </label>
         <label class="refinery-field refinery-field-yield"><span>Yield %</span>
-          <input type="number" id="refineryYield" class="catalog-search refinery-num-input" min="1" max="100" step="1" value="${escapeAttr(String(yieldVal))}" />
+          <input type="number" id="refineryYield" class="refinery-num-input" min="1" max="100" step="1" value="${escapeAttr(String(yieldVal))}" title="Community yield estimate for selected ore" />
         </label>
-        <label class="refinery-field refinery-field-fee"><span>Fee %</span>
-          <input type="number" id="refineryFee" class="catalog-search refinery-num-input" min="0" max="50" step="0.5" value="${escapeAttr(String(feeVal))}" />
+        <label class="refinery-field refinery-field-fee"><span>Station fee %</span>
+          <input type="number" id="refineryFee" class="refinery-num-input" min="0" max="50" step="0.5" value="${escapeAttr(String(feeVal))}" title="Refinery processing fee at selected station" />
         </label>
-        <button type="button" class="btn btn-sm" id="refineryCalcBtn">Recalculate</button>
+        <button type="button" class="btn btn-sm refinery-calc-btn" id="refineryCalcBtn">Recalculate</button>
       </div>
-      ${selectedStation?.notes ? `<p class="refinery-station-note muted small"><strong>${displayText(selectedStation.name)}:</strong> ${displayText(selectedStation.notes)}</p>` : ""}
-      ${calcResult?.prices?.rawName ? `<p class="muted small">Raw: ${displayText(calcResult.prices.rawName)} (${fmtScuPrice(calcResult.prices.rawSellPerScu)}) · Refined: ${displayText(calcResult.prices.refinedName || "n/a")} (${fmtScuPrice(calcResult.prices.refinedSellPerScu)})</p>` : ""}
+      ${selectedStation ? `<p class="refinery-station-note muted small"><strong>${displayText(selectedStation.name)}</strong> · ${displayText(selectedStation.system || "")} · ${displayText(selectedStation.body || "")}${selectedStation.defaultFeePercent != null ? ` · ${formatFleetCell(selectedStation.defaultFeePercent)}% fee` : ""}${selectedStation.notes ? ` · ${displayText(selectedStation.notes)}` : ""}</p>` : ""}
+      ${calcResult?.prices?.rawName ? `<p class="muted small refinery-price-line">Raw: ${displayText(calcResult.prices.rawName)} (${fmtScuPrice(calcResult.prices.rawSellPerScu)}) · Refined: ${displayText(calcResult.prices.refinedName || "n/a")} (${fmtScuPrice(calcResult.prices.refinedSellPerScu)})</p>` : ""}
       ${selectedOre?.notes ? `<p class="muted small refinery-ore-note">${displayText(selectedOre.notes)}</p>` : ""}
       ${resultHtml}
     </section>
     <section class="guide-section">
-      <h2 class="guide-section-title">Refinery stations</h2>
+      <h2 class="guide-section-title">All refinery stations (${stations.length})</h2>
       <div class="catalog-table-wrap"><table class="catalog-table">
-        <thead><tr><th>Station</th><th>System</th><th>Body</th><th>Notes</th></tr></thead>
-        <tbody>${stationRows || `<tr><td colspan="4" class="muted">No stations listed.</td></tr>`}</tbody>
+        <thead><tr><th>Station</th><th>System</th><th>Body</th><th>Fee</th><th>Notes</th></tr></thead>
+        <tbody>${stationRows || `<tr><td colspan="5" class="muted">No stations listed.</td></tr>`}</tbody>
       </table></div>
     </section>
     <section class="guide-section">
@@ -3202,17 +3242,34 @@ function buildRefineryPanel(data, calcResult) {
     </section>`;
 }
 
+let refineryGuideLastData = null;
+
 async function loadRefineryTab(tabId) {
   setPanelHtml(tabId, `<p class="muted small">Loading refinery data…</p>`);
   try {
     const data = await window.debrief.guidesGetRefinery();
+    refineryGuideLastData = data;
     const state = guideQueryByTab[tabId] || {};
     if (!state.oreId && data.oreCatalog?.length) {
       state.oreId = data.oreCatalog[0].id;
-      guideQueryByTab[tabId] = state;
     }
+    if (!state.stationId && data.stations?.length) {
+      state.stationId = data.stations[0].name;
+    }
+    const selectedOre = data.oreCatalog?.find((o) => o.id === state.oreId);
+    const selectedStation = data.stations?.find((s) => s.name === state.stationId);
+    if (state.yieldPercent == null && selectedOre) {
+      state.yieldPercent = selectedOre.defaultYieldPercent ?? data.defaultYieldPercent ?? 80;
+    }
+    if (state.feePercent == null && selectedStation?.defaultFeePercent != null) {
+      state.feePercent = selectedStation.defaultFeePercent;
+    } else if (state.feePercent == null) {
+      state.feePercent = data.defaultStationFeePercent ?? 5;
+    }
+    guideQueryByTab[tabId] = state;
     const calc = await window.debrief.guidesCalculateRefinery({
       oreId: state.oreId,
+      stationId: state.stationId,
       oreScu: state.oreScu,
       yieldPercent: state.yieldPercent,
       stationFeePercent: state.feePercent,
@@ -3469,11 +3526,26 @@ async function refreshRefineryCalculator() {
   const oreScu = $("refineryOreScu");
   const yieldInput = $("refineryYield");
   const feeInput = $("refineryFee");
+  const prevOre = state.oreId;
+  const prevStation = state.stationId;
   if (oreSelect) state.oreId = oreSelect.value;
   if (stationSelect) state.stationId = stationSelect.value;
   if (oreScu) state.oreScu = Number(oreScu.value) || 0;
-  if (yieldInput) state.yieldPercent = Number(yieldInput.value) || null;
-  if (feeInput) state.feePercent = Number(feeInput.value) || 0;
+  if (yieldInput && yieldInput !== document.activeElement) {
+    state.yieldPercent = Number(yieldInput.value) || null;
+  }
+  if (feeInput && feeInput !== document.activeElement) {
+    state.feePercent = Number(feeInput.value) || 0;
+  }
+  const guide = refineryGuideLastData;
+  if (guide && state.oreId !== prevOre) {
+    const ore = guide.oreCatalog?.find((o) => o.id === state.oreId);
+    if (ore) state.yieldPercent = ore.defaultYieldPercent ?? guide.defaultYieldPercent ?? 80;
+  }
+  if (guide && state.stationId !== prevStation) {
+    const station = guide.stations?.find((s) => s.name === state.stationId);
+    if (station?.defaultFeePercent != null) state.feePercent = station.defaultFeePercent;
+  }
   guideQueryByTab["guides-refinery"] = state;
   await loadRefineryTab("guides-refinery");
 }
@@ -3486,49 +3558,81 @@ function smugglerRiskClass(risk) {
 }
 
 function renderSmugglerRouteInlineDetail(route) {
-  if (!route) return `<p class="muted small">No UEX terminal data for this route yet.</p>`;
+  if (!route) return `<p class="muted small">Route data unavailable.</p>`;
+
+  const hints = (route.commodityHints || [])
+    .map((h) => `<span class="tag-chip">${escapeHtml(h)}</span>`)
+    .join("");
+  const commodityRows = (route.commodities || [])
+    .map(
+      (c) => `<tr>
+        <td><strong>${displayText(c.name)}</strong></td>
+        <td>${escapeHtml(fmtScuPrice(c.buy))}</td>
+        <td>${escapeHtml(fmtScuPrice(c.sell))}</td>
+        <td class="commodity-spread-positive">${escapeHtml(fmtScuPrice(c.spread))}</td>
+      </tr>`
+    )
+    .join("");
+
   const tr = route.terminalRoute;
-  if (!tr) {
-    const buys = (route.buyLocations || []).map((l) => `<li>${displayText(l)}</li>`).join("");
-    const sells = (route.sellLocations || []).map((l) => `<li>${displayText(l)}</li>`).join("");
-    return `<article class="inline-detail-inner smuggle-route-detail">
-      ${route.notes ? `<p class="muted small">${displayText(route.notes)}</p>` : ""}
-      ${buys ? `<h4 class="guide-detail-sub">Typical buy</h4><ul class="guide-list">${buys}</ul>` : ""}
-      ${sells ? `<h4 class="guide-detail-sub">Typical sell</h4><ul class="guide-list">${sells}</ul>` : ""}
-    </article>`;
-  }
-  const buy = tr.buyTerminal;
-  const sell = tr.sellTerminal;
-  const caps = [
-    tr.stockLimited ? "stock capped" : null,
-    tr.demandLimited ? "demand capped" : null,
-  ]
-    .filter(Boolean)
-    .join(", ");
-  return `<article class="inline-detail-inner smuggle-route-detail">
-    <h4 class="guide-detail-sub">${displayText(tr.name || route.commodities?.[0]?.name || "Top commodity")}</h4>
-    <div class="trade-route-detail-grid">
+  const topName =
+    tr?.name || route.commodities?.[0]?.name || route.commodityHints?.[0] || "Unknown commodity";
+
+  let terminalHtml = "";
+  if (tr?.buyTerminal && tr?.sellTerminal) {
+    const buy = tr.buyTerminal;
+    const sell = tr.sellTerminal;
+    const caps = [
+      tr.stockLimited ? "stock capped" : null,
+      tr.demandLimited ? "demand capped" : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    terminalHtml = `<div class="trade-route-detail-grid">
       <div class="trade-route-detail-card">
-        <span class="refinery-result-label">Buy at</span>
-        <strong>${displayText(buy?.terminal || "Unknown")}</strong>
-        <span class="muted small">${displayText(buy?.location || buy?.system || "")}</span>
-        <span>${escapeHtml(fmtScuPrice(buy?.sellToYouPrice))} · stock ${formatFleetCell(buy?.stockScu)} SCU</span>
+        <span class="refinery-result-label">Buy</span>
+        <strong>${displayText(topName)}</strong>
+        <span>${displayText(buy.terminal || "Unknown terminal")}</span>
+        <span class="muted small">${displayText(buy.location || buy.system || "")}</span>
+        <span>${escapeHtml(fmtScuPrice(buy.sellToYouPrice))} per SCU · <strong>${formatFleetCell(buy.stockScu)} SCU in stock</strong></span>
       </div>
       <div class="trade-route-detail-card">
-        <span class="refinery-result-label">Sell at</span>
-        <strong>${displayText(sell?.terminal || "Unknown")}</strong>
-        <span class="muted small">${displayText(sell?.location || sell?.system || "")}</span>
-        <span>${escapeHtml(fmtScuPrice(sell?.buyFromYouPrice))} · demand ${formatFleetCell(sell?.demandScu)} SCU</span>
+        <span class="refinery-result-label">Sell</span>
+        <strong>${displayText(topName)}</strong>
+        <span>${displayText(sell.terminal || "Unknown terminal")}</span>
+        <span class="muted small">${displayText(sell.location || sell.system || "")}</span>
+        <span>${escapeHtml(fmtScuPrice(sell.buyFromYouPrice))} per SCU · demand ${formatFleetCell(sell.demandScu)} SCU</span>
       </div>
       <div class="trade-route-detail-card trade-route-profit-card">
-        <span class="refinery-result-label">Est. profit (128 SCU)</span>
+        <span class="refinery-result-label">Est. profit (128 SCU haul)</span>
         <strong class="commodity-spread-positive">${fmtAuec(tr.totalProfit)}</strong>
         <span class="muted small">${formatFleetCell(tr.commodityUnits)} units · ${formatFleetCell(tr.commodityScu)} SCU${caps ? ` · ${caps}` : ""}</span>
+        <span class="muted small">Spread ${escapeHtml(fmtScuPrice(tr.spreadPerScu || route.topSpread))} per SCU</span>
       </div>
-    </div>
+    </div>`;
+  }
+
+  const buys = (route.buyLocations || []).map((l) => `<li>${displayText(l)}</li>`).join("");
+  const sells = (route.sellLocations || []).map((l) => `<li>${displayText(l)}</li>`).join("");
+
+  return `<article class="inline-detail-inner smuggle-route-detail">
+    <header class="smuggle-detail-head">
+      <h4>${displayText(route.name)}</h4>
+      <span class="risk-badge ${smugglerRiskClass(route.risk)}">${escapeHtml(route.risk || "Unknown")}</span>
+    </header>
+    <p class="smuggle-commodity-headline"><strong>What to buy:</strong> ${displayText(topName)}</p>
+    ${hints ? `<div class="tag-row smuggle-hint-row">${hints}</div>` : ""}
+    ${terminalHtml}
+    ${commodityRows ? `<h4 class="guide-detail-sub">Matching illegal commodities (UEX)</h4>
+      <div class="catalog-table-wrap"><table class="catalog-table smuggle-commodity-table">
+        <thead><tr><th>Commodity</th><th>Avg buy</th><th>Avg sell</th><th>Spread</th></tr></thead>
+        <tbody>${commodityRows}</tbody>
+      </table></div>` : `<p class="muted small">No UEX illegal commodity matches for this route's hints yet. Refresh prices on the Market tab.</p>`}
     ${route.notes ? `<p class="muted small">${displayText(route.notes)}</p>` : ""}
+    ${buys ? `<h4 class="guide-detail-sub">Typical buy areas</h4><ul class="guide-list">${buys}</ul>` : ""}
+    ${sells ? `<h4 class="guide-detail-sub">Typical sell areas</h4><ul class="guide-list">${sells}</ul>` : ""}
     <p class="muted small route-action-links">
-      <button type="button" class="link" data-market-jump="illegal">Market: illegal</button>
+      <button type="button" class="link" data-market-jump="illegal">Market: illegal filter</button>
       · <button type="button" class="link guide-tab-link" data-tab="guides-trade-routes">Trade routes</button>
     </p>
   </article>`;
@@ -3537,26 +3641,30 @@ function renderSmugglerRouteInlineDetail(route) {
 function renderSmugglerRouteRows(routes) {
   if (!routes?.length) return `<p class="muted">No smuggler routes loaded.</p>`;
   const host = INLINE_HOST.SMUGGLE;
-  const colspan = 6;
+  const colspan = 7;
   const body = routes
     .map((route) => {
       const key = route.id || route.name;
       const tr = route.terminalRoute;
+      const commodityName =
+        tr?.name || route.commodities?.[0]?.name || route.commodityHints?.[0] || EMPTY_DISPLAY;
       const buyCell = tr?.buyTerminal
-        ? `${displayText(tr.buyTerminal.terminal)}<div class="muted small">${formatFleetCell(tr.buyTerminal.stockScu)} SCU stock</div>`
+        ? `${displayText(tr.buyTerminal.terminal)}<div class="muted small">${formatFleetCell(tr.buyTerminal.stockScu)} SCU stock · ${escapeHtml(fmtScuPrice(tr.buyTerminal.sellToYouPrice))}</div>`
         : displayText(route.buyLocations?.[0] || EMPTY_DISPLAY);
       const sellCell = tr?.sellTerminal
-        ? displayText(tr.sellTerminal.terminal)
+        ? `${displayText(tr.sellTerminal.terminal)}<div class="muted small">${escapeHtml(fmtScuPrice(tr.sellTerminal.buyFromYouPrice))}</div>`
         : displayText(route.sellLocations?.[0] || EMPTY_DISPLAY);
-      const profitCell = tr?.totalProfit > 0
-        ? `<strong class="commodity-spread-positive">${fmtAuec(tr.totalProfit)}</strong>`
-        : route.topSpread != null
-          ? `${formatFleetCell(route.topSpread)} /SCU`
-          : EMPTY_DISPLAY;
+      const profitCell =
+        tr?.totalProfit > 0
+          ? `<strong class="commodity-spread-positive">${fmtAuec(tr.totalProfit)}</strong><div class="muted small">128 SCU haul</div>`
+          : route.topSpread != null
+            ? `${escapeHtml(fmtScuPrice(route.topSpread))}<div class="muted small">per SCU spread</div>`
+            : EMPTY_DISPLAY;
       const expanded = isInlineExpanded(host, key);
       return `<tr class="smuggle-route-row ${expandableRowClass(host, key)}" data-smuggle-route="${escapeAttr(key)}" tabindex="0" role="button" aria-expanded="${expanded}">
         <td class="expand-chevron-cell"><span class="expand-chevron" aria-hidden="true">${expandChevron(host, key)}</span></td>
         <td>${displayText(route.name)}</td>
+        <td><strong>${displayText(commodityName)}</strong></td>
         <td><span class="risk-badge ${smugglerRiskClass(route.risk)}">${escapeHtml(route.risk || "Unknown")}</span></td>
         <td>${buyCell}</td>
         <td>${sellCell}</td>
@@ -3565,7 +3673,7 @@ function renderSmugglerRouteRows(routes) {
     })
     .join("");
   return `<div class="catalog-table-wrap"><table class="catalog-table smuggler-routes-table">
-    <thead><tr><th></th><th>Route</th><th>Risk</th><th>Buy</th><th>Sell</th><th>Est. profit</th></tr></thead>
+    <thead><tr><th></th><th>Route</th><th>Commodity</th><th>Risk</th><th>Buy</th><th>Sell</th><th>Est. profit</th></tr></thead>
     <tbody>${body}</tbody>
   </table></div>`;
 }
@@ -4671,6 +4779,12 @@ function applyState(state) {
       status += " · Auto-track on";
     }
     $("statusLine").textContent = status;
+    const led = $("statusLed");
+    if (led) {
+      led.classList.toggle("is-recording", !!active && state.watching);
+      led.classList.toggle("is-paused", !state.watching);
+      led.classList.toggle("is-idle", !active && state.watching);
+    }
   }
 
   applyLogPathState(state);

@@ -81,31 +81,106 @@
       "name": "Orison Refinery",
       "system": "Stanton",
       "body": "Crusader",
-      "notes": "High traffic. Good for Quantainium handoff after Pyro/Stanton mining."
+      "defaultFeePercent": 5,
+      "notes": "High traffic. Common Quantainium handoff after Stanton mining."
+    },
+    {
+      "name": "CRU-L1 Station Refinery",
+      "system": "Stanton",
+      "body": "Crusader L1",
+      "defaultFeePercent": 5,
+      "notes": "L1 refinery for Crusader belt and moon ore."
     },
     {
       "name": "Port Tressler Refinery",
       "system": "Stanton",
       "body": "MicroTech",
+      "defaultFeePercent": 5,
       "notes": "Convenient for Lyria and Wala mining loops."
+    },
+    {
+      "name": "MIC-L1 Station Refinery",
+      "system": "Stanton",
+      "body": "MicroTech L1",
+      "defaultFeePercent": 5,
+      "notes": "MicroTech L1 refinery option."
     },
     {
       "name": "Everus Harbor Refinery",
       "system": "Stanton",
       "body": "Hurston",
-      "notes": "Pairs with Arial and Aberdeen runs."
+      "defaultFeePercent": 5,
+      "notes": "Pairs with Arial and Aberdeen surface mining."
+    },
+    {
+      "name": "HUR-L1 Station Refinery",
+      "system": "Stanton",
+      "body": "Hurston L1",
+      "defaultFeePercent": 5,
+      "notes": "Hurston L1. Often used for Lyria and Wala cross-hauls."
+    },
+    {
+      "name": "HUR-L2 Station Refinery",
+      "system": "Stanton",
+      "body": "Hurston L2",
+      "defaultFeePercent": 5,
+      "notes": "Hurston L2 refinery."
+    },
+    {
+      "name": "HUR-L3 Station Refinery",
+      "system": "Stanton",
+      "body": "Hurston L3",
+      "defaultFeePercent": 5,
+      "notes": "Hurston L3 refinery."
+    },
+    {
+      "name": "HUR-L4 Station Refinery",
+      "system": "Stanton",
+      "body": "Hurston L4",
+      "defaultFeePercent": 5,
+      "notes": "Hurston L4 refinery."
+    },
+    {
+      "name": "HUR-L5 Station Refinery",
+      "system": "Stanton",
+      "body": "Hurston L5",
+      "defaultFeePercent": 5,
+      "notes": "Hurston L5 refinery."
+    },
+    {
+      "name": "ARC-L1 Station Refinery",
+      "system": "Stanton",
+      "body": "ArcCorp L1",
+      "defaultFeePercent": 5,
+      "notes": "ArcCorp L1 refinery near Lyria runs."
+    },
+    {
+      "name": "MAG-L1 Station Refinery",
+      "system": "Stanton",
+      "body": "Magnus L1",
+      "defaultFeePercent": 5,
+      "notes": "Magnus L1 refinery."
     },
     {
       "name": "Grim HEX Refinery",
       "system": "Stanton",
       "body": "Yela",
-      "notes": "No admin fees at station level, but longer approach from moons."
+      "defaultFeePercent": 0,
+      "notes": "No admin station fee. Longer approach from major moons."
     },
     {
       "name": "Ruin Station Refinery",
       "system": "Pyro",
       "body": "Pyro",
-      "notes": "Pyro refinery option for cross-system hauls."
+      "defaultFeePercent": 5,
+      "notes": "Primary Pyro refinery for cross-system hauls."
+    },
+    {
+      "name": "Checkmate Station Refinery",
+      "system": "Pyro",
+      "body": "Pyro",
+      "defaultFeePercent": 5,
+      "notes": "Pyro refinery station. Verify availability per patch."
     }
   ],
   "loopTips": [
