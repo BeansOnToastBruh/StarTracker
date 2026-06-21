@@ -3,6 +3,7 @@ const {
   semverGreaterThan,
   normalizeTag,
   isLinuxReleaseTag,
+  resolveUpdateRepo,
 } = require("../electron/updateChecker");
 
 function isWindowsReleaseTag(tag) {
@@ -44,6 +45,16 @@ assert(isWindowsReleaseTag("v1.0.3"), "v1.0.3 is windows tag");
 assert(!isWindowsReleaseTag("v1.0.4-linux"), "linux tag not windows tag");
 
 const { releaseIsNewerBuild } = require("../electron/updateChecker");
+
+assert(
+  resolveUpdateRepo({ updateRepo: "BeansOnToastBruh/StarTracker" })?.repo ===
+    "StarTracker",
+  "resolveUpdateRepo accepts configured repo without throwing"
+);
+assert(
+  resolveUpdateRepo({ updateRepo: "YOUR_USER/StarTracker" }) === null,
+  "placeholder updateRepo is rejected"
+);
 assert(
   releaseIsNewerBuild(
     { published_at: "2026-05-30T12:00:00Z" },

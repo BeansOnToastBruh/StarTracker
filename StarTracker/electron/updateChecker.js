@@ -1,4 +1,6 @@
 const { readBuildMeta } = require("./buildMeta");
+
+const PLACEHOLDER_PATTERN = /YOUR_USER/i;
 const REQUEST_TIMEOUT_MS = 8000;
 
 function userAgent() {

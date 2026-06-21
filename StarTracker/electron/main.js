@@ -163,8 +163,13 @@ async function runUpdateCheck() {
     const result = await checkForUpdates(loadConfig());
     if (result) sendUpdateStatus(result);
     return result;
-  } catch {
-    return null;
+  } catch (e) {
+    const result = {
+      available: false,
+      error: e?.message || "Update check failed.",
+    };
+    sendUpdateStatus(result);
+    return result;
   }
 }
 
