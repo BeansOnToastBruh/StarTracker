@@ -20,14 +20,28 @@ function portCategory(port) {
   return "gear";
 }
 
+function titleCaseWords(s) {
+  return String(s || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => {
+      if (w.length <= 4 && w === w.toUpperCase()) return w;
+      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+    })
+    .join(" ");
+}
+
 function formatPortLabel(port) {
   const p = String(port || "").trim();
   if (!p) return "Unknown slot";
-  return p
+  const cleaned = p
     .replace(/^Armor_/i, "")
+    .replace(/^wep_/i, "Weapon ")
+    .replace(/^magazine_/i, "Magazine ")
     .replace(/_/g, " ")
     .replace(/\battach\b/i, "")
     .trim();
+  return titleCaseWords(cleaned) || "Unknown slot";
 }
 
 function isCosmeticPort(port) {

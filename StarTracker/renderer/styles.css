@@ -992,6 +992,137 @@ html[data-theme="dark"] .tab-panels {
   font-size: 0.92rem;
 }
 
+.loadout-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.loadout-snap-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.loadout-snap-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--panel-elevated);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.loadout-snap-chip:hover {
+  border-color: var(--accent);
+  background: var(--accent-muted);
+}
+
+.loadout-snap-chip.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-glow);
+  background: var(--accent-muted);
+}
+
+.loadout-combat-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.loadout-category-open {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.loadout-category-title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.loadout-combat-row {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.35rem;
+  scroll-snap-type: x proximity;
+}
+
+.loadout-combat-row .combat-loadout-card {
+  flex: 0 0 min(16rem, 85vw);
+  scroll-snap-align: start;
+}
+
+.loadout-combat-stat-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.loadout-stat-box {
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.loadout-stat-box.is-primary {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-glow);
+}
+
+.loadout-stat-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 0.15rem;
+}
+
+.loadout-stat-value {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.combat-loadout-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.combat-loadout-name {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.combat-loadout-slot {
+  margin: 0.15rem 0 0;
+  font-size: 0.75rem;
+}
+
+.loadout-hidden-note,
+.loadout-combat-loading {
+  margin-top: 0.5rem;
+}
+
 .loadout-list {
   list-style: none;
   margin: 0;
@@ -1944,9 +2075,9 @@ html[data-theme="dark"] .tab-panels {
 }
 
 .combat-loadout-card {
-  padding: 0.65rem 0.75rem;
+  padding: 0.85rem 0.9rem;
   border: 1px solid var(--border-subtle);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--entry-bg);
 }
 
@@ -2533,5 +2664,137 @@ html[data-theme="light"] .top h1 {
 
   .log-path-row {
     flex-wrap: wrap;
+  }
+}
+
+/* v1.0.5 trade, smuggle, refinery, loadout builder polish */
+.refinery-calc-form {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1.4fr) minmax(9rem, 1.1fr) repeat(3, minmax(4.5rem, 5.5rem)) auto;
+  gap: 0.5rem 0.65rem;
+  align-items: end;
+  margin-bottom: 0.75rem;
+}
+
+.refinery-field-ore select,
+.refinery-field-station select {
+  min-width: 0;
+  width: 100%;
+}
+
+.refinery-field-scu .refinery-num-input,
+.refinery-field-yield .refinery-num-input,
+.refinery-field-fee .refinery-num-input {
+  width: 100%;
+  max-width: none;
+}
+
+.refinery-result-prominent {
+  margin-top: 0.5rem;
+}
+
+.refinery-station-note {
+  border-left: 3px solid var(--contract);
+  padding-left: 0.55rem;
+  margin: 0.35rem 0 0.65rem;
+}
+
+.catalog-table tr.is-selected {
+  background: var(--accent-muted);
+}
+
+.risk-badge {
+  display: inline-block;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.risk-low {
+  color: #8fd48f;
+  background: rgba(109, 216, 109, 0.12);
+  border-color: rgba(109, 216, 109, 0.35);
+}
+
+.risk-medium {
+  color: #e8c86a;
+  background: rgba(212, 168, 83, 0.12);
+  border-color: rgba(212, 168, 83, 0.35);
+}
+
+.risk-high {
+  color: #e89898;
+  background: rgba(224, 112, 112, 0.12);
+  border-color: rgba(224, 112, 112, 0.35);
+}
+
+.trade-route-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.55rem;
+  margin: 0.35rem 0 0.65rem;
+}
+
+.trade-route-detail-card {
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.trade-route-profit-card {
+  border-color: var(--accent);
+  background: var(--accent-muted);
+}
+
+.trade-route-detail-card strong {
+  color: var(--contract);
+}
+
+.smuggle-route-detail,
+.trade-route-detail,
+.crafting-inline-detail {
+  padding: 0.35rem 0.15rem 0.5rem;
+}
+
+.crafting-inline-head h3 {
+  color: var(--contract);
+  margin: 0 0 0.25rem;
+}
+
+.loadout-gear-name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.loadout-gear-slot {
+  color: var(--accent);
+}
+
+.loadout-builder-intro {
+  border-left-color: var(--contract);
+}
+
+.loadout-section-title,
+.loadout-ship-title {
+  color: var(--contract);
+}
+
+.loadout-builder-head h3.loadout-ship-title {
+  margin: 0;
+}
+
+.loadout-summary-value {
+  color: var(--accent);
+}
+
+@media (max-width: 900px) {
+  .refinery-calc-form {
+    grid-template-columns: 1fr 1fr;
   }
 }

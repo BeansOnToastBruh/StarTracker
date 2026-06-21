@@ -17,7 +17,7 @@
       "description": "Multi-stop trade route optimizer with community-reported terminal prices and starmap travel times.",
       "tags": ["routes", "commodities", "en-route"],
       "inAppTab": "guides-trade-routes",
-      "inAppNote": "StarTracker Trade routes tab ranks spreads by your cargo SCU using UEX averages."
+      "inAppNote": "StarTracker Trade routes tab pairs UEX buy and sell terminals with stock and demand SCU caps."
     },
     {
       "id": "uex",

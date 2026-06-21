@@ -60,10 +60,13 @@ function buildOreCatalog(commodities) {
   const oreTypes = seed.oreTypes || [];
   const rows = commodities || [];
   const catalog = [];
+  const usedIds = new Set();
 
   for (const oreType of oreTypes) {
     const { oreRow, refinedRow } = resolveOrePair(oreType, rows);
     if (!oreRow && !refinedRow) continue;
+    if (oreRow?.id) usedIds.add(oreRow.id);
+    if (refinedRow?.id) usedIds.add(refinedRow.id);
     catalog.push({
       id: oreType.id,
       label: oreType.id.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
@@ -72,6 +75,34 @@ function buildOreCatalog(commodities) {
       defaultYieldPercent: oreType.defaultYieldPercent ?? seed.defaultYieldPercent ?? 80,
       volatile: !!oreType.volatile,
       notes: oreType.notes || null,
+    });
+  }
+
+  const extras = rows.filter(
+    (r) =>
+      !usedIds.has(r.id) &&
+      (r.isRaw || /\(ore\)/i.test(r.name || "")) &&
+      (r.priceSell > 0 || r.priceBuy > 0)
+  );
+  for (const oreRow of extras) {
+    const baseName = String(oreRow.name || "")
+      .replace(/\s*\(ore\)/i, "")
+      .trim();
+    const refinedRow =
+      rows.find(
+        (r) =>
+          r.id !== oreRow.id &&
+          !r.isRaw &&
+          String(r.name || "").toLowerCase() === baseName.toLowerCase()
+      ) || null;
+    catalog.push({
+      id: `ore-${oreRow.id}`,
+      label: baseName || oreRow.name,
+      ore: oreRow,
+      refined: refinedRow,
+      defaultYieldPercent: seed.defaultYieldPercent ?? 80,
+      volatile: /quant/i.test(baseName),
+      notes: null,
     });
   }
 

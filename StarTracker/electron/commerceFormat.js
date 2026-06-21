@@ -53,7 +53,30 @@ const ITEM_WORDS = {
   tractorbeam: "Tractor beam",
   combat_light: "Combat light",
   odyssey: "Odyssey",
+  rsi: "RSI",
+  utfl: "Utterly Future",
+  pcg: "PCG",
+  facial_hair: "Facial hair",
+  nomagicpocket: "",
+  body: "Body",
+  hair: "Hair",
+  head: "Head",
+  wep: "Weapon",
+  magazine: "Magazine",
 };
+
+const SKIP_TOKENS = new Set([
+  "01",
+  "02",
+  "03",
+  "04",
+  "05",
+  "none",
+  "item",
+  "default",
+  "nomagicpocket",
+  "nomagic",
+]);
 
 const SHOP_LABELS = {
   SCShop_Entity_CubbyBlast_Area18: "Cubby Blast (Area18)",
@@ -121,12 +144,16 @@ function formatShopItemName(raw, quantity = null) {
 
   for (; i < parts.length; i += 1) {
     const token = parts[i].toLowerCase();
-    if (/^\d+$/.test(token)) continue;
-    if (ITEM_WORDS[token]) {
-      words.push(ITEM_WORDS[token]);
+    if (/^\d+$/.test(token) || SKIP_TOKENS.has(token)) continue;
+    if (Object.prototype.hasOwnProperty.call(ITEM_WORDS, token)) {
+      const mapped = ITEM_WORDS[token];
+      if (mapped) words.push(mapped);
       continue;
     }
-    if (token === "01" || token === "02" || token === "03") continue;
+    if (/^body_\d+_nomagicpocket$/i.test(parts.slice(i).join("_"))) {
+      words.push("Body");
+      break;
+    }
     words.push(token);
   }
 

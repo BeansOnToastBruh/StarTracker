@@ -216,12 +216,16 @@ function compactTerminalPrice(row) {
   ]
     .filter(Boolean)
     .join(", ");
+  const stockScu = Number(row.scu_sell_stock) || Number(row.scu_sell_avg) || 0;
+  const demandScu = Number(row.scu_buy_avg) || Number(row.scu_buy_max) || 0;
   return {
     terminal: row.terminal_name || null,
     location: location || null,
     system: row.star_system_name || null,
     priceBuy: Number(row.price_buy) || 0,
     priceSell: Number(row.price_sell) || 0,
+    stockScu: Math.round(stockScu * 10) / 10,
+    demandScu: Math.round(demandScu * 10) / 10,
   };
 }
 

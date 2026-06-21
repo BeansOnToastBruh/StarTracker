@@ -1,0 +1,181 @@
+const { getCommoditiesCache, shapeCommodityRow } = require("./guidesHub");
+
+const UEX_BASE = "https://api.uexcorp.space/2.0";
+const terminalCache = new Map();
+const TERMINAL_CACHE_MS = 10 * 60 * 1000;
+
+async function fetchJson(url) {
+  const res = await fetch(url, {
+    headers: { Accept: "application/json", "User-Agent": "StarTracker/1.0.5" },
+  });
+  if (!res.ok) throw new Error(`${res.status} ${url}`);
+  return res.json();
+}
+
+function locationLabel(row) {
+  return [row.city_name, row.planet_name, row.star_system_name].filter(Boolean).join(", ");
+}
+
+function shapeTerminalRow(raw) {
+  const buyFromYou = Number(raw.price_buy) || 0;
+  const sellToYou = Number(raw.price_sell) || 0;
+  const stockToBuy = Number(raw.scu_sell_stock) || Number(raw.scu_sell_avg) || 0;
+  const demandToSell = Number(raw.scu_buy_avg) || Number(raw.scu_buy_max) || 0;
+  return {
+    terminal: raw.terminal_name || "Unknown terminal",
+    terminalCode: raw.terminal_code || null,
+    location: locationLabel(raw),
+    system: raw.star_system_name || null,
+    buyFromYouPrice: buyFromYou,
+    sellToYouPrice: sellToYou,
+    stockScu: Math.round(stockToBuy * 10) / 10,
+    demandScu: Math.round(demandToSell * 10) / 10,
+    statusBuy: raw.status_buy,
+    statusSell: raw.status_sell,
+  };
+}
+
+async function fetchCommodityTerminals(commodityId) {
+  const id = Number(commodityId);
+  if (!id) return [];
+  const cached = terminalCache.get(id);
+  if (cached && Date.now() - cached.at < TERMINAL_CACHE_MS) return cached.rows;
+
+  const json = await fetchJson(`${UEX_BASE}/commodities_prices?id_commodity=${id}`);
+  const rows = (json.data || []).map(shapeTerminalRow).filter((t) => t.buyFromYouPrice > 0 || t.sellToYouPrice > 0);
+  terminalCache.set(id, { at: Date.now(), rows });
+  return rows;
+}
+
+function bestBuyTerminal(terminals) {
+  return (
+    terminals
+      .filter((t) => t.sellToYouPrice > 0)
+      .sort((a, b) => a.sellToYouPrice - b.sellToYouPrice)[0] || null
+  );
+}
+
+function bestSellTerminal(terminals) {
+  return (
+    terminals
+      .filter((t) => t.buyFromYouPrice > 0)
+      .sort((a, b) => b.buyFromYouPrice - a.buyFromYouPrice)[0] || null
+  );
+}
+
+function routeFromTerminals(commodity, buyTerminal, sellTerminal, cargoScu) {
+  if (!commodity || !buyTerminal || !sellTerminal) return null;
+  const weight = Number(commodity.weightScu) > 0 ? Number(commodity.weightScu) : 1;
+  const maxByCargo = Math.floor(cargoScu / weight);
+  const maxByStock = buyTerminal.stockScu > 0 ? Math.floor(buyTerminal.stockScu / weight) : maxByCargo;
+  const maxByDemand = sellTerminal.demandScu > 0 ? Math.floor(sellTerminal.demandScu / weight) : maxByCargo;
+  const units = Math.max(0, Math.min(maxByCargo, maxByStock, maxByDemand));
+  const spread = buyTerminal.sellToYouPrice > 0 && sellTerminal.buyFromYouPrice > 0
+    ? sellTerminal.buyFromYouPrice - buyTerminal.sellToYouPrice
+    : commodity.spread || 0;
+  const invest = units * weight * buyTerminal.sellToYouPrice;
+  const profit = units * weight * spread;
+  return {
+    commodityId: commodity.id,
+    name: commodity.name,
+    code: commodity.code,
+    weightScu: weight,
+    isIllegal: commodity.isIllegal,
+    buyTerminal,
+    sellTerminal,
+    commodityUnits: units,
+    commodityScu: units * weight,
+    spreadPerScu: spread,
+    investAuec: invest,
+    totalProfit: profit,
+    profitPerScu: spread,
+    stockLimited: maxByStock < maxByCargo,
+    demandLimited: maxByDemand < maxByCargo,
+  };
+}
+
+async function getCommodityTradeRoute(commodityId, cargoScu = 128) {
+  const cache = await getCommoditiesCache(false);
+  const commodity = (cache.rows || []).find((r) => r.id === Number(commodityId));
+  if (!commodity) return { ok: false, error: "Commodity not found" };
+
+  const terminals = await fetchCommodityTerminals(commodity.id);
+  const buyTerminal = bestBuyTerminal(terminals);
+  const sellTerminal = bestSellTerminal(terminals);
+  const route = routeFromTerminals(
+    commodity.spread != null ? commodity : shapeCommodityRow(commodity),
+    buyTerminal,
+    sellTerminal,
+    cargoScu
+  );
+
+  return {
+    ok: true,
+    route,
+    terminals: terminals.slice(0, 30),
+    meta: { fetchedAt: cache.fetchedAt, source: "api.uexcorp.space" },
+    disclaimer:
+      "Buy and sell terminals, prices, and SCU stock come from UEX community reports. Stock and demand change in-game. Estimates only.",
+  };
+}
+
+async function buildTerminalTradeRoutes(options = {}) {
+  const cargoScu = Math.min(Math.max(Number(options.cargoScu) || 128, 1), 100000);
+  const includeIllegal = !!options.includeIllegal;
+  const query = String(options.query || "").trim().toLowerCase();
+  const limit = Math.min(Math.max(Number(options.limit) || 40, 1), 80);
+
+  const cache = await getCommoditiesCache(false);
+  let rows = (cache.rows || [])
+    .map((r) => (r.spread != null ? r : shapeCommodityRow(r)))
+    .filter(
+      (r) =>
+        r.isBuyable &&
+        r.isSellable &&
+        !r.isRaw &&
+        r.priceBuy > 0 &&
+        r.priceSell > 0 &&
+        r.spread > 0
+    );
+  if (!includeIllegal) rows = rows.filter((r) => !r.isIllegal);
+  if (query) rows = rows.filter((r) => `${r.name} ${r.code}`.toLowerCase().includes(query));
+  rows.sort((a, b) => b.spread - a.spread);
+
+  const routes = [];
+  for (const row of rows.slice(0, limit * 2)) {
+    if (routes.length >= limit) break;
+    try {
+      const terminals = await fetchCommodityTerminals(row.id);
+      const buyTerminal = bestBuyTerminal(terminals);
+      const sellTerminal = bestSellTerminal(terminals);
+      const route = routeFromTerminals(row, buyTerminal, sellTerminal, cargoScu);
+      if (route && route.totalProfit > 0 && route.commodityUnits > 0) routes.push(route);
+    } catch {
+      /* skip commodity */
+    }
+  }
+
+  routes.sort((a, b) => b.totalProfit - a.totalProfit || b.spreadPerScu - a.spreadPerScu);
+
+  return {
+    routes: routes.slice(0, limit),
+    cargoScu,
+    meta: {
+      fetchedAt: cache.fetchedAt,
+      stale: !!cache.stale,
+      source: "api.uexcorp.space",
+    },
+    disclaimer:
+      "Routes pair best UEX buy and sell terminals with reported stock and demand SCU. Profit is capped by the smallest of cargo, stock, and demand. Estimates only.",
+  };
+}
+
+module.exports = {
+  shapeTerminalRow,
+  fetchCommodityTerminals,
+  getCommodityTradeRoute,
+  buildTerminalTradeRoutes,
+  bestBuyTerminal,
+  bestSellTerminal,
+  routeFromTerminals,
+};

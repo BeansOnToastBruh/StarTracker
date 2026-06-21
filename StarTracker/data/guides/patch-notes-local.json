@@ -5,10 +5,10 @@
     "title": "StarTracker 1.0.5",
     "date": "2026-05-29",
     "startrackerNotes": [
-      "Crafting workshop: blueprint recipes, mission sources, material quality sliders, stat previews.",
-      "Trade routes planner, refinery calculator, reputation tracker, and community Tools hub.",
-      "Market prices tab merges trade, mining, and illegal filters. Smuggler routes link to prices instead of duplicating tables.",
-      "Jump to favorites, inline row details, and UI polish beyond the color theme."
+      "Terminal trade routes and smuggler intel: buy/sell terminals, live stock and demand caps, color-coded risk.",
+      "Loadout tab: combat-only weapon and armor cards with wiki stats. Food, drinks, and cosmetics hidden.",
+      "Refinery calculator overhaul, crafting inline row details, ship builder caching and open sections.",
+      "Reputation moved to Session. Tools hub renamed to Credits to. Better item display names from Game.log."
     ]
   },
   {

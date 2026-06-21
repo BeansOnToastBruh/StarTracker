@@ -31,6 +31,7 @@ const loadoutBuilder = require("./loadoutBuilder");
 const refineryIntel = require("./refineryIntel");
 const craftingIntel = require("./craftingIntel");
 const tradeIntel = require("./tradeIntel");
+const terminalIntel = require("./terminalIntel");
 const externalToolsHub = require("./externalToolsHub");
 const reputationIntel = require("./reputationIntel");
 const {
@@ -369,8 +370,21 @@ function handleLogEvent(event) {
   pushEvent(currentSession, event);
   if (event.type === "reward") trackRepFromReward(event);
   maybeRefreshGameLabels(event);
+  if (event.type === "loadout") maybeRefreshLoadoutLabels(event);
   maybeEstimateContractPayout(event);
   broadcastState();
+}
+
+function maybeRefreshLoadoutLabels(event) {
+  if (!currentSession || event.type !== "loadout") return;
+  applyLabelsToSession(currentSession);
+  const names = (event.detail?.items || []).map((i) => i.className).filter(Boolean);
+  if (!names.length) return;
+  gameData.ensureAll(names, { timeoutMs: 12000 }).then(() => {
+    if (!currentSession) return;
+    applyLabelsToSession(currentSession);
+    broadcastState();
+  });
 }
 
 function maybeEstimateContractPayout(event) {
@@ -777,9 +791,24 @@ ipcMain.handle("guides-get-commodity-detail", (_, commodityId) =>
   guidesHub.getCommodityDetail(commodityId)
 );
 
-ipcMain.handle("guides-get-smuggler-routes", () =>
-  guidesHub.getSmugglerRoutes()
-);
+ipcMain.handle("guides-get-smuggler-routes", async () => {
+  const data = await guidesHub.getSmugglerRoutes();
+  const routes = data.routes || [];
+  await Promise.all(
+    routes.slice(0, 8).map(async (route) => {
+      const top = route.commodities?.[0];
+      if (!top?.id) return;
+      try {
+        const detail = await terminalIntel.getCommodityTradeRoute(top.id, 128);
+        route.terminalRoute = detail.route;
+        route.topCommodityId = top.id;
+      } catch {
+        /* optional UEX detail */
+      }
+    })
+  );
+  return data;
+});
 
 ipcMain.handle("guides-get-game-loops", () => guidesHub.getGameLoops());
 
@@ -872,7 +901,11 @@ ipcMain.handle("loadout-simulate", (_, options) =>
 );
 
 ipcMain.handle("guides-get-trade-routes", (_, options) =>
-  tradeIntel.getTradeRoutes(options || {})
+  terminalIntel.buildTerminalTradeRoutes(options || {})
+);
+
+ipcMain.handle("guides-get-trade-route-detail", (_, options) =>
+  terminalIntel.getCommodityTradeRoute(options?.commodityId, options?.cargoScu)
 );
 
 ipcMain.handle("guides-get-trade-presets", () => ({
