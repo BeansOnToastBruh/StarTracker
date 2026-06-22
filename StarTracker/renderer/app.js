@@ -704,6 +704,19 @@ function patchPanelTable(panelSelector, tableHtml) {
   if (old) old.outerHTML = tableHtml;
 }
 
+function patchPanelResults(panelSelector, tableHtml, pagerHtml = "") {
+  patchPanelTable(panelSelector, tableHtml);
+  const panel = document.querySelector(`${panelSelector} .panel-body`);
+  if (!panel) return;
+  const pager = panel.querySelector(".catalog-pager");
+  if (pagerHtml) {
+    if (pager) pager.outerHTML = pagerHtml;
+    else panel.querySelector(".catalog-table-wrap")?.insertAdjacentHTML("afterend", pagerHtml);
+  } else if (pager) {
+    pager.remove();
+  }
+}
+
 function patchShipBuilderTable(tableHtml) {
   const wrap = document.querySelector("#panel-guides-loadout .ship-picker-table-wrap");
   const pager = document.querySelector("#panel-guides-loadout .ship-builder-pager");
@@ -825,21 +838,25 @@ function debounce(fn, ms) {
 
 const debouncedCatalogSearch = debounce((tabId) => {
   clearInlineExpand();
-  if (activeTab === tabId) loadCatalogTab(tabId, { resetOffset: true });
+  if (activeTab === tabId) loadCatalogTab(tabId, { resetOffset: true, filterOnly: true });
 }, 320);
 
 const debouncedGuideSearch = debounce((tabId) => {
   clearInlineExpand();
-  if (activeTab === tabId) loadGuideTab(tabId, { resetOffset: true });
+  if (activeTab === tabId) loadGuideTab(tabId, { resetOffset: true, filterOnly: true });
 }, 320);
 
 const debouncedFleetSearch = debounce((tabId) => {
   clearInlineExpand();
-  if (activeTab === tabId) loadFleetCompareTab(tabId, { resetOffset: true });
+  if (activeTab === tabId) loadFleetCompareTab(tabId, { resetOffset: true, filterOnly: true });
 }, 320);
 
 const debouncedShipBuilderFilter = debounce(() => {
-  if (activeTab === "guides-loadout") loadLoadoutBuilderTab("guides-loadout", { resetOffset: true });
+  if (activeTab === "guides-loadout") refreshShipBuilderFilter({ resetOffset: true });
+}, 320);
+
+const debouncedTradeRouteSearch = debounce(() => {
+  if (activeTab === "guides-trade-routes") refreshTradeRoutesTab({ filterOnly: true });
 }, 320);
 
 const debouncedCraftingPreview = debounce(async () => {
@@ -1251,9 +1268,55 @@ function setActiveTab(id) {
   scrollActiveTabIntoView();
 }
 
+function isTextField(el) {
+  if (!el || !el.tagName) return false;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
+
+function searchFieldRestoreSelector(el) {
+  if (!el) return null;
+  if (el.id) return `#${CSS.escape(el.id)}`;
+  if (el.dataset?.fleetSearch) return `[data-fleet-search="${CSS.escape(el.dataset.fleetSearch)}"]`;
+  if (el.dataset?.guideSearch) return `[data-guide-search="${CSS.escape(el.dataset.guideSearch)}"]`;
+  if (el.dataset?.catalogSearch) return `[data-catalog-search="${CSS.escape(el.dataset.catalogSearch)}"]`;
+  if (el.dataset?.craftingSearch) return `[data-crafting-search="${CSS.escape(el.dataset.craftingSearch)}"]`;
+  return null;
+}
+
+function restorePanelFieldFocus(panel, restore) {
+  if (!restore?.sel || !panel) return;
+  const el = panel.querySelector(restore.sel);
+  if (!el || !isTextField(el)) return;
+  el.focus({ preventScroll: true });
+  if (typeof el.setSelectionRange === "function" && restore.start != null) {
+    try {
+      const len = el.value.length;
+      const start = Math.min(restore.start, len);
+      const end = Math.min(restore.end ?? start, len);
+      el.setSelectionRange(start, end);
+    } catch {
+      /* some input types disallow selection */
+    }
+  }
+}
+
 function setPanelHtml(tabId, html) {
   const panel = document.querySelector(`#panel-${tabId} .panel-body`);
-  if (panel) panel.innerHTML = html;
+  if (!panel) return;
+
+  const active = document.activeElement;
+  const restore =
+    active && panel.contains(active) && isTextField(active)
+      ? {
+          sel: searchFieldRestoreSelector(active),
+          start: active.selectionStart,
+          end: active.selectionEnd,
+        }
+      : null;
+
+  panel.innerHTML = html;
+  restorePanelFieldFocus(panel, restore);
 }
 
 function deathDescription(d) {
@@ -3030,25 +3093,80 @@ function renderLoadoutBuilderBody(blueprint, summary) {
   </section>`;
 }
 
+async function refreshShipBuilderFilter(options = {}) {
+  if (activeTab !== "guides-loadout") return;
+  const tabId = "guides-loadout";
+  const state = guideQueryByTab[tabId] || { query: "", offset: 0, limit: 25 };
+  if (options.resetOffset) state.offset = 0;
+  guideQueryByTab[tabId] = state;
+
+  const favSlugs = new Set(shipBuilderFavorites.map((s) => s.slug));
+  const resolved = await resolveShipBuilderRows(state, favSlugs);
+  const total = resolved.rows.length;
+  const offset = Math.max(state.offset || 0, 0);
+  const limit = state.limit || 25;
+  const pageRows = resolved.rows.slice(offset, offset + limit);
+  const emptyMsg = shipBuilderEmptyMessage(state, resolved.fleetEmpty, resolved.remoteSource);
+  const tableHtml = renderShipBuilderRows(pageRows, emptyMsg);
+  const pagerHtml = renderShipBuilderPager(tabId, total, offset, limit);
+  shipBuilderLastPayload = { tableHtml, pagerHtml, total, offset, limit };
+
+  if (document.querySelector("#panel-guides-loadout .ship-picker-table-wrap")) {
+    patchShipBuilderTable(tableHtml);
+    const pager = document.querySelector("#panel-guides-loadout .ship-builder-pager");
+    if (pagerHtml) {
+      if (pager) pager.outerHTML = pagerHtml;
+      else
+        document
+          .querySelector("#panel-guides-loadout .ship-picker-table-wrap")
+          ?.insertAdjacentHTML("afterend", pagerHtml);
+    } else if (pager) {
+      pager.remove();
+    }
+    if (inlineExpand.host === INLINE_HOST.SHIP_BUILDER && inlineExpand.key) {
+      await refreshInlineExpandHost(INLINE_HOST.SHIP_BUILDER);
+    }
+    return;
+  }
+
+  await loadLoadoutBuilderTab(tabId, options);
+}
+
 async function loadFleetCompareTab(tabId, options = {}) {
+  const filterOnly =
+    !!options.filterOnly && document.querySelector(`#panel-${tabId} .catalog-toolbar`);
+
   const state = guideQueryByTab[tabId] || { query: "", offset: 0, sort: "manufacturer", limit: 80 };
   if (!state.limit) state.limit = 80;
   if (options.resetOffset) state.offset = 0;
   guideQueryByTab[tabId] = state;
 
   const cacheKey = fleetStateKey(state);
+  const intro = `<div class="hub-intro"><strong>Compare the whole fleet.</strong> Sort ships by hull, shields, SCM, cargo, mass, and IR signature. Click any row for the full performance breakdown. Click again to collapse.</div>`;
+  const applyFleetPanel = (meta, rows, pageMeta) => {
+    const tableHtml = renderFleetCompareRows(rows);
+    const pagerHtml = renderFleetComparePager(tabId, pageMeta);
+    if (filterOnly) {
+      patchPanelResults(`#panel-${tabId}`, tableHtml, pagerHtml);
+    } else {
+      setPanelHtml(
+        tabId,
+        `${intro}${fleetMetaLine(meta)}${fleetCompareToolbar(tabId)}${tableHtml}${pagerHtml}`
+      );
+    }
+  };
+
   if (!options.forceRefresh && fleetCompareLastRows && fleetCompareCacheKey === cacheKey && fleetComparePageMeta) {
-    setPanelHtml(
-      tabId,
-      `<div class="hub-intro"><strong>Compare the whole fleet.</strong> Sort ships by hull, shields, SCM, cargo, mass, and IR signature. Click any row for the full performance breakdown. Click again to collapse.</div>${fleetMetaLine(fleetCompareMeta)}${fleetCompareToolbar(tabId)}${renderFleetCompareRows(fleetCompareLastRows)}${renderFleetComparePager(tabId, fleetComparePageMeta)}`
-    );
+    applyFleetPanel(fleetCompareMeta, fleetCompareLastRows, fleetComparePageMeta);
     return;
   }
 
-  setPanelHtml(
-    tabId,
-    `<div class="hub-intro"><strong>Compare the whole fleet.</strong> Sort ships by hull, shields, SCM, cargo, mass, and IR signature. Click any row for the full performance breakdown. Click again to collapse.</div>${fleetMetaLine(fleetCompareMeta)}${fleetCompareToolbar(tabId)}<p class="muted small">Loading fleet index…</p>`
-  );
+  if (!filterOnly) {
+    setPanelHtml(
+      tabId,
+      `${intro}${fleetMetaLine(fleetCompareMeta)}${fleetCompareToolbar(tabId)}<p class="muted small">Loading fleet index…</p>`
+    );
+  }
 
   try {
     const result = await window.debrief.fleetCompareQuery({
@@ -3063,15 +3181,14 @@ async function loadFleetCompareTab(tabId, options = {}) {
     fleetCompareLastRows = result.rows;
     fleetComparePageMeta = { total: result.total, offset: result.offset, limit: result.limit };
     fleetCompareCacheKey = cacheKey;
-    setPanelHtml(
-      tabId,
-      `<div class="hub-intro"><strong>Compare the whole fleet.</strong> Sort ships by hull, shields, SCM, cargo, mass, and IR signature. Click any row for the full performance breakdown. Click again to collapse.</div>${fleetMetaLine(result.meta)}${fleetCompareToolbar(tabId)}${renderFleetCompareRows(result.rows)}${renderFleetComparePager(tabId, fleetComparePageMeta)}`
-    );
+    applyFleetPanel(result.meta, result.rows, fleetComparePageMeta);
   } catch (e) {
-    setPanelHtml(
-      tabId,
-      `${fleetMetaLine(fleetCompareMeta)}${fleetCompareToolbar(tabId)}<p class="muted">Fleet compare error: ${escapeHtml(e.message || String(e))}</p>`
-    );
+    if (!filterOnly) {
+      setPanelHtml(
+        tabId,
+        `${fleetMetaLine(fleetCompareMeta)}${fleetCompareToolbar(tabId)}<p class="muted">Fleet compare error: ${escapeHtml(e.message || String(e))}</p>`
+      );
+    }
   }
 }
 
@@ -3140,14 +3257,19 @@ async function applyLoadoutAssignments() {
 
 async function loadCatalogTab(tabId, options = {}) {
   if (!tabId.startsWith("catalog-")) return;
+  const filterOnly =
+    !!options.filterOnly && document.querySelector(`#panel-${tabId} .catalog-toolbar`);
+
   const state = catalogQueryByTab[tabId] || { query: "", offset: 0 };
   if (options.resetOffset) state.offset = 0;
   catalogQueryByTab[tabId] = state;
 
-  setPanelHtml(
-    tabId,
-    `${catalogMetaLine()}${catalogToolbar(tabId)}<p class="muted small">Loading catalog…</p>`
-  );
+  if (!filterOnly) {
+    setPanelHtml(
+      tabId,
+      `${catalogMetaLine()}${catalogToolbar(tabId)}<p class="muted small">Loading catalog…</p>`
+    );
+  }
 
   try {
     let result;
@@ -3160,11 +3282,6 @@ async function loadCatalogTab(tabId, options = {}) {
         withListingsOnly: true,
       });
       tableHtml = renderCatalogShipRows(result.rows);
-      catalogLastPayload = { tabId, html: tableHtml };
-      setPanelHtml(
-        tabId,
-        `${catalogMetaLine()}${catalogToolbar(tabId)}${tableHtml}${renderCatalogPager(tabId, result)}`
-      );
     } else if (tabId === "catalog-shops") {
       result = await window.debrief.catalogQueryShops({
         query: state.query,
@@ -3172,11 +3289,6 @@ async function loadCatalogTab(tabId, options = {}) {
         limit: 50,
       });
       tableHtml = renderCatalogShopRows(result.rows);
-      catalogLastPayload = { tabId, html: tableHtml };
-      setPanelHtml(
-        tabId,
-        `${catalogMetaLine()}${catalogToolbar(tabId)}${tableHtml}${renderCatalogPager(tabId, result)}`
-      );
     } else if (tabId === "catalog-ship-services") {
       result = await window.debrief.catalogQueryPlaces({
         query: state.query,
@@ -3184,11 +3296,6 @@ async function loadCatalogTab(tabId, options = {}) {
         limit: 80,
       });
       tableHtml = renderCatalogShipServiceRows(result.rows);
-      catalogLastPayload = { tabId, html: tableHtml };
-      setPanelHtml(
-        tabId,
-        `${catalogMetaLine()}${catalogToolbar(tabId)}${tableHtml}${renderCatalogPager(tabId, result)}`
-      );
     } else {
       result = await window.debrief.catalogQueryItems({
         query: state.query,
@@ -3198,17 +3305,24 @@ async function loadCatalogTab(tabId, options = {}) {
         withListingsOnly: true,
       });
       tableHtml = renderCatalogItemRows(result.rows, tabId);
-      catalogLastPayload = { tabId, html: tableHtml };
+    }
+    catalogLastPayload = { tabId, html: tableHtml };
+    const pagerHtml = renderCatalogPager(tabId, result);
+    if (filterOnly) {
+      patchPanelResults(`#panel-${tabId}`, tableHtml, pagerHtml);
+    } else {
       setPanelHtml(
         tabId,
-        `${catalogMetaLine()}${catalogToolbar(tabId)}${tableHtml}${renderCatalogPager(tabId, result)}`
+        `${catalogMetaLine()}${catalogToolbar(tabId)}${tableHtml}${pagerHtml}`
       );
     }
   } catch (e) {
-    setPanelHtml(
-      tabId,
-      `${catalogMetaLine()}${catalogToolbar(tabId)}<p class="muted">Catalog error: ${escapeHtml(e.message || String(e))}</p>`
-    );
+    if (!filterOnly) {
+      setPanelHtml(
+        tabId,
+        `${catalogMetaLine()}${catalogToolbar(tabId)}<p class="muted">Catalog error: ${escapeHtml(e.message || String(e))}</p>`
+      );
+    }
   }
 }
 
@@ -4416,7 +4530,7 @@ function buildReputationPanel(data) {
     <p class="muted small"><button type="button" class="link guide-tab-link" data-tab="rewards">Session rewards</button> · <button type="button" class="link guide-tab-link" data-tab="missions">Missions</button></p>`;
 }
 
-async function refreshTradeRoutesTab() {
+async function refreshTradeRoutesTab(options = {}) {
   if (activeTab !== "guides-trade-routes") return;
   const state = guideQueryByTab["guides-trade-routes"] || {};
   const cargoInput = $("tradeCargoScu");
@@ -4424,11 +4538,11 @@ async function refreshTradeRoutesTab() {
   const illegalInput = $("tradeIncludeIllegal");
   const sortInput = $("tradeRouteSort");
   if (cargoInput) state.cargoScu = Math.max(1, Number(cargoInput.value) || 128);
-  if (searchInput) state.query = searchInput.value.trim();
+  if (searchInput) state.query = searchInput.value;
   if (illegalInput) state.includeIllegal = illegalInput.checked;
   if (sortInput) state.sort = sortInput.value || "profit";
   guideQueryByTab["guides-trade-routes"] = state;
-  await loadGuideTab("guides-trade-routes");
+  await loadGuideTab("guides-trade-routes", { filterOnly: !!options.filterOnly });
 }
 
 async function loadGuideTab(tabId, options = {}) {
@@ -4488,7 +4602,12 @@ async function loadGuideTab(tabId, options = {}) {
 
   if (tabId === "guides-trade-routes") {
     const state = guideQueryByTab["guides-trade-routes"] || {};
-    setPanelHtml(tabId, `<p class="muted small">Loading trade routes…</p>`);
+    const filterOnly =
+      !!options.filterOnly &&
+      document.querySelector("#panel-guides-trade-routes .trade-routes-toolbar");
+    if (!filterOnly) {
+      setPanelHtml(tabId, `<p class="muted small">Loading trade routes…</p>`);
+    }
     try {
       const [presetsData, data] = await Promise.all([
         window.debrief.guidesGetTradePresets(),
@@ -4496,17 +4615,41 @@ async function loadGuideTab(tabId, options = {}) {
           cargoScu: state.cargoScu || 128,
           includeIllegal: !!state.includeIllegal,
           minSpread: state.minSpread || 0,
-          query: state.query || "",
+          query: (state.query || "").trim(),
           sort: state.sort || "profit",
           limit: 50,
         }),
       ]);
-      setPanelHtml(tabId, buildTradeRoutesPanel(data, presetsData.presets || []));
+      const panelHtml = buildTradeRoutesPanel(data, presetsData.presets || []);
+      if (filterOnly) {
+        const panel = document.querySelector("#panel-guides-trade-routes .panel-body");
+        const table = panel?.querySelector(".catalog-table-wrap");
+        const emptyMsg = panel?.querySelector(".trade-routes-empty");
+        const routes = data.routes || [];
+        if (routes.length) {
+          emptyMsg?.remove();
+          const tableHtml = renderTradeRouteRows(routes);
+          if (table) patchPanelTable("#panel-guides-trade-routes", tableHtml);
+          else panel?.insertAdjacentHTML("beforeend", tableHtml);
+        } else if (panel && !emptyMsg) {
+          table?.remove();
+          panel
+            .querySelector(".trade-routes-toolbar")
+            ?.insertAdjacentHTML(
+              "afterend",
+              `<p class="muted trade-routes-empty">No profitable routes match your filters. Try refreshing UEX prices or including more commodities.</p>`
+            );
+        }
+      } else {
+        setPanelHtml(tabId, panelHtml);
+      }
     } catch (e) {
-      setPanelHtml(
-        tabId,
-        `<p class="muted">Trade routes error: ${escapeHtml(e.message || String(e))}</p>`
-      );
+      if (!filterOnly) {
+        setPanelHtml(
+          tabId,
+          `<p class="muted">Trade routes error: ${escapeHtml(e.message || String(e))}</p>`
+        );
+      }
     }
     return;
   }
@@ -4562,10 +4705,15 @@ async function loadGuideTab(tabId, options = {}) {
     if (options.resetOffset) state.offset = 0;
     guideQueryByTab[tabId] = state;
 
-    setPanelHtml(
-      tabId,
-      `${guidesMetaLine(guideCommodityMeta)}${guidesCommodityToolbar(tabId)}<p class="muted small">Loading commodities…</p>`
-    );
+    const filterOnly =
+      !!options.filterOnly && document.querySelector(`#panel-${tabId} .catalog-toolbar`);
+
+    if (!filterOnly) {
+      setPanelHtml(
+        tabId,
+        `${guidesMetaLine(guideCommodityMeta)}${guidesCommodityToolbar(tabId)}<p class="muted small">Loading commodities…</p>`
+      );
+    }
 
     try {
       const result = await window.debrief.guidesGetCommodities({
@@ -4578,15 +4726,22 @@ async function loadGuideTab(tabId, options = {}) {
       guideCommodityMeta = result.meta;
       const tableHtml = renderGuideCommodityRows(result.rows, tabId);
       guideCommodityLastPayload = { tabId, tableHtml };
-      setPanelHtml(
-        tabId,
-        `${guidesMetaLine(result.meta)}${guidesCommodityToolbar(tabId)}${tableHtml}${renderGuideCommodityPager(tabId, result)}`
-      );
+      const pagerHtml = renderGuideCommodityPager(tabId, result);
+      if (filterOnly) {
+        patchPanelResults(`#panel-${tabId}`, tableHtml, pagerHtml);
+      } else {
+        setPanelHtml(
+          tabId,
+          `${guidesMetaLine(result.meta)}${guidesCommodityToolbar(tabId)}${tableHtml}${pagerHtml}`
+        );
+      }
     } catch (e) {
-      setPanelHtml(
-        tabId,
-        `${guidesMetaLine(guideCommodityMeta)}${guidesCommodityToolbar(tabId)}<p class="muted">Commodity error: ${escapeHtml(e.message || String(e))}</p>`
-      );
+      if (!filterOnly) {
+        setPanelHtml(
+          tabId,
+          `${guidesMetaLine(guideCommodityMeta)}${guidesCommodityToolbar(tabId)}<p class="muted">Commodity error: ${escapeHtml(e.message || String(e))}</p>`
+        );
+      }
     }
   }
 }
@@ -4988,6 +5143,15 @@ function initGuidesUi() {
       debouncedShipBuilderFilter();
       return;
     }
+
+    if (e.target.id === "tradeRouteSearch") {
+      const state = guideQueryByTab["guides-trade-routes"] || {};
+      state.query = e.target.value;
+      guideQueryByTab["guides-trade-routes"] = state;
+      debouncedTradeRouteSearch();
+      return;
+    }
+
     const fleetInput = e.target.closest("[data-fleet-search]");
     if (fleetInput) {
       const tabId = fleetInput.dataset.fleetSearch;
