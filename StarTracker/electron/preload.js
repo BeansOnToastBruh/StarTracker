@@ -90,6 +90,8 @@ contextBridge.exposeInMainWorld("debrief", {
   combatSearch: (options) => ipcRenderer.invoke("combat-search", options),
   fleetCompareQuery: (options) => ipcRenderer.invoke("fleet-compare-query", options),
   fleetCompareRefresh: () => ipcRenderer.invoke("fleet-compare-refresh"),
+  fleetGetIndex: (options) => ipcRenderer.invoke("fleet-get-index", options),
+  fleetSearchVehicles: (query) => ipcRenderer.invoke("fleet-search-vehicles", query),
   loadoutGetBlueprint: (slug) => ipcRenderer.invoke("loadout-get-blueprint", slug),
   loadoutSearchWeapons: (options) =>
     ipcRenderer.invoke("loadout-search-weapons", options),

@@ -954,6 +954,12 @@ ipcMain.handle("fleet-compare-refresh", () =>
   fleetCompare.getFleetCompare({ forceRefresh: true })
 );
 
+ipcMain.handle("fleet-get-index", (_, options) => fleetCompare.getFleetIndex(options || {}));
+
+ipcMain.handle("fleet-search-vehicles", (_, query) =>
+  fleetCompare.searchFleetVehicles(query)
+);
+
 ipcMain.handle("loadout-get-blueprint", (_, slug) =>
   loadoutBuilder.getShipBlueprint(combatIntel, slug)
 );
@@ -967,6 +973,10 @@ ipcMain.handle("loadout-simulate", (_, options) =>
 );
 
 ipcMain.handle("guides-get-trade-routes", (_, options) =>
+  tradeIntel.getTradeRoutes(options || {})
+);
+
+ipcMain.handle("guides-get-trade-routes-terminal", (_, options) =>
   terminalIntel.buildTerminalTradeRoutes(options || {})
 );
 

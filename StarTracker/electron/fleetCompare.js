@@ -227,6 +227,72 @@ async function enrichVehicleFromIndex(vehicle) {
   return enrichVehicleRow(vehicle, buildFleetLookup(index));
 }
 
+function vehicleHaystack(row) {
+  return `${row.name || ""} ${row.manufacturer || ""} ${row.slug || ""} ${row.className || ""} ${row.role || ""}`.toLowerCase();
+}
+
+function matchesVehicleQuery(row, query) {
+  const q = String(query || "").trim().toLowerCase();
+  if (!q) return true;
+  const hay = vehicleHaystack(row);
+  const tokens = q.split(/\s+/).filter(Boolean);
+  return tokens.every((t) => hay.includes(t));
+}
+
+async function lookupVehicleBySlugGuess(query) {
+  const raw = String(query || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "");
+  if (!raw) return null;
+  const slugPart = raw.replace(/\s+/g, "-");
+  const prefixes = ["orig", "crus", "aegs", "misc", "anvl", "drak", "rsi", "cnst", "gama"];
+  const candidates = new Set([
+    slugPart,
+    `orig-${slugPart}`,
+    `crus-${slugPart}`,
+    `aegs-${slugPart}`,
+    `misc-${slugPart}`,
+    `anvl-${slugPart}`,
+    `drak-${slugPart}`,
+  ]);
+  for (const prefix of prefixes) {
+    candidates.add(`${prefix}-${slugPart}`);
+    candidates.add(`${prefix}-starlifter-${slugPart}`);
+  }
+  for (const slug of candidates) {
+    try {
+      const json = await fetchJson(`${WIKI_BASE}/vehicles/${encodeURIComponent(slug)}`);
+      if (json.data?.slug) return compactFleetRow(json.data);
+    } catch {
+      /* try next slug */
+    }
+  }
+  return null;
+}
+
+async function searchFleetVehicles(query, options = {}) {
+  const q = String(query || "").trim();
+  if (!q) return { ok: true, rows: [], source: "empty" };
+
+  let index = await getFleetIndex(options);
+  if (!index.ok || !index.rows?.length) {
+    index = await getFleetIndex({ forceRefresh: true });
+  }
+
+  let rows = (index.rows || []).filter((r) => matchesVehicleQuery(r, q));
+  if (rows.length) {
+    return { ok: true, rows, source: "index", meta: { fetchedAt: index.fetchedAt, stale: index.stale } };
+  }
+
+  const lookedUp = await lookupVehicleBySlugGuess(q);
+  if (lookedUp) {
+    return { ok: true, rows: [lookedUp], source: "wiki-slug" };
+  }
+
+  return { ok: true, rows: [], source: "none", meta: { fetchedAt: index.fetchedAt, stale: index.stale } };
+}
+
 module.exports = {
   init,
   compactFleetRow,
@@ -239,4 +305,7 @@ module.exports = {
   enrichVehicleRow,
   enrichVehicleRows,
   enrichVehicleFromIndex,
+  matchesVehicleQuery,
+  searchFleetVehicles,
+  lookupVehicleBySlugGuess,
 };

@@ -1374,7 +1374,33 @@ function renderStats(session, state = lastKnownState) {
 
 function buildOverview(session) {
   const r = session?.rollup;
-  if (!session) return emptyPanel(tabById("overview"));
+  if (!session) {
+    const jumps = [
+      ["guides-loadout", "Ship builder", "Plan loadouts & DPS"],
+      ["guides-trade-routes", "Trade routes", "UEX profit calculator"],
+      ["guides-refinery", "Refinery", "Raw vs refined ore"],
+      ["guides-fleet", "Fleet compare", "Hull & cargo stats"],
+      ["guides-patch-notes", "Patch notes", "Latest Alpha patches"],
+    ];
+    const cards = jumps
+      .map(
+        ([id, title, blurb]) =>
+          `<button type="button" class="welcome-card guide-tab-link" data-tab="${escapeAttr(id)}">
+            <span class="welcome-card-icon" aria-hidden="true">${TAB_ICONS[id] || "✦"}</span>
+            <strong>${escapeHtml(title)}</strong>
+            <span class="muted small">${escapeHtml(blurb)}</span>
+          </button>`
+      )
+      .join("");
+    return `<div class="welcome-dashboard">
+      <div class="welcome-hero guide-card">
+        <p class="welcome-eyebrow">Star Citizen companion</p>
+        <h2 class="welcome-title">Welcome aboard, pilot</h2>
+        <p class="welcome-lead">StarTracker reads your <strong>Game.log</strong> while you play — contracts, payouts, deaths, loadouts, and more. Start a session with the button above, or explore intel tools below.</p>
+      </div>
+      <div class="welcome-grid">${cards}</div>
+    </div>`;
+  }
   if (!r) {
     return `<div class="overview-prose"><p>Session is active and still gathering events. Keep playing and check back in a moment.</p></div>`;
   }
@@ -2590,15 +2616,60 @@ function fleetStateKey(state) {
 async function getLoadoutFleetIndex(forceRefresh = false) {
   if (!forceRefresh && loadoutFleetIndexCache?.rows?.length) return loadoutFleetIndexCache;
   try {
-    const fleet = await window.debrief.fleetCompareQuery({ sort: "manufacturer", limit: 250 });
-    if (fleet.ok && fleet.rows?.length) {
-      loadoutFleetIndexCache = { rows: fleet.rows, meta: fleet.meta };
+    const index = await window.debrief.fleetGetIndex({ forceRefresh });
+    if (index.ok && index.rows?.length) {
+      loadoutFleetIndexCache = {
+        rows: index.rows,
+        meta: { fetchedAt: index.fetchedAt, stale: index.stale, total: index.total },
+      };
       return loadoutFleetIndexCache;
     }
+    if (!forceRefresh) return getLoadoutFleetIndex(true);
   } catch {
-    /* optional */
+    if (!forceRefresh) return getLoadoutFleetIndex(true);
   }
   return loadoutFleetIndexCache || { rows: [] };
+}
+
+function filterShipBuilderRows(rows, state, favSlugs) {
+  const filter = (state?.query || "").trim().toLowerCase();
+  return (rows || []).filter((r) => {
+    if (shipBuilderPickMode === "favorites" && !favSlugs.has(r.slug)) return false;
+    if (!filter) return true;
+    const hay = `${r.name || ""} ${r.manufacturer || ""} ${r.slug || ""} ${r.className || ""} ${r.role || ""}`.toLowerCase();
+    const tokens = filter.split(/\s+/).filter(Boolean);
+    return tokens.every((t) => hay.includes(t));
+  });
+}
+
+async function resolveShipBuilderRows(state, favSlugs) {
+  const fleet = await getLoadoutFleetIndex();
+  const baseRows = fleet.rows || [];
+  let filtered = filterShipBuilderRows(baseRows, state, favSlugs);
+  let remoteSource = null;
+
+  const q = (state?.query || "").trim();
+  if (!filtered.length && q.length >= 2) {
+    try {
+      const remote = await window.debrief.fleetSearchVehicles(q);
+      remoteSource = remote.source;
+      const extras = remote.rows || [];
+      const merged = [...baseRows];
+      for (const row of extras) {
+        if (!merged.some((r) => r.slug === row.slug)) merged.push(row);
+      }
+      filtered = filterShipBuilderRows(merged, state, favSlugs);
+    } catch {
+      /* optional wiki lookup */
+    }
+  }
+
+  return {
+    rows: filtered,
+    fleetEmpty: !baseRows.length,
+    remoteSource,
+    meta: fleet.meta,
+  };
 }
 
 function fleetCompareToolbar(tabId) {
@@ -2706,20 +2777,31 @@ function renderLoadoutSummaryStrip(totals, baseline) {
   </div>`;
 }
 
-function filterShipBuilderRows(rows, state, favSlugs) {
-  const filter = (state?.query || "").trim().toLowerCase();
-  return (rows || []).filter((r) => {
-    if (shipBuilderPickMode === "favorites" && !favSlugs.has(r.slug)) return false;
-    const hay = `${r.name || ""} ${r.manufacturer || ""} ${r.slug || ""}`.toLowerCase();
-    return !filter || hay.includes(filter);
-  });
+function shipBuilderEmptyMessage(state, fleetEmpty, remoteSource) {
+  const q = (state?.query || "").trim();
+  if (fleetEmpty) {
+    return `Ship database still loading. Wait a moment or click <strong>Refresh ship index</strong> below.`;
+  }
+  if (q) {
+    const remoteHint =
+      remoteSource === "wiki-slug"
+        ? " Found via wiki slug lookup."
+        : remoteSource === "none"
+          ? " Try the full name (e.g. Origin M80) or a slug like orig-m80."
+          : "";
+    return `No ships match “${escapeHtml(q)}”.${remoteHint}`;
+  }
+  return shipBuilderPickMode === "favorites"
+    ? "No favorites match your filter."
+    : "No ships on this page. Try another page or clear your filter.";
 }
 
-function renderShipBuilderRows(rows) {
+function renderShipBuilderRows(rows, emptyMessage) {
   if (!rows?.length) {
+    const msg = emptyMessage || "No ships match your filter.";
     return `<div class="catalog-table-wrap ship-picker-table-wrap"><table class="catalog-table ship-picker-table">
       <thead><tr><th></th><th></th><th>Mfg</th><th>Ship</th><th>Role</th></tr></thead>
-      <tbody><tr><td colspan="5" class="muted">${shipBuilderPickMode === "favorites" ? "No favorites match your filter." : "No ships match your filter."}</td></tr></tbody>
+      <tbody><tr><td colspan="5" class="muted">${msg}</td></tr></tbody>
     </table></div>`;
   }
   const host = INLINE_HOST.SHIP_BUILDER;
@@ -2810,13 +2892,14 @@ async function renderLoadoutBuilderShell() {
   const state = guideQueryByTab[tabId] || { query: "", offset: 0, limit: 25 };
   if (!state.limit) state.limit = 25;
   guideQueryByTab[tabId] = state;
-  const fleet = await getLoadoutFleetIndex();
   const favSlugs = new Set(shipBuilderFavorites.map((s) => s.slug));
-  const filtered = filterShipBuilderRows(fleet.rows || [], state, favSlugs);
+  const resolved = await resolveShipBuilderRows(state, favSlugs);
+  const filtered = resolved.rows;
   const total = filtered.length;
   const offset = Math.max(state.offset || 0, 0);
   const limit = state.limit || 25;
   const pageRows = filtered.slice(offset, offset + limit);
+  const emptyMsg = shipBuilderEmptyMessage(state, resolved.fleetEmpty, resolved.remoteSource);
 
   const favChips = shipBuilderFavorites.length
     ? shipBuilderFavorites
@@ -2827,7 +2910,7 @@ async function renderLoadoutBuilderShell() {
         .join("")
     : `<p class="ship-builder-favorites-empty muted small">No favorite hulls yet. Switch to <strong>All ships</strong> and tap ☆ on any ship to pin it here — like Jump to, but for ship builder.</p>`;
 
-  const tableHtml = renderShipBuilderRows(pageRows);
+  const tableHtml = renderShipBuilderRows(pageRows, emptyMsg);
   const pagerHtml = renderShipBuilderPager(tabId, total, offset, limit);
   shipBuilderLastPayload = { tableHtml, pagerHtml, total, offset, limit };
 
@@ -2837,9 +2920,12 @@ async function renderLoadoutBuilderShell() {
     inlineExpand.host === INLINE_HOST.SHIP_BUILDER && inlineExpand.key
       ? ""
       : `<p class="muted small ship-builder-hint">Click a ship row to expand loadout details inline. Click again to collapse.</p>`;
+  const indexMeta = resolved.meta?.total
+    ? `<p class="guides-meta muted small">${resolved.meta.total} flyable hulls indexed${resolved.meta.stale ? " · background refresh running" : ""}</p>`
+    : "";
 
-  return `<div class="hub-intro loadout-builder-intro">
-    <strong>Ship builder.</strong> Favorite hulls for quick access, swap weapons and components, read live DPS and hull stats.
+  return `<div class="hub-intro loadout-builder-intro hub-intro-accent">
+    <strong>Ship builder.</strong> Favorite hulls, swap weapons and components, read live DPS and hull stats. Search by name, manufacturer, or slug (e.g. <em>M80</em>, <em>orig-m80</em>).
   </div>
   <nav class="ship-builder-mode-nav" aria-label="Ship picker mode">
     <button type="button" class="filter-chip ship-builder-mode${modeFavActive}" data-ship-builder-mode="favorites">★ Favorites</button>
@@ -2852,9 +2938,10 @@ async function renderLoadoutBuilderShell() {
   <section class="guide-section loadout-ship-pick">
     <h2 class="guide-section-title loadout-section-title">${shipBuilderPickMode === "favorites" ? "Your favorites" : "Pick a hull"}</h2>
     <div class="catalog-toolbar">
-      <input type="search" id="loadoutShipFilter" class="catalog-search" placeholder="Filter ships…" value="${escapeAttr(state.query || "")}" />
+      <input type="search" id="loadoutShipFilter" class="catalog-search" placeholder="Filter ships… (M80, Gladius, orig-m80)" value="${escapeAttr(state.query || "")}" />
+      <button type="button" class="btn btn-sm" id="shipBuilderRefreshBtn">Refresh ship index</button>
     </div>
-    ${tableHtml}${pagerHtml}${expandedHint}
+    ${indexMeta}${tableHtml}${pagerHtml}${expandedHint}
   </section>`;
 }
 
@@ -3007,8 +3094,8 @@ async function loadLoadoutBuilderTab(tabId, options = {}) {
     const state = guideQueryByTab["guides-loadout"] || {};
     const fleet = await getLoadoutFleetIndex();
     const favSlugs = new Set(shipBuilderFavorites.map((s) => s.slug));
-    const filtered = filterShipBuilderRows(fleet.rows || [], state, favSlugs);
-    const stillVisible = filtered.some((r) => r.slug === preserveKey);
+    const resolved = await resolveShipBuilderRows(state, favSlugs);
+    const stillVisible = resolved.rows.some((r) => r.slug === preserveKey);
     if (!stillVisible) {
       clearInlineExpand();
     } else {
@@ -3370,7 +3457,7 @@ function buildPatchNotesPanel(data) {
     <p class="guides-meta muted small"><button type="button" class="link" data-guide-external="https://robertsspaceindustries.com/en/comm-link/Patch-Notes">Browse RSI patch notes</button></p>`;
 }
 
-function buildRefineryYieldTable(oreCatalog) {
+function buildRefineryYieldTable(oreCatalog, opts = {}) {
   if (!oreCatalog?.length) return "";
   const rows = oreCatalog
     .map((o) => {
@@ -3386,14 +3473,55 @@ function buildRefineryYieldTable(oreCatalog) {
       </tr>`;
     })
     .join("");
+  const table = `<div class="catalog-table-wrap refinery-yield-table-wrap"><table class="catalog-table refinery-yield-table">
+      <thead><tr><th>Ore</th><th>Raw sell</th><th>Refined sell</th><th>Default yield</th><th>Notes</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+  if (opts.bare) {
+    return `<p class="muted small">Community yield estimates per ore type. Tap an ore chip above to load its default yield.</p>${table}`;
+  }
   return `<section class="guide-section">
     <h2 class="guide-section-title">Ore yield reference</h2>
     <p class="muted small">Community yield estimates per ore type. Select an ore below to load its default yield into the calculator.</p>
-    <div class="catalog-table-wrap refinery-yield-table-wrap"><table class="catalog-table refinery-yield-table">
-      <thead><tr><th>Ore</th><th>Raw sell</th><th>Refined sell</th><th>Default yield</th><th>Notes</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>
+    ${table}
   </section>`;
+}
+
+function buildRefineryOreChips(oreCatalog, selectedId) {
+  const pickIds = ["quantainium", "bexalite", "laranite", "taranite", "broadstone", "gneiss"];
+  return pickIds
+    .map((id) => oreCatalog.find((o) => o.id === id))
+    .filter(Boolean)
+    .map(
+      (o) =>
+        `<button type="button" class="refinery-ore-chip${o.id === selectedId ? " is-active" : ""}" data-refinery-ore="${escapeAttr(o.id)}">${displayText(o.label)}${o.volatile ? " ⚡" : ""}</button>`
+    )
+    .join("");
+}
+
+function buildRefineryStationCards(stations, selectedId) {
+  const bySystem = {};
+  for (const s of stations) {
+    const sys = s.system || "Other";
+    if (!bySystem[sys]) bySystem[sys] = [];
+    bySystem[sys].push(s);
+  }
+  return Object.entries(bySystem)
+    .map(
+      ([sys, list]) => `<div class="refinery-system-group">
+      <h4 class="refinery-system-label">${escapeHtml(sys)}</h4>
+      <div class="refinery-station-cards">${list
+        .map(
+          (s) =>
+            `<button type="button" class="refinery-station-card${s.name === selectedId ? " is-active" : ""}" data-refinery-station="${escapeAttr(s.name)}" title="${escapeAttr(s.notes || "")}">
+          <strong>${displayText(s.name.replace(/\s+Refinery$/i, ""))}</strong>
+          <span class="muted small">${displayText(s.body || "")}</span>
+          <span class="refinery-station-fee">${s.defaultFeePercent != null ? `${formatFleetCell(s.defaultFeePercent)}% fee` : EMPTY_DISPLAY}</span>
+        </button>`
+        )
+        .join("")}</div></div>`
+    )
+    .join("");
 }
 
 function buildRefineryPanel(data, calcResult) {
@@ -3431,17 +3559,23 @@ function buildRefineryPanel(data, calcResult) {
       : selectedStation?.defaultFeePercent ?? data.defaultStationFeePercent ?? 5;
   const result = calcResult?.ok ? calcResult.result : null;
   const worthClass = result?.worthRefining ? " refinery-profit-positive" : result ? " refinery-profit-negative" : "";
-  const resultHtml = result
-    ? `<div class="refinery-result-grid refinery-result-prominent${worthClass}">
-        <div class="refinery-result-card refinery-result-highlight"><span class="refinery-result-label">Net vs selling raw</span><strong>${fmtAuec(result.profitVsRaw)}</strong><span class="muted small">${fmtAuec(result.profitPerOreScu)} per ore SCU</span></div>
-        <div class="refinery-result-card"><span class="refinery-result-label">Yield</span><strong>${formatFleetCell(result.yieldPercent)}%</strong></div>
-        <div class="refinery-result-card"><span class="refinery-result-label">Refined SCU out</span><strong>${formatFleetCell(result.refinedScu)}</strong></div>
-        <div class="refinery-result-card"><span class="refinery-result-label">Raw sell total</span><strong>${fmtAuec(result.grossRaw)}</strong></div>
-        <div class="refinery-result-card"><span class="refinery-result-label">Refined sell (gross)</span><strong>${fmtAuec(result.grossRefined)}</strong></div>
-        <div class="refinery-result-card"><span class="refinery-result-label">Refinery fee (${formatFleetCell(result.feePercent)}%)</span><strong>${fmtAuec(result.refineryFee)}</strong></div>
+  const verdictLabel = result?.worthRefining ? "Refine it" : result ? "Sell raw" : "Run the numbers";
+  const verdictIcon = result?.worthRefining ? "⚗" : result ? "📦" : "◎";
+  const resultHero = result
+    ? `<div class="refinery-verdict-hero${worthClass}">
+        <div class="refinery-verdict-icon" aria-hidden="true">${verdictIcon}</div>
+        <div class="refinery-verdict-body">
+          <span class="refinery-verdict-label">${escapeHtml(verdictLabel)}</span>
+          <strong class="refinery-verdict-profit">${fmtAuec(result.profitVsRaw)}</strong>
+          <span class="muted small">net vs selling ${formatFleetCell(result.oreScu)} SCU raw · ${fmtAuec(result.profitPerOreScu)}/SCU ore</span>
+        </div>
       </div>
-      <p class="muted small refinery-verdict">${result.worthRefining ? "Refining looks profitable at these UEX sell prices." : "Selling raw may beat refining at these prices. Adjust yield or check terminals."}</p>`
-    : `<p class="muted small">Pick an ore and SCU amount to run the calculator.</p>`;
+      <div class="refinery-result-grid refinery-result-compact">
+        <div class="refinery-result-card"><span class="refinery-result-label">Yield</span><strong>${formatFleetCell(result.yieldPercent)}%</strong><span class="muted small">${formatFleetCell(result.refinedScu)} SCU refined</span></div>
+        <div class="refinery-result-card"><span class="refinery-result-label">Raw sell</span><strong>${fmtAuec(result.grossRaw)}</strong></div>
+        <div class="refinery-result-card"><span class="refinery-result-label">Refined (net)</span><strong>${fmtAuec(result.netRefined)}</strong><span class="muted small">fee ${fmtAuec(result.refineryFee)}</span></div>
+      </div>`
+    : `<p class="muted small refinery-verdict-placeholder">Pick ore, station, and SCU — results update as you change values.</p>`;
 
   const stationRows = stations
     .map(
@@ -3465,45 +3599,56 @@ function buildRefineryPanel(data, calcResult) {
     : "";
 
   return `${meta}${disclaimer}
-    <div class="hub-intro"><strong>Refine or sell?</strong> Compare raw ore value against refined output. Yields are community estimates; the in-game refinery UI is authoritative.</div>
-    ${buildRefineryYieldTable(data.oreCatalog)}
-    <section class="guide-section refinery-calc-section">
-      <h2 class="guide-section-title">Refinery calculator</h2>
-      <div class="refinery-calc-form">
-        <label class="refinery-field refinery-field-ore"><span>Ore</span>
-          <select id="refineryOreSelect" class="guide-sort-select">${oreOptions}</select>
-        </label>
-        <label class="refinery-field refinery-field-station"><span>Refinery station</span>
+    <div class="hub-intro hub-intro-accent refinery-hub-intro"><strong>Mining refinery loop.</strong> Mine ore → process at a station → sell refined goods at TDDs. Compare raw vs refined using live UEX sell prices. In-game refinery UI is always authoritative for yield and fees.</div>
+    <div class="refinery-step-strip" aria-hidden="true"><span>Mine</span><span class="refinery-step-arrow">→</span><span>Refine</span><span class="refinery-step-arrow">→</span><span>Sell</span></div>
+    <div class="refinery-workbench">
+      <section class="refinery-calc-panel guide-card">
+        <h2 class="guide-section-title">Calculator</h2>
+        <div class="refinery-ore-chips">${buildRefineryOreChips(data.oreCatalog || [], state.oreId || selectedOre?.id)}</div>
+        <div class="refinery-calc-form refinery-calc-form-compact">
+          <label class="refinery-field refinery-field-ore"><span>Ore type</span>
+            <select id="refineryOreSelect" class="guide-sort-select">${oreOptions}</select>
+          </label>
+          <label class="refinery-field refinery-field-scu"><span>Cargo SCU (ore)</span>
+            <input type="number" id="refineryOreScu" class="refinery-num-input" min="0" step="1" value="${escapeAttr(String(state.oreScu ?? 100))}" />
+          </label>
+          <label class="refinery-field refinery-field-yield"><span>Yield %</span>
+            <input type="number" id="refineryYield" class="refinery-num-input" min="1" max="100" step="1" value="${escapeAttr(String(yieldVal))}" title="Community yield estimate" />
+          </label>
+          <label class="refinery-field refinery-field-fee"><span>Station fee %</span>
+            <input type="number" id="refineryFee" class="refinery-num-input" min="0" max="50" step="0.5" value="${escapeAttr(String(feeVal))}" />
+          </label>
+        </div>
+        <label class="refinery-field refinery-field-station refinery-field-station-select"><span>Refinery station</span>
           <select id="refineryStationSelect" class="guide-sort-select">${stationOptions}</select>
         </label>
-        <label class="refinery-field refinery-field-scu"><span>Ore SCU</span>
-          <input type="number" id="refineryOreScu" class="refinery-num-input" min="0" step="1" value="${escapeAttr(String(state.oreScu ?? 100))}" />
-        </label>
-        <label class="refinery-field refinery-field-yield"><span>Yield %</span>
-          <input type="number" id="refineryYield" class="refinery-num-input" min="1" max="100" step="1" value="${escapeAttr(String(yieldVal))}" title="Community yield estimate for selected ore" />
-        </label>
-        <label class="refinery-field refinery-field-fee"><span>Station fee %</span>
-          <input type="number" id="refineryFee" class="refinery-num-input" min="0" max="50" step="0.5" value="${escapeAttr(String(feeVal))}" title="Refinery processing fee at selected station" />
-        </label>
-        <button type="button" class="btn btn-sm refinery-calc-btn" id="refineryCalcBtn">Recalculate</button>
-      </div>
-      ${selectedStation ? `<p class="refinery-station-note muted small"><strong>${displayText(selectedStation.name)}</strong> · ${displayText(selectedStation.system || "")} · ${displayText(selectedStation.body || "")}${selectedStation.defaultFeePercent != null ? ` · ${formatFleetCell(selectedStation.defaultFeePercent)}% fee` : ""}${selectedStation.notes ? ` · ${displayText(selectedStation.notes)}` : ""}</p>` : ""}
-      ${calcResult?.prices?.rawName ? `<p class="muted small refinery-price-line">Raw: ${displayText(calcResult.prices.rawName)} (${fmtScuPrice(calcResult.prices.rawSellPerScu)}) · Refined: ${displayText(calcResult.prices.refinedName || "n/a")} (${fmtScuPrice(calcResult.prices.refinedSellPerScu)})</p>` : ""}
-      ${selectedOre?.notes ? `<p class="muted small refinery-ore-note">${displayText(selectedOre.notes)}</p>` : ""}
-      ${resultHtml}
-    </section>
-    <section class="guide-section">
-      <h2 class="guide-section-title">All refinery stations (${stations.length})</h2>
+        ${selectedOre?.volatile ? `<p class="refinery-volatile-note">⚡ Volatile ore — refine and sell quickly before decay.</p>` : ""}
+        ${selectedOre?.notes ? `<p class="muted small refinery-ore-note">${displayText(selectedOre.notes)}</p>` : ""}
+        ${calcResult?.prices?.rawName ? `<p class="muted small refinery-price-line">UEX sell: raw ${displayText(calcResult.prices.rawName)} ${fmtScuPrice(calcResult.prices.rawSellPerScu)}/SCU · refined ${displayText(calcResult.prices.refinedName || "n/a")} ${fmtScuPrice(calcResult.prices.refinedSellPerScu)}/SCU</p>` : ""}
+        ${resultHero}
+      </section>
+      <aside class="refinery-station-rail">
+        <h3 class="refinery-rail-title">Pick a refinery</h3>
+        <p class="muted small">Tap a station card or use the dropdown. Grim HEX has 0% admin fee.</p>
+        <div class="refinery-station-rail-scroll">${buildRefineryStationCards(stations, stationId)}</div>
+      </aside>
+    </div>
+    <details class="refinery-advanced-panel">
+      <summary>Ore yield reference (all types)</summary>
+      ${buildRefineryYieldTable(data.oreCatalog, { bare: true })}
+    </details>
+    <details class="refinery-advanced-panel">
+      <summary>All stations table (${stations.length})</summary>
       <div class="catalog-table-wrap"><table class="catalog-table">
         <thead><tr><th>Station</th><th>System</th><th>Body</th><th>Fee</th><th>Notes</th></tr></thead>
         <tbody>${stationRows || `<tr><td colspan="5" class="muted">No stations listed.</td></tr>`}</tbody>
       </table></div>
-    </section>
-    <section class="guide-section">
-      <h2 class="guide-section-title">Mining loop tips</h2>
+    </details>
+    <details class="refinery-advanced-panel">
+      <summary>Mining loop tips</summary>
       <ul class="guide-list">${tips}</ul>
       <p class="muted small"><button type="button" class="link guide-tab-link" data-tab="guides-commodities">Market prices</button> · <button type="button" class="link guide-tab-link" data-tab="guides-loops">Game loops</button></p>
-    </section>`;
+    </details>`;
 }
 
 let refineryGuideLastData = null;
@@ -4091,29 +4236,39 @@ function renderTradeRouteRows(routes) {
       const key = r.commodityId || r.id;
       const buy = r.buyTerminal;
       const sell = r.sellTerminal;
+      const isTerminal = Boolean(buy?.terminal || sell?.terminal);
+      const buyPrice = buy?.sellToYouPrice ?? r.priceBuy;
+      const sellPrice = sell?.buyFromYouPrice ?? r.priceSell;
+      const buyLabel = buy?.terminal || "UEX avg buy";
+      const sellLabel = sell?.terminal || "UEX avg sell";
       const illegal = r.isIllegal ? `<span class="badge badge-warn">Illegal</span>` : "";
       const expanded = isInlineExpanded(host, key);
+      const spreadVal = r.spreadPerScu ?? r.spread ?? r.profitPerScu ?? 0;
+      const profitVal = r.totalProfit ?? 0;
       return `<tr class="trade-route-row ${expandableRowClass(host, key)}" data-trade-route="${key}" tabindex="0" role="button" aria-expanded="${expanded}">
         <td class="expand-chevron-cell"><span class="expand-chevron" aria-hidden="true">${expandChevron(host, key)}</span></td>
         <td>${displayText(r.name)}${illegal ? ` ${illegal}` : ""}<div class="muted small mono">${escapeHtml(r.code || "")}</div></td>
-        <td>${displayText(buy?.terminal || EMPTY_DISPLAY)}<div class="muted small">${escapeHtml(fmtScuPrice(buy?.sellToYouPrice))}</div></td>
-        <td>${formatFleetCell(buy?.stockScu)}</td>
-        <td>${displayText(sell?.terminal || EMPTY_DISPLAY)}<div class="muted small">${escapeHtml(fmtScuPrice(sell?.buyFromYouPrice))}</div></td>
-        <td>${formatFleetCell(sell?.demandScu)}</td>
-        <td>${formatFleetCell(r.commodityUnits)}<div class="muted small">${formatFleetCell(r.commodityScu)} SCU</div></td>
-        <td class="commodity-spread-positive"><strong>${fmtAuec(r.totalProfit)}</strong><div class="muted small">${escapeHtml(fmtScuPrice(r.spreadPerScu))}/SCU</div></td>
+        <td>${displayText(buyLabel)}<div class="muted small">${escapeHtml(fmtScuPrice(buyPrice))}${isTerminal ? "" : " /SCU"}</div></td>
+        <td>${isTerminal ? formatFleetCell(buy?.stockScu) : `<span class="muted small">—</span>`}</td>
+        <td>${displayText(sellLabel)}<div class="muted small">${escapeHtml(fmtScuPrice(sellPrice))}${isTerminal ? "" : " /SCU"}</div></td>
+        <td>${isTerminal ? formatFleetCell(sell?.demandScu) : `<span class="muted small">—</span>`}</td>
+        <td>${formatFleetCell(r.commodityUnits ?? r.commodityScu)}<div class="muted small">${formatFleetCell(r.commodityScu ?? r.cargoScuUsed)} SCU</div></td>
+        <td class="commodity-spread-positive"><strong>${fmtAuec(profitVal)}</strong><div class="muted small">${escapeHtml(fmtScuPrice(spreadVal))}/SCU</div></td>
       </tr>${renderInlineDetailRow(colspan, host, key)}`;
     })
     .join("");
   return `<div class="catalog-table-wrap"><table class="catalog-table trade-routes-table">
-    <thead><tr><th></th><th>Commodity</th><th>Buy terminal</th><th>Stock</th><th>Sell terminal</th><th>Demand</th><th>Units</th><th>Est. profit</th></tr></thead>
+    <thead><tr><th></th><th>Commodity</th><th>Buy</th><th>Stock</th><th>Sell</th><th>Demand</th><th>SCU</th><th>Est. profit</th></tr></thead>
     <tbody>${body}</tbody>
   </table></div>`;
 }
 
 function buildTradeRoutesPanel(data, presets) {
   const state = guideQueryByTab["guides-trade-routes"] || {};
-  let routes = [...(data.routes || [])];
+  let routes = [...(data.routes || [])].map((r) => ({
+    ...r,
+    spreadPerScu: r.spreadPerScu ?? r.spread ?? r.profitPerScu ?? 0,
+  }));
   if (state.sort === "spread") {
     routes.sort((a, b) => (b.spreadPerScu || 0) - (a.spreadPerScu || 0) || (b.totalProfit || 0) - (a.totalProfit || 0));
   } else {
@@ -4135,7 +4290,7 @@ function buildTradeRoutesPanel(data, presets) {
   tradeRoutesLastPayload = { tableHtml, routes, cargoScu: data.cargoScu || state.cargoScu || 128 };
 
   return `${meta}
-    <div class="hub-intro"><strong>Terminal haul planner.</strong> Pairs best UEX buy and sell terminals for ${escapeHtml(String(data.cargoScu || state.cargoScu || 128))} SCU cargo. Profit is capped by stock, demand, and capacity. Expand a row for all terminals. For multi-stop routes with travel time, see Credits to → SC Trade Tools.</div>
+    <div class="hub-intro hub-intro-accent"><strong>Trade profit calculator.</strong> Instant UEX average buy/sell spread for ${escapeHtml(String(data.cargoScu || state.cargoScu || 128))} SCU cargo. <strong>Expand any row</strong> for exact terminal pairs, stock, and demand.</div>
     ${toolbar}
     ${disclaimer}
     ${tableHtml}
@@ -4333,7 +4488,7 @@ async function loadGuideTab(tabId, options = {}) {
 
   if (tabId === "guides-trade-routes") {
     const state = guideQueryByTab["guides-trade-routes"] || {};
-    setPanelHtml(tabId, `<p class="muted small">Calculating trade routes…</p>`);
+    setPanelHtml(tabId, `<p class="muted small">Loading trade routes…</p>`);
     try {
       const [presetsData, data] = await Promise.all([
         window.debrief.guidesGetTradePresets(),
@@ -4343,12 +4498,10 @@ async function loadGuideTab(tabId, options = {}) {
           minSpread: state.minSpread || 0,
           query: state.query || "",
           sort: state.sort || "profit",
+          limit: 50,
         }),
       ]);
-      setPanelHtml(
-        tabId,
-        buildTradeRoutesPanel(data, presetsData.presets || [])
-      );
+      setPanelHtml(tabId, buildTradeRoutesPanel(data, presetsData.presets || []));
     } catch (e) {
       setPanelHtml(
         tabId,
@@ -4707,6 +4860,34 @@ function initGuidesUi() {
       state.offset = 0;
       guideQueryByTab["guides-loadout"] = state;
       loadLoadoutBuilderTab("guides-loadout", { resetOffset: true });
+      return;
+    }
+
+    if (e.target.closest("#shipBuilderRefreshBtn")) {
+      loadoutFleetIndexCache = null;
+      loadLoadoutBuilderTab("guides-loadout", { resetOffset: true });
+      return;
+    }
+
+    const refineryOreChip = e.target.closest("[data-refinery-ore]");
+    if (refineryOreChip?.dataset.refineryOre) {
+      const state = guideQueryByTab["guides-refinery"] || {};
+      state.oreId = refineryOreChip.dataset.refineryOre;
+      guideQueryByTab["guides-refinery"] = state;
+      const sel = $("refineryOreSelect");
+      if (sel) sel.value = state.oreId;
+      refreshRefineryCalculator();
+      return;
+    }
+
+    const refineryStationCard = e.target.closest("[data-refinery-station]");
+    if (refineryStationCard?.dataset.refineryStation) {
+      const state = guideQueryByTab["guides-refinery"] || {};
+      state.stationId = refineryStationCard.dataset.refineryStation;
+      guideQueryByTab["guides-refinery"] = state;
+      const sel = $("refineryStationSelect");
+      if (sel) sel.value = state.stationId;
+      refreshRefineryCalculator();
       return;
     }
   });
