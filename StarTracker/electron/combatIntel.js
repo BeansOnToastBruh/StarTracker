@@ -9,6 +9,7 @@ const {
 const WIKI_BASE = "https://api.star-citizen.wiki/api";
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const FETCH_GAP_MS = 350;
+const VEHICLE_PROFILE_FORMAT_VERSION = 2;
 
 let cacheDir = null;
 let seedDir = null;
@@ -169,7 +170,7 @@ async function resolveWikiVehicle(identifier) {
   if (memoryCache.has(memKey)) return memoryCache.get(memKey);
 
   const disk = readDiskCache("vehicle", id);
-  if (disk?.data) {
+  if (disk?.data && (disk.formatVersion ?? 1) >= VEHICLE_PROFILE_FORMAT_VERSION) {
     memoryCache.set(memKey, disk);
     return disk;
   }
@@ -218,7 +219,7 @@ async function resolveWikiVehicle(identifier) {
     performanceSource: profile?.performanceSource || null,
     source: "api.star-citizen.wiki",
   };
-  const entry = { data: payload };
+  const entry = { data: payload, formatVersion: VEHICLE_PROFILE_FORMAT_VERSION };
   memoryCache.set(memKey, entry);
   writeDiskCache("vehicle", id, entry);
   await sleep(FETCH_GAP_MS);

@@ -82,7 +82,7 @@
       "system": "Stanton",
       "body": "Crusader",
       "defaultFeePercent": 5,
-      "notes": "High traffic. Common Quantainium handoff after Stanton mining."
+      "notes": "High traffic. Common Quantanium handoff after Stanton mining."
     },
     {
       "name": "CRU-L1 Station Refinery",
@@ -186,7 +186,7 @@
   "loopTips": [
     "Mine ore with a Prospector or MOLE, fill cargo, then refine before selling refined goods at TDDs.",
     "Compare raw vs refined value in the calculator below using live UEX sell prices.",
-    "Quantainium and high-value gems favor fast refine-and-sell loops over long storage.",
+    "Quantanium and high-value gems favor fast refine-and-sell loops over long storage.",
     "Pair refinery output with Market prices (Mining filter) to find best sell terminals per SCU."
   ]
 }

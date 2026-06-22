@@ -4,6 +4,7 @@ const WIKI_BASE = "https://api.star-citizen.wiki/api";
 const FETCH_GAP_MS = 350;
 
 const blueprintCache = new Map();
+const BLUEPRINT_CACHE_VERSION = 2;
 const slotOptionsCache = new Map();
 
 const WIKI_ITEM_TYPES = {
@@ -209,14 +210,15 @@ async function simulateWeaponSlots(combatIntel, slots, assignments = {}) {
 }
 
 async function getShipBlueprint(combatIntel, slug) {
-  const key = String(slug || "").trim();
-  if (!key) return { ok: false, error: "missing ship slug" };
+  const key = `${BLUEPRINT_CACHE_VERSION}:${String(slug || "").trim()}`;
+  if (!key || key === `${BLUEPRINT_CACHE_VERSION}:`) return { ok: false, error: "missing ship slug" };
   if (blueprintCache.has(key)) return blueprintCache.get(key);
 
+  const slugPath = String(slug || "").trim();
   let json = null;
   try {
     json = await fetchJson(
-      `${WIKI_BASE}/vehicles/${encodeURIComponent(key)}?include=ports,components`
+      `${WIKI_BASE}/vehicles/${encodeURIComponent(slugPath)}?include=ports,components`
     );
   } catch (err) {
     return { ok: false, error: err.message || String(err) };

@@ -15,6 +15,34 @@ function pctFromMultiplier(m) {
   return `${Math.round((v - 1) * 100)}% weak`;
 }
 
+const ARMOR_DAMAGE_RESISTANCE = [
+  { key: "physical", label: "Physical DR", title: "Physical damage reduction" },
+  { key: "energy", label: "Energy DR", title: "Energy damage reduction" },
+  { key: "distortion", label: "Distortion DR", title: "Distortion damage reduction" },
+];
+
+function normalizeVehicleArmor(armorRaw) {
+  if (!armorRaw || typeof armorRaw !== "object" || Array.isArray(armorRaw)) return {};
+  return armorRaw;
+}
+
+function armorDamageMultiplier(armor, type) {
+  const mult = armor.damage_multiplier || armor.damage_multipliers || {};
+  if (mult[type] != null) return mult[type];
+  const flatKey = `damage_${type}`;
+  if (armor[flatKey] != null) return armor[flatKey];
+  return null;
+}
+
+function armorDamageResistanceRows(armorRaw) {
+  const armor = normalizeVehicleArmor(armorRaw);
+  return ARMOR_DAMAGE_RESISTANCE.map(({ key, label, title }) => {
+    const mult = armorDamageMultiplier(armor, key);
+    if (mult == null || Number(mult) === 1) return null;
+    return { label, title, value: pctFromMultiplier(mult) };
+  }).filter(Boolean);
+}
+
 function descriptionMap(descriptionData) {
   const map = {};
   for (const row of descriptionData || []) {
@@ -142,7 +170,7 @@ function formatVehicle(data) {
       : health.hull_hp ?? health.hull ?? data.hull_hp;
   const shieldHp = data.shield_hp ?? data.shield?.hp;
   const shield = data.shield || {};
-  const armor = data.armor || {};
+  const armor = normalizeVehicleArmor(data.armor);
 
   pushSection("durability", "Durability", [
     hullHp != null ? { label: "Hull HP", value: roundNum(hullHp, 0), highlight: true } : null,
@@ -152,9 +180,7 @@ function formatVehicle(data) {
       : null,
     shield.face_type ? { label: "Shield face", value: shield.face_type } : null,
     armor.health != null ? { label: "Armor HP", value: roundNum(armor.health, 0) } : null,
-    armor.damage_multiplier?.physical != null
-      ? { label: "Physical damage taken", value: pctFromMultiplier(armor.damage_multiplier.physical) }
-      : null,
+    ...armorDamageResistanceRows(armor),
   ]);
 
   const speed = data.speed || {};
@@ -189,10 +215,18 @@ function formatVehicle(data) {
     qt.quantum_spool_time != null ? { label: "Spool time", value: `${roundNum(qt.quantum_spool_time, 1)} s` } : null,
     qt.quantum_range != null ? { label: "QT range", value: roundNum(qt.quantum_range, 0) } : null,
     qt.port_olisar_to_arccorp_time != null
-      ? { label: "Port Oli to ArcCorp (time)", value: `${roundNum(qt.port_olisar_to_arccorp_time, 0)} s` }
+      ? {
+          label: "Oli → ArcCorp time",
+          title: "Port Olisar to ArcCorp travel time",
+          value: `${roundNum(qt.port_olisar_to_arccorp_time, 0)} s`,
+        }
       : null,
     qt.port_olisar_to_arccorp_fuel != null
-      ? { label: "Port Oli to ArcCorp (fuel)", value: roundNum(qt.port_olisar_to_arccorp_fuel, 0) }
+      ? {
+          label: "Oli → ArcCorp fuel",
+          title: "Port Olisar to ArcCorp quantum fuel",
+          value: roundNum(qt.port_olisar_to_arccorp_fuel, 0),
+        }
       : null,
   ]);
 

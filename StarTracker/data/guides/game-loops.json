@@ -17,7 +17,7 @@
     "summary": "Extract ore or harvest materials, refine when needed, then sell at TDDs. Sell price per SCU matters more than raw ore names.",
     "tips": [
       "Market prices tab (Mining filter) lists extractable and harvestable goods with UEX sell prices.",
-      "Quantainium and volatile goods need fast routes after extraction.",
+      "Quantanium and volatile goods need fast routes after extraction.",
       "Refined metals often sell better than ore variants listed at zero.",
       "Crafting workshop shows which ores each blueprint needs and how quality shifts stats."
     ],

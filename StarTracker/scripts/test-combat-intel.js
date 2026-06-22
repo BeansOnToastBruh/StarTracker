@@ -41,10 +41,13 @@ const ship = formatVehicle({
   mass: 48552,
   speed: { scm: 226, max: 1193 },
   fuel: { capacity: 13.5, usage: { main: 29.89 } },
-  armor: { damage_multiplier: { physical: 0.75 } },
+  armor: { damage_multiplier: { physical: 0.75, energy: 0.6 } },
 });
 assert.ok(ship.stats.some((s) => s.label === "Hull HP"));
 assert.ok(ship.stats.some((s) => s.label === "Shield HP"));
+const durability = ship.sections?.find((s) => s.id === "durability");
+assert.ok(durability?.stats.some((s) => s.label === "Physical DR" && s.value === "25% DR"));
+assert.ok(durability?.stats.some((s) => s.label === "Energy DR" && s.value === "40% DR"));
 assert.ok(ship.sections?.some((s) => s.id === "fuel"));
 assert.ok(ship.sections?.some((s) => s.id === "flight"));
 

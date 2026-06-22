@@ -417,7 +417,7 @@ const EMPTY_TIPS = {
   rewards: "Complete missions with aUEC payouts. Awarded popups in the log are the most reliable source.",
   "guides-fleet": "Tap Refresh index to pull the latest ship list from the wiki.",
   "guides-loadout": "Try gladius, cutlass-black, or hurricane as a starting slug.",
-  "guides-refinery": "Start with Quantainium or Bexalite to compare refine vs raw sell value.",
+  "guides-refinery": "Start with Quantanium or Bexalite to compare refine vs raw sell value.",
   "guides-crafting": "Try ADP Core or search your armor piece to see mission sources and quality curves.",
   loadout: "Change gear or respawn in-game to capture a loadout snapshot.",
 };
@@ -466,7 +466,7 @@ const guideQueryByTab = {
     page: 1,
   },
   "guides-fleet": { query: "", offset: 0, sort: "manufacturer", limit: 80 },
-  "guides-loadout": { query: "", offset: 0, limit: 25 },
+  "guides-loadout": { query: "" },
 };
 let guideCommodityMeta = null;
 let fleetCompareMeta = null;
@@ -495,7 +495,6 @@ let inlineExpand = {
 };
 let fleetCompareLastRows = null;
 let fleetCompareCacheKey = null;
-let loadoutFleetIndexCache = null;
 let catalogLastPayload = null;
 let lastCombatSearchRows = null;
 let guideCommodityLastPayload = null;
@@ -719,12 +718,8 @@ function patchPanelResults(panelSelector, tableHtml, pagerHtml = "") {
 
 function patchShipBuilderTable(tableHtml) {
   const wrap = document.querySelector("#panel-guides-loadout .ship-picker-table-wrap");
-  const pager = document.querySelector("#panel-guides-loadout .ship-builder-pager");
   if (wrap) {
     wrap.outerHTML = tableHtml;
-  }
-  if (pager && shipBuilderLastPayload?.pagerHtml) {
-    pager.outerHTML = shipBuilderLastPayload.pagerHtml;
   }
 }
 
@@ -852,7 +847,7 @@ const debouncedFleetSearch = debounce((tabId) => {
 }, 320);
 
 const debouncedShipBuilderFilter = debounce(() => {
-  if (activeTab === "guides-loadout") refreshShipBuilderFilter({ resetOffset: true });
+  if (activeTab === "guides-loadout") refreshShipBuilderFilter();
 }, 320);
 
 const debouncedTradeRouteSearch = debounce(() => {
@@ -1094,8 +1089,11 @@ function emptyPanel(tab) {
   const tipBlock = tip
     ? `<p class="empty-state-tip"><strong>Tip:</strong> ${escapeHtml(tip)}</p>`
     : "";
-  return `<div class="empty-state">
-    <div class="empty-state-icon" aria-hidden="true">${icon}</div>
+  return `<div class="empty-state empty-state-orbit">
+    <div class="empty-state-visual" aria-hidden="true">
+      <div class="orbit-ring"></div>
+      <div class="orbit-core">${icon}</div>
+    </div>
     <p class="empty-state-title">Nothing here yet</p>
     <p>${escapeHtml(tab.empty)}</p>
     ${tipBlock}
@@ -1376,6 +1374,10 @@ function resolveAuecTotal(session, state) {
 }
 
 function renderStats(session, state = lastKnownState) {
+  const statsEl = $("stats");
+  if (statsEl) {
+    statsEl.classList.toggle("is-live", session?.status === "active");
+  }
   if (!session) {
     for (const { key } of STAT_KEYS) {
       const card = document.querySelector(`#stats [data-stat="${key}"]`);
@@ -1456,56 +1458,109 @@ function buildOverview(session) {
       )
       .join("");
     return `<div class="welcome-dashboard">
-      <div class="welcome-hero guide-card">
+      <div class="welcome-hero guide-card command-hero">
+        <div class="command-hero-visual" aria-hidden="true">
+          <div class="radar-ring"></div>
+          <div class="radar-sweep"></div>
+          <div class="radar-core"></div>
+        </div>
         <p class="welcome-eyebrow">Star Citizen companion</p>
         <h2 class="welcome-title">Welcome aboard, pilot</h2>
         <p class="welcome-lead">StarTracker reads your <strong>Game.log</strong> while you play — contracts, payouts, deaths, loadouts, and more. Start a session with the button above, or explore intel tools below.</p>
       </div>
+      <div class="sci-fi-divider"><span>Quick launch</span></div>
       <div class="welcome-grid">${cards}</div>
     </div>`;
   }
   if (!r) {
-    return `<div class="overview-prose"><p>Session is active and still gathering events. Keep playing and check back in a moment.</p></div>`;
+    return `<div class="overview-scanning">
+      <div class="overview-scanning-visual" aria-hidden="true"></div>
+      <div>
+        <p class="overview-lead" style="margin:0">Scanning Game.log…</p>
+        <p class="muted small">Session is active and still gathering events. Keep playing and check back in a moment.</p>
+      </div>
+    </div>`;
   }
 
   const s = r.stats;
   const t = r.rewardTotals;
   const pilot = r.playerNick || session.playerNick || "Pilot";
+  const openContracts =
+    (s.contractsAccepted || 0) -
+    (s.contractsCompleted || 0) -
+    (s.contractsFailed || 0) -
+    (s.contractsAbandoned || 0);
+
+  const statCard = (icon, value, label, sub, tone) =>
+    `<div class="overview-stat-card" data-tone="${tone}">
+      <span class="overview-stat-icon" aria-hidden="true">${icon}</span>
+      <span class="overview-stat-value">${value}</span>
+      <span class="overview-stat-label">${escapeHtml(label)}</span>
+      ${sub ? `<span class="overview-stat-sub">${sub}</span>` : ""}
+    </div>`;
+
+  const statCards = [
+    statCard(
+      "◈",
+      String(s.contractsCompleted),
+      "Contracts done",
+      openContracts > 0 ? `${openContracts} still open` : "",
+      "contract"
+    ),
+    statCard("✕", String(s.deaths), "Deaths", `${s.kills} kill${s.kills === 1 ? "" : "s"}`, "combat"),
+    statCard("✧", String(s.vehiclesLost), "Ships lost", "", "alert"),
+    statCard(
+      "✦",
+      (t?.totalAuec ?? 0).toLocaleString(),
+      "aUEC confirmed",
+      (t?.totalAuecEstimated ?? 0) > 0
+        ? `~${t.totalAuecEstimated.toLocaleString()} estimated`
+        : `${s.rewards} payout${s.rewards === 1 ? "" : "s"}`,
+      "economy"
+    ),
+    statCard(
+      "△",
+      (r.finesTotal ?? 0).toLocaleString(),
+      "Fines (UEC)",
+      `${r.insuranceClaims?.length ?? 0} insurance claim${(r.insuranceClaims?.length ?? 0) === 1 ? "" : "s"}`,
+      "alert"
+    ),
+    statCard(
+      "◆",
+      Math.round(r.shopSpendTotal ?? 0).toLocaleString(),
+      "Shop spend",
+      `${r.loadoutSnapshots?.length ?? 0} loadout snap${(r.loadoutSnapshots?.length ?? 0) === 1 ? "" : "s"}`,
+      "utility"
+    ),
+  ];
+
   const lines = [
+    `<div class="overview-command">`,
     `<div class="overview-welcome">
       <h2>Welcome back, ${escapeHtml(pilot)}</h2>
-      <p>Here is your flight log for this session (${escapeHtml(r.durationLabel || "in progress")}). Everything below updates as you play.</p>
+      <p>Flight log for this session (${escapeHtml(r.durationLabel || "in progress")}). Everything below updates as you play.</p>
     </div>`,
-    `<p class="overview-lead">Session at a glance</p>`,
-    `<ul class="overview-list">`,
-    `<li><strong>${s.contractsCompleted}</strong> contract${s.contractsCompleted === 1 ? "" : "s"} completed${(() => {
-      const open =
-        (s.contractsAccepted || 0) -
-        (s.contractsCompleted || 0) -
-        (s.contractsFailed || 0) -
-        (s.contractsAbandoned || 0);
-      return open > 0 ? ` · <strong>${open}</strong> still open` : "";
-    })()}</li>`,
-    `<li><strong>${s.deaths}</strong> death${s.deaths === 1 ? "" : "s"} · <strong>${s.kills}</strong> kill${s.kills === 1 ? "" : "s"} · <strong>${s.vehiclesLost}</strong> ship${s.vehiclesLost === 1 ? "" : "s"} lost</li>`,
-    `<li><strong>${s.rewards}</strong> payout popup${s.rewards === 1 ? "" : "s"} logged</li>`,
-    `<li>aUEC confirmed: <strong>${(t?.totalAuec ?? 0).toLocaleString()}</strong>${(t?.totalAuecEstimated ?? 0) > 0 ? ` · estimated: <strong>~${t.totalAuecEstimated.toLocaleString()}</strong> (not confirmed)` : ""}</li>`,
-    `<li>Fines: <strong>${(r.finesTotal ?? 0).toLocaleString()}</strong> UEC · Insurance claims: <strong>${r.insuranceClaims?.length ?? 0}</strong> · Shop spend: <strong>${Math.round(r.shopSpendTotal ?? 0).toLocaleString()}</strong> aUEC · Loadout snapshots: <strong>${r.loadoutSnapshots?.length ?? 0}</strong></li>`,
+    `<div class="sci-fi-divider"><span>Session at a glance</span></div>`,
+    `<div class="overview-stat-grid">${statCards.join("")}</div>`,
   ];
   if (t?.repByFaction?.length) {
+    lines.push(`<div class="sci-fi-divider"><span>Faction rep</span></div>`);
+    lines.push(`<div class="overview-stat-grid">`);
     for (const { faction, rep } of t.repByFaction) {
       lines.push(
-        `<li>Rep: <strong>${rep.toLocaleString()}</strong> with <strong>${escapeHtml(faction)}</strong></li>`
+        statCard("◇", rep.toLocaleString(), escapeHtml(faction), "This session", "progress")
       );
     }
+    lines.push(`</div>`);
   }
   if (t?.itemCount > 0) {
     lines.push(
-      `<li>Item bundles: <strong>${t.itemCount}</strong> reward item${t.itemCount === 1 ? "" : "s"} (${t.itemBundles} payout${t.itemBundles === 1 ? "" : "s"})</li>`
+      `<p class="overview-foot muted">Item bundles: <strong>${t.itemCount}</strong> reward item${t.itemCount === 1 ? "" : "s"} (${t.itemBundles} payout${t.itemBundles === 1 ? "" : "s"})</p>`
     );
   }
   lines.push(
-    `</ul>`,
-    `<p class="overview-foot muted">Open the tabs above for details, or use <strong>Jump to</strong> for Fleet compare, trade prices, and combat tools. Rewards uses <strong>Awarded X aUEC</strong> HUD lines when logged. This is not your wallet balance.</p>`
+    `<p class="overview-foot muted">Open the tabs above for details, or use <strong>Jump to</strong> for Fleet compare, trade prices, and combat tools. Rewards uses <strong>Awarded X aUEC</strong> HUD lines when logged. This is not your wallet balance.</p>`,
+    `</div>`
   );
 
   if (session.status === "active") {
@@ -2514,7 +2569,7 @@ function renderCombatStatGrid(profile) {
   const cells = profile.stats
     .map(
       (s) => `<div class="combat-stat${s.highlight ? " combat-stat-highlight" : ""}">
-        <span class="combat-stat-label">${escapeHtml(s.label)}</span>
+        <span class="combat-stat-label"${s.title ? ` title="${escapeAttr(s.title)}"` : ""}>${escapeHtml(s.label)}</span>
         <span class="combat-stat-value">${escapeHtml(String(s.value))}</span>
       </div>`
     )
@@ -2677,21 +2732,23 @@ function fleetStateKey(state) {
 }
 
 async function getLoadoutFleetIndex(forceRefresh = false) {
-  if (!forceRefresh && loadoutFleetIndexCache?.rows?.length) return loadoutFleetIndexCache;
   try {
     const index = await window.debrief.fleetGetIndex({ forceRefresh });
     if (index.ok && index.rows?.length) {
-      loadoutFleetIndexCache = {
+      return {
         rows: index.rows,
-        meta: { fetchedAt: index.fetchedAt, stale: index.stale, total: index.total },
+        meta: {
+          fetchedAt: index.fetchedAt,
+          stale: index.stale,
+          total: index.rows.length,
+        },
       };
-      return loadoutFleetIndexCache;
     }
     if (!forceRefresh) return getLoadoutFleetIndex(true);
   } catch {
     if (!forceRefresh) return getLoadoutFleetIndex(true);
   }
-  return loadoutFleetIndexCache || { rows: [] };
+  return { rows: [], meta: { total: 0 } };
 }
 
 function filterShipBuilderRows(rows, state, favSlugs) {
@@ -2761,6 +2818,26 @@ function fleetCompareToolbar(tabId) {
   </div>`;
 }
 
+function manufacturerTone(manufacturer) {
+  const m = String(manufacturer || "").toLowerCase();
+  if (m.includes("origin")) return "origin";
+  if (m.includes("aegis")) return "aegis";
+  if (m.includes("anvil")) return "anvil";
+  if (m.includes("drake")) return "drake";
+  if (m.includes("roberts") || m === "rsi") return "rsi";
+  if (m.includes("crusader")) return "crusader";
+  if (m.includes("misc")) return "misc";
+  if (m.includes("aopoa")) return "aopoa";
+  return "generic";
+}
+
+function fleetMfgBadge(manufacturer, size) {
+  const label = manufacturer || size || "—";
+  if (!manufacturer && !size) return `<span class="fleet-mfg" data-mfg="generic">—</span>`;
+  const tone = manufacturer ? manufacturerTone(manufacturer) : "generic";
+  return `<span class="fleet-mfg" data-mfg="${tone}">${displayText(label)}</span>`;
+}
+
 function renderFleetCompareRows(rows) {
   if (!rows?.length) return `<p class="muted">No ships match this filter.</p>`;
   const host = INLINE_HOST.FLEET;
@@ -2772,7 +2849,7 @@ function renderFleetCompareRows(rows) {
       return `<tr class="${expandableRowClass(host, key)}" data-fleet-key="${escapeAttr(key)}" data-fleet-slug="${escapeAttr(r.slug)}" tabindex="0" role="button" aria-expanded="${expanded}">
         <td class="expand-chevron-cell"><span class="expand-chevron" aria-hidden="true">${expandChevron(host, key)}</span></td>
         <td>${displayText(r.name)}</td>
-        <td class="muted small">${displayText(r.manufacturer || r.size || "—")}</td>
+        <td>${fleetMfgBadge(r.manufacturer, r.size)}</td>
         <td>${formatFleetCell(r.hullHp)}</td>
         <td>${formatFleetCell(r.shieldHp)}</td>
         <td>${formatFleetCell(r.scm)}</td>
@@ -2856,16 +2933,16 @@ function shipBuilderEmptyMessage(state, fleetEmpty, remoteSource) {
   }
   return shipBuilderPickMode === "favorites"
     ? "No favorites match your filter."
-    : "No ships on this page. Try another page or clear your filter.";
+    : "No ships match. Clear your filter or refresh the ship index.";
 }
 
 function renderShipBuilderRows(rows, emptyMessage) {
   if (!rows?.length) {
     const msg = emptyMessage || "No ships match your filter.";
-    return `<div class="catalog-table-wrap ship-picker-table-wrap"><table class="catalog-table ship-picker-table">
+    return `<div class="catalog-table-wrap ship-picker-table-wrap"><div class="ship-picker-table-scroll"><table class="catalog-table ship-picker-table">
       <thead><tr><th></th><th></th><th>Mfg</th><th>Ship</th><th>Role</th></tr></thead>
       <tbody><tr><td colspan="5" class="muted">${msg}</td></tr></tbody>
-    </table></div>`;
+    </table></div></div>`;
   }
   const host = INLINE_HOST.SHIP_BUILDER;
   const colspan = 5;
@@ -2883,23 +2960,10 @@ function renderShipBuilderRows(rows, emptyMessage) {
       </tr>${renderInlineDetailRow(colspan, host, key)}`;
     })
     .join("");
-  return `<div class="catalog-table-wrap ship-picker-table-wrap"><table class="catalog-table ship-picker-table">
+  return `<div class="catalog-table-wrap ship-picker-table-wrap"><div class="ship-picker-table-scroll"><table class="catalog-table ship-picker-table">
     <thead><tr><th></th><th></th><th>Mfg</th><th>Ship</th><th>Role</th></tr></thead>
     <tbody>${body}</tbody>
-  </table></div>`;
-}
-
-function renderShipBuilderPager(tabId, total, offset, limit) {
-  if (total <= limit) return "";
-  const prevDisabled = offset <= 0 ? " disabled" : "";
-  const nextDisabled = offset + limit >= total ? " disabled" : "";
-  const page = Math.floor(offset / limit) + 1;
-  const pages = Math.max(1, Math.ceil(total / limit));
-  return `<div class="catalog-pager ship-builder-pager">
-    <button type="button" class="btn btn-sm btn-ghost" data-guide-page="${escapeAttr(tabId)}" data-guide-dir="prev"${prevDisabled}>Previous</button>
-    <span class="muted small">Page ${page} of ${pages} (${total} total)</span>
-    <button type="button" class="btn btn-sm btn-ghost" data-guide-page="${escapeAttr(tabId)}" data-guide-dir="next"${nextDisabled}>Next</button>
-  </div>`;
+  </table></div></div>`;
 }
 
 function renderFleetComparePager(tabId, result) {
@@ -2952,16 +3016,11 @@ async function buildShipBuilderInlineHtml(slug) {
 async function renderLoadoutBuilderShell() {
   await loadShipBuilderFavorites();
   const tabId = "guides-loadout";
-  const state = guideQueryByTab[tabId] || { query: "", offset: 0, limit: 25 };
-  if (!state.limit) state.limit = 25;
+  const state = guideQueryByTab[tabId] || { query: "" };
   guideQueryByTab[tabId] = state;
   const favSlugs = new Set(shipBuilderFavorites.map((s) => s.slug));
   const resolved = await resolveShipBuilderRows(state, favSlugs);
-  const filtered = resolved.rows;
-  const total = filtered.length;
-  const offset = Math.max(state.offset || 0, 0);
-  const limit = state.limit || 25;
-  const pageRows = filtered.slice(offset, offset + limit);
+  const displayRows = resolved.rows;
   const emptyMsg = shipBuilderEmptyMessage(state, resolved.fleetEmpty, resolved.remoteSource);
 
   const favChips = shipBuilderFavorites.length
@@ -2973,9 +3032,8 @@ async function renderLoadoutBuilderShell() {
         .join("")
     : `<p class="ship-builder-favorites-empty muted small">No favorite hulls yet. Switch to <strong>All ships</strong> and tap ☆ on any ship to pin it here — like Jump to, but for ship builder.</p>`;
 
-  const tableHtml = renderShipBuilderRows(pageRows, emptyMsg);
-  const pagerHtml = renderShipBuilderPager(tabId, total, offset, limit);
-  shipBuilderLastPayload = { tableHtml, pagerHtml, total, offset, limit };
+  const tableHtml = renderShipBuilderRows(displayRows, emptyMsg);
+  shipBuilderLastPayload = { tableHtml };
 
   const modeFavActive = shipBuilderPickMode === "favorites" ? " is-active" : "";
   const modeAllActive = shipBuilderPickMode === "all" ? " is-active" : "";
@@ -2983,9 +3041,11 @@ async function renderLoadoutBuilderShell() {
     inlineExpand.host === INLINE_HOST.SHIP_BUILDER && inlineExpand.key
       ? ""
       : `<p class="muted small ship-builder-hint">Click a ship row to expand loadout details inline. Click again to collapse.</p>`;
-  const indexMeta = resolved.meta?.total
-    ? `<p class="guides-meta muted small">${resolved.meta.total} flyable hulls indexed${resolved.meta.stale ? " · background refresh running" : ""}</p>`
-    : "";
+  const indexTotal = resolved.meta?.total || 0;
+  const indexMeta =
+    indexTotal > 0
+      ? `<p class="guides-meta muted small ship-builder-index-meta">${displayRows.length} shown${state.query ? " (filtered)" : ""} · ${indexTotal} flyable hulls indexed${resolved.meta?.stale ? " · background refresh running" : ""}</p>`
+      : "";
 
   return `<div class="hub-intro loadout-builder-intro hub-intro-accent">
     <strong>Ship builder.</strong> Favorite hulls, swap weapons and components, read live DPS and hull stats. Search by name, manufacturer, or slug (e.g. <em>M80</em>, <em>orig-m80</em>).
@@ -3004,7 +3064,7 @@ async function renderLoadoutBuilderShell() {
       <input type="search" id="loadoutShipFilter" class="catalog-search" placeholder="Filter ships… (M80, Gladius, orig-m80)" value="${escapeAttr(state.query || "")}" />
       <button type="button" class="btn btn-sm" id="shipBuilderRefreshBtn">Refresh ship index</button>
     </div>
-    ${indexMeta}${tableHtml}${pagerHtml}${expandedHint}
+    ${indexMeta}${tableHtml}${expandedHint}
   </section>`;
 }
 
@@ -3093,35 +3153,25 @@ function renderLoadoutBuilderBody(blueprint, summary) {
   </section>`;
 }
 
-async function refreshShipBuilderFilter(options = {}) {
+async function refreshShipBuilderFilter() {
   if (activeTab !== "guides-loadout") return;
   const tabId = "guides-loadout";
-  const state = guideQueryByTab[tabId] || { query: "", offset: 0, limit: 25 };
-  if (options.resetOffset) state.offset = 0;
+  const state = guideQueryByTab[tabId] || { query: "" };
   guideQueryByTab[tabId] = state;
 
   const favSlugs = new Set(shipBuilderFavorites.map((s) => s.slug));
   const resolved = await resolveShipBuilderRows(state, favSlugs);
-  const total = resolved.rows.length;
-  const offset = Math.max(state.offset || 0, 0);
-  const limit = state.limit || 25;
-  const pageRows = resolved.rows.slice(offset, offset + limit);
   const emptyMsg = shipBuilderEmptyMessage(state, resolved.fleetEmpty, resolved.remoteSource);
-  const tableHtml = renderShipBuilderRows(pageRows, emptyMsg);
-  const pagerHtml = renderShipBuilderPager(tabId, total, offset, limit);
-  shipBuilderLastPayload = { tableHtml, pagerHtml, total, offset, limit };
+  const tableHtml = renderShipBuilderRows(resolved.rows, emptyMsg);
+  shipBuilderLastPayload = { tableHtml };
 
   if (document.querySelector("#panel-guides-loadout .ship-picker-table-wrap")) {
     patchShipBuilderTable(tableHtml);
-    const pager = document.querySelector("#panel-guides-loadout .ship-builder-pager");
-    if (pagerHtml) {
-      if (pager) pager.outerHTML = pagerHtml;
-      else
-        document
-          .querySelector("#panel-guides-loadout .ship-picker-table-wrap")
-          ?.insertAdjacentHTML("afterend", pagerHtml);
-    } else if (pager) {
-      pager.remove();
+    document.querySelector("#panel-guides-loadout .ship-builder-pager")?.remove();
+    const metaEl = document.querySelector("#panel-guides-loadout .ship-builder-index-meta");
+    const indexTotal = resolved.meta?.total || 0;
+    if (metaEl && indexTotal > 0) {
+      metaEl.textContent = `${resolved.rows.length} shown${state.query ? " (filtered)" : ""} · ${indexTotal} flyable hulls indexed${resolved.meta?.stale ? " · background refresh running" : ""}`;
     }
     if (inlineExpand.host === INLINE_HOST.SHIP_BUILDER && inlineExpand.key) {
       await refreshInlineExpandHost(INLINE_HOST.SHIP_BUILDER);
@@ -3129,7 +3179,7 @@ async function refreshShipBuilderFilter(options = {}) {
     return;
   }
 
-  await loadLoadoutBuilderTab(tabId, options);
+  await loadLoadoutBuilderTab(tabId);
 }
 
 async function loadFleetCompareTab(tabId, options = {}) {
@@ -3192,19 +3242,12 @@ async function loadFleetCompareTab(tabId, options = {}) {
   }
 }
 
-async function loadLoadoutBuilderTab(tabId, options = {}) {
+async function loadLoadoutBuilderTab(tabId) {
   const preserveKey =
     inlineExpand.host === INLINE_HOST.SHIP_BUILDER ? inlineExpand.key : null;
   const preserveHtml = preserveKey ? inlineExpand.html : null;
   const preserveLoading = preserveKey ? inlineExpand.loading : false;
 
-  if (options.resetOffset) {
-    const state = guideQueryByTab["guides-loadout"] || {};
-    state.offset = 0;
-    guideQueryByTab["guides-loadout"] = state;
-  }
-
-  setPanelHtml(tabId, `<p class="muted small">Loading ship list…</p>`);
   setPanelHtml(tabId, await renderLoadoutBuilderShell());
 
   if (preserveKey) {
@@ -4835,17 +4878,11 @@ function initGuidesUi() {
       const tabId = pageBtn.dataset.guidePage;
       const dir = pageBtn.dataset.guideDir;
       const state = guideQueryByTab[tabId];
-      if (!state) return;
-      const limit = state.limit || (tabId === "guides-loadout" ? 25 : 80);
-      if (tabId === "guides-loadout") {
-        state.offset = Math.max(0, state.offset + (dir === "next" ? limit : -limit));
-        guideQueryByTab[tabId] = state;
-        loadLoadoutBuilderTab(tabId);
-      } else {
-        clearInlineExpand();
-        state.offset = Math.max(0, state.offset + (dir === "next" ? limit : -limit));
-        loadGuideTab(tabId);
-      }
+      if (!state || tabId === "guides-loadout") return;
+      const limit = state.limit || 80;
+      clearInlineExpand();
+      state.offset = Math.max(0, state.offset + (dir === "next" ? limit : -limit));
+      loadGuideTab(tabId);
       return;
     }
 
@@ -4911,7 +4948,6 @@ function initGuidesUi() {
     const fleetRefresh = e.target.closest("[data-fleet-refresh]");
     if (fleetRefresh && activeTab === "guides-fleet") {
       clearInlineExpand();
-      loadoutFleetIndexCache = null;
       fleetCompareCacheKey = null;
       loadFleetCompareTab("guides-fleet", { forceRefresh: true, resetOffset: true });
       return;
@@ -5011,16 +5047,13 @@ function initGuidesUi() {
     const shipBuilderMode = e.target.closest("[data-ship-builder-mode]");
     if (shipBuilderMode?.dataset.shipBuilderMode) {
       shipBuilderPickMode = shipBuilderMode.dataset.shipBuilderMode;
-      const state = guideQueryByTab["guides-loadout"] || {};
-      state.offset = 0;
-      guideQueryByTab["guides-loadout"] = state;
-      loadLoadoutBuilderTab("guides-loadout", { resetOffset: true });
+      loadLoadoutBuilderTab("guides-loadout");
       return;
     }
 
     if (e.target.closest("#shipBuilderRefreshBtn")) {
-      loadoutFleetIndexCache = null;
-      loadLoadoutBuilderTab("guides-loadout", { resetOffset: true });
+      await window.debrief.fleetCompareRefresh();
+      loadLoadoutBuilderTab("guides-loadout");
       return;
     }
 
@@ -5137,7 +5170,7 @@ function initGuidesUi() {
     }
 
     if (e.target.id === "loadoutShipFilter") {
-      const state = guideQueryByTab["guides-loadout"] || { query: "", offset: 0, limit: 25 };
+      const state = guideQueryByTab["guides-loadout"] || { query: "" };
       state.query = e.target.value;
       guideQueryByTab["guides-loadout"] = state;
       debouncedShipBuilderFilter();
