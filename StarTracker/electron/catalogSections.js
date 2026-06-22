@@ -186,16 +186,65 @@ function compactWikiVehicle(row) {
 
 const SHIP_AMMO_NAME_RE = /live fire weapons|ship weapons|ship weapon/i;
 
+function isLandingServicesTerminal(row) {
+  const name = String(row?.name || row?.fullname || "");
+  return row?.type === "fuel" || /^Landing Services\s-/i.test(name);
+}
+
+function isAdminCommodityTerminal(row) {
+  const name = String(row?.name || row?.fullname || "");
+  const type = String(row?.type || "");
+  return /^Admin\s-/i.test(name) && (type === "commodity" || type === "commodity_raw");
+}
+
+/** Repair at a landing pad when UEX marks it or the pad serves a named port/city/outpost. */
+function landingServicesRepair(row) {
+  if (Boolean(row?.is_repair)) return true;
+  if (Boolean(row?.is_refuel)) return true;
+  if (row?.city_name || row?.city) return true;
+  if (row?.space_station_name || row?.station) return true;
+  if (row?.outpost_name || row?.outpost) return true;
+  return false;
+}
+
 function isShipAmmoTerminal(row) {
   const name = String(row?.name || row?.fullname || "");
   return SHIP_AMMO_NAME_RE.test(name);
 }
 
-function shipServicesFromTerminal(row) {
+function terminalAsRaw(row) {
+  if (!row) return row;
   return {
-    refuel: Boolean(row?.is_refuel),
-    repair: Boolean(row?.is_repair),
-    shipAmmo: isShipAmmoTerminal(row),
+    name: row.name,
+    fullname: row.fullname || row.name,
+    type: row.type || null,
+    is_refuel: Boolean(row.isRefuel ?? row.is_refuel),
+    is_repair: Boolean(row.isRepair ?? row.is_repair),
+    city_name: row.city_name || row.city || null,
+    space_station_name: row.space_station_name || row.station || null,
+    outpost_name: row.outpost_name || row.outpost || null,
+  };
+}
+
+function shipServicesFromTerminal(row) {
+  const raw = terminalAsRaw(row);
+
+  if (isAdminCommodityTerminal(raw)) {
+    return { refuel: false, repair: false, shipAmmo: false };
+  }
+
+  if (isLandingServicesTerminal(raw)) {
+    return {
+      refuel: true,
+      repair: landingServicesRepair(raw),
+      shipAmmo: false,
+    };
+  }
+
+  return {
+    refuel: Boolean(raw.is_refuel),
+    repair: Boolean(raw.is_repair),
+    shipAmmo: isShipAmmoTerminal(raw),
   };
 }
 
@@ -219,6 +268,8 @@ function compactTerminal(row) {
     city: row.city_name || null,
     outpost: row.outpost_name || null,
     orbit: row.orbit_name || null,
+    isRefuel: Boolean(row.is_refuel),
+    isRepair: Boolean(row.is_repair),
     services: shipServicesFromTerminal(row),
     isShopFps: Boolean(row.is_shop_fps),
     isShopVehicle: Boolean(row.is_shop_vehicle),
@@ -251,17 +302,9 @@ function placeKindFromTerminal(row) {
 
 function normalizeTerminal(terminal) {
   if (!terminal) return terminal;
-  const name = String(terminal.name || terminal.fullname || "");
-  const legacy = terminal.services || {};
   return {
     ...terminal,
-    services: {
-      refuel: Boolean(legacy.refuel),
-      repair: Boolean(legacy.repair),
-      shipAmmo:
-        Boolean(legacy.shipAmmo) ||
-        isShipAmmoTerminal({ name, fullname: terminal.fullname }),
-    },
+    services: shipServicesFromTerminal(terminal),
   };
 }
 
@@ -334,5 +377,6 @@ module.exports = {
   normalizeTerminal,
   placeLabelFromTerminal,
   shipServicesFromTerminal,
+  terminalAsRaw,
   formatLocation,
 };

@@ -211,6 +211,7 @@ function buildRollup(session) {
   const fines = [];
   const insuranceClaims = [];
   const shopPurchases = [];
+  const commodityHauls = [];
   const loadoutSnapshots = [];
 
   for (const e of session.events) {
@@ -390,6 +391,23 @@ function buildRollup(session) {
           summary: e.summary,
         });
         break;
+      case "commodity_haul":
+        commodityHauls.push({
+          at: e.at,
+          summary: e.summary,
+          commodity: e.detail?.commodity || "Unknown",
+          commodityRaw: e.detail?.commodityRaw || null,
+          scu: e.detail?.scu ?? 0,
+          buyShop: e.detail?.buyShop || null,
+          sellShop: e.detail?.sellShop || null,
+          buyPriceTotal: e.detail?.buyPriceTotal ?? 0,
+          sellPriceTotal: e.detail?.sellPriceTotal ?? 0,
+          profit: e.detail?.profit ?? 0,
+          buyAt: e.detail?.buyAt || null,
+          sellAt: e.detail?.sellAt || e.at,
+          verified: !!e.detail?.verified,
+        });
+        break;
       case "loadout":
         loadoutSnapshots.push({
           at: e.at,
@@ -449,6 +467,7 @@ function buildRollup(session) {
   const totalFlightKm = quantumJumps.reduce((s, j) => s + j.estimatedKm, 0);
   const finesTotal = fines.reduce((s, f) => s + (f.amount || 0), 0);
   const shopSpendTotal = shopPurchases.reduce((s, p) => s + (p.price || 0), 0);
+  const commodityProfitTotal = commodityHauls.reduce((s, h) => s + (h.profit || 0), 0);
 
   return {
     durationLabel: formatDuration(sessionDurationMs(session)),
@@ -475,6 +494,8 @@ function buildRollup(session) {
     insuranceClaims,
     shopPurchases,
     shopSpendTotal,
+    commodityHauls,
+    commodityProfitTotal,
     loadoutSnapshots,
     stats: { ...session.stats },
   };

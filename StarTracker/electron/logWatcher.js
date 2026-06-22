@@ -3,6 +3,7 @@ const { parseLine } = require("./parser");
 const { LineAssembler } = require("./lineAssembler");
 const { createCombatCtx } = require("./combatContext");
 const { createVehicleCtx } = require("./vehicleContext");
+const { createCommodityCtx } = require("./commodityHaul");
 
 class LogWatcher {
   /**
@@ -23,6 +24,7 @@ class LogWatcher {
       playerGEID: null,
       ...createCombatCtx(),
       ...createVehicleCtx(),
+      ...createCommodityCtx(),
     };
     this.lineAssembler = new LineAssembler();
     this._closed = false;

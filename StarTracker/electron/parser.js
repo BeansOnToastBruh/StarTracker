@@ -50,6 +50,7 @@ const {
   tryEmitShipDestruction,
   tryEmitCollisionAfterActorDead,
 } = require("./vehicleContext");
+const { appendCommodityCommerce } = require("./commodityHaul");
 const {
   formatShopName,
   formatVehicleLabel,
@@ -498,6 +499,8 @@ function appendCommerceEvents(body, at, ctx, out) {
         },
       });
   }
+
+  appendCommodityCommerce(body, at, ctx, (event) => emit(out, event));
 
   const claimRequestM = body.match(
     /CWallet::ProcessClaimToNextStep> New Insurance Claim Request - entitlementURN: (urn:[^\s,]+).*?requestId\s*:\s*(\d+)/i

@@ -3,6 +3,7 @@ const { parseLine } = require("./parser");
 const { LineAssembler } = require("./lineAssembler");
 const { createCombatCtx } = require("./combatContext");
 const { createVehicleCtx } = require("./vehicleContext");
+const { createCommodityCtx } = require("./commodityHaul");
 const { createSession, importEvents, snapshot } = require("./session");
 const { extractTimestamp } = require("./parser");
 
@@ -36,6 +37,7 @@ function parseLogFileToSession(filePath) {
     playerGEID: null,
     ...createCombatCtx(),
     ...createVehicleCtx(),
+    ...createCommodityCtx(),
   };
   const assembler = new LineAssembler();
   const events = [];

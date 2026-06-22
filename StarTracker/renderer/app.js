@@ -185,7 +185,7 @@ const CATALOG_TABS = [
     id: "catalog-ship-services",
     group: "catalog",
     label: "Ship services",
-    hint: "Stations, cities, and ports where you can get ship services (refuel, repair, ammo restock). Grouped by star system. Data from UEX.",
+    hint: "Landing pads and weapon shops from UEX. Refuel/repair use in-game landing services, not commodity admin desks. Refresh catalog after patches.",
     empty: "No ship service locations loaded yet. Use Refresh catalog below.",
   },
 ];
@@ -1392,20 +1392,27 @@ function resolveAuecTotal(session, state) {
   const r = session?.rollup;
   const s = r?.stats ?? session?.stats;
   const t = r?.rewardTotals;
+  const haulProfit = r?.commodityProfitTotal ?? s?.commodityProfit ?? 0;
   const confirmed =
     t?.totalAuec ?? s?.auecEarned ?? sumAuecFromEvents(session, { estimated: false }) ?? 0;
   const estimatedTotal =
     t?.totalAuecEstimated ?? s?.auecEstimated ?? sumAuecFromEvents(session, { estimated: true }) ?? 0;
-  if (confirmed > 0 || estimatedTotal > 0) {
-    return { total: confirmed, estimated: estimatedTotal, source: "session" };
+  if (confirmed > 0 || estimatedTotal > 0 || haulProfit !== 0) {
+    return {
+      total: confirmed,
+      estimated: estimatedTotal,
+      haulProfit,
+      combinedTotal: confirmed + haulProfit,
+      source: "session",
+    };
   }
   if (archiveViewSession && archiveViewMeta?.awardedAuecTotal > 0) {
-    return { total: archiveViewMeta.awardedAuecTotal, source: "archive-scan" };
+    return { total: archiveViewMeta.awardedAuecTotal, haulProfit: 0, combinedTotal: archiveViewMeta.awardedAuecTotal, source: "archive-scan" };
   }
   if (!archiveViewSession && (state?.logFileAuecTotal ?? 0) > 0) {
-    return { total: state.logFileAuecTotal, source: "log-scan" };
+    return { total: state.logFileAuecTotal, haulProfit: 0, combinedTotal: state.logFileAuecTotal, source: "log-scan" };
   }
-  return { total: 0, estimated: 0, source: "none" };
+  return { total: 0, estimated: 0, haulProfit: 0, combinedTotal: 0, source: "none" };
 }
 
 function renderStats(session, state = lastKnownState) {
@@ -1436,6 +1443,8 @@ function renderStats(session, state = lastKnownState) {
   const r = session.rollup;
   const s = r?.stats ?? session?.stats;
   const auecInfo = resolveAuecTotal(session, state);
+  const haulProfit = auecInfo.haulProfit ?? 0;
+  const combinedAuec = auecInfo.combinedTotal ?? auecInfo.total;
   const values = {
     session: r?.durationLabel ?? EMPTY_DISPLAY,
     contracts: s?.contractsCompleted ?? 0,
@@ -1443,11 +1452,11 @@ function renderStats(session, state = lastKnownState) {
     ships: s?.vehiclesLost ?? 0,
     kills: s?.kills ?? 0,
     auec:
-      auecInfo.estimated > 0 && auecInfo.total > 0
-        ? `${auecInfo.total.toLocaleString()} + ~${auecInfo.estimated.toLocaleString()} est`
+      auecInfo.estimated > 0 && combinedAuec > 0
+        ? `${combinedAuec.toLocaleString()} + ~${auecInfo.estimated.toLocaleString()} est`
         : auecInfo.estimated > 0
           ? `~${auecInfo.estimated.toLocaleString()} est`
-          : auecInfo.total.toLocaleString(),
+          : combinedAuec.toLocaleString(),
     earn: s?.rewards ?? 0,
   };
   for (const { key } of STAT_KEYS) {
@@ -1459,14 +1468,18 @@ function renderStats(session, state = lastKnownState) {
       if (valEl.textContent !== next) valEl.textContent = next;
     }
     if (key === "auec") {
+      const haulNote =
+        haulProfit !== 0
+          ? ` Includes ${haulProfit >= 0 ? "+" : ""}${haulProfit.toLocaleString()} aUEC from ${r?.commodityHauls?.length ?? s?.commodityHauls ?? 0} cargo haul(s).`
+          : "";
       const hint =
         auecInfo.source === "log-scan"
-          ? "Awarded aUEC in your current Game.log (full-file scan). Not your wallet balance."
+          ? `Awarded aUEC in your current Game.log (full-file scan).${haulNote} Not your wallet balance.`
           : auecInfo.source === "archive-scan"
-            ? "Awarded aUEC in this log archive. Not your wallet balance."
+            ? `Awarded aUEC in this log archive.${haulNote} Not your wallet balance.`
             : auecInfo.estimated > 0
-              ? `Confirmed aUEC from Awarded HUD lines: ${auecInfo.total.toLocaleString()}. Estimated (not confirmed): ~${auecInfo.estimated.toLocaleString()} from wiki + rep tier.`
-              : "aUEC from Awarded X aUEC HUD lines this session when the game logs them. Not your wallet balance.";
+              ? `Confirmed aUEC from Awarded HUD lines: ${auecInfo.total.toLocaleString()}. Estimated (not confirmed): ~${auecInfo.estimated.toLocaleString()} from wiki + rep tier.${haulNote}`
+              : `Mission aUEC from Awarded HUD lines plus confirmed cargo haul profit from Game.log.${haulNote} Not your wallet balance.`;
       card.title = hint;
     }
   }
@@ -1534,6 +1547,8 @@ function buildOverview(session) {
       ${sub ? `<span class="overview-stat-sub">${sub}</span>` : ""}
     </div>`;
 
+  const haulProfit = r.commodityProfitTotal ?? 0;
+  const auecHeaderTotal = (t?.totalAuec ?? 0) + haulProfit;
   const statCards = [
     statCard(
       "◈",
@@ -1546,11 +1561,13 @@ function buildOverview(session) {
     statCard("✧", String(s.vehiclesLost), "Ships lost", "", "alert"),
     statCard(
       "✦",
-      (t?.totalAuec ?? 0).toLocaleString(),
-      "aUEC confirmed",
-      (t?.totalAuecEstimated ?? 0) > 0
-        ? `~${t.totalAuecEstimated.toLocaleString()} estimated`
-        : `${s.rewards} payout${s.rewards === 1 ? "" : "s"}`,
+      auecHeaderTotal.toLocaleString(),
+      "aUEC earned",
+      haulProfit !== 0
+        ? `${haulProfit >= 0 ? "+" : ""}${haulProfit.toLocaleString()} cargo haul`
+        : (t?.totalAuecEstimated ?? 0) > 0
+          ? `~${t.totalAuecEstimated.toLocaleString()} estimated`
+          : `${s.rewards} payout${s.rewards === 1 ? "" : "s"}`,
       "economy"
     ),
     statCard(
@@ -1587,6 +1604,21 @@ function buildOverview(session) {
       );
     }
     lines.push(`</div>`);
+  }
+  if (r.commodityHauls?.length) {
+    lines.push(`<div class="sci-fi-divider"><span>Cargo hauls</span></div>`);
+    lines.push(`<ul class="mini-feed commodity-haul-feed">`);
+    for (const haul of [...r.commodityHauls].reverse().slice(0, 8)) {
+      const profitClass =
+        haul.profit >= 0 ? "commodity-spread-positive" : "trade-profit-loss";
+      lines.push(
+        `<li><span class="muted">${fmtTime(haul.sellAt || haul.at)}</span> ` +
+          `<strong>${escapeHtml(haul.commodity)}</strong> · ${haul.scu} SCU · ` +
+          `${escapeHtml(displayText(haul.buyShop))} → ${escapeHtml(displayText(haul.sellShop))} · ` +
+          `<span class="${profitClass}">${haul.profit >= 0 ? "+" : ""}${Math.round(haul.profit).toLocaleString()} aUEC</span></li>`
+      );
+    }
+    lines.push(`</ul>`);
   }
   if (t?.itemCount > 0) {
     lines.push(

@@ -30,6 +30,8 @@ function createSession(overrides = {}) {
       insuranceClaims: 0,
       shopSpend: 0,
       shopPurchases: 0,
+      commodityHauls: 0,
+      commodityProfit: 0,
     },
     ...overrides,
   };
@@ -80,6 +82,10 @@ function bumpStats(session, event) {
     case "shop_purchase":
       s.shopPurchases += 1;
       if (event.detail?.price) s.shopSpend += event.detail.price;
+      break;
+    case "commodity_haul":
+      s.commodityHauls += 1;
+      if (event.detail?.profit) s.commodityProfit += event.detail.profit;
       break;
     default:
       break;
