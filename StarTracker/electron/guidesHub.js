@@ -232,10 +232,9 @@ function compactTerminalPrice(row) {
     Number(row.price_sell_avg) ||
     Number(row.price_sell_avg_week) ||
     0;
-  const stockScu =
-    Number(row.scu_buy_avg) || Number(row.scu_buy_max) || Number(row.scu_buy) || 0;
-  const demandScu =
-    Number(row.scu_sell_stock) || Number(row.scu_sell_avg) || Number(row.scu_sell) || 0;
+  const { terminalStockScu, terminalDemandScu } = require("./uexStock");
+  const stockScu = terminalStockScu(row);
+  const demandScu = terminalDemandScu(row);
   return {
     terminal: row.terminal_name || null,
     location: location || null,

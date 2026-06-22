@@ -81,12 +81,21 @@ function main() {
     price_sell: 3400,
     scu_sell_stock: 12.5,
     scu_buy_avg: 40,
+    scu_buy: 40,
   });
   assert.strictEqual(shaped.terminal, "Test TDD");
-  assert.strictEqual(shaped.sellToYouPrice, 3400, "price_sell is terminal sell → player buy cost");
-  assert.strictEqual(shaped.buyFromYouPrice, 2600, "price_buy is terminal buy → player sell payout");
-  assert.strictEqual(shaped.stockScu, 12.5);
-  assert.strictEqual(shaped.demandScu, 40);
+  assert.strictEqual(shaped.sellToYouPrice, 2600, "price_buy is player purchase cost per SCU");
+  assert.strictEqual(shaped.buyFromYouPrice, 3400, "price_sell is player sale payout per SCU");
+  assert.strictEqual(shaped.stockScu, 40);
+  assert.strictEqual(shaped.demandScu, 12.5);
+
+  const conservative = terminalIntel.shapeTerminalRow({
+    terminal_name: "Golden",
+    price_buy: 100,
+    scu_buy: 3,
+    scu_buy_min: 1,
+  });
+  assert.strictEqual(conservative.stockScu, 1, "use lower reported stock when min < current");
 
   const devlin = terminalIntel.shapeTerminalRow({
     terminal_name: "Devlin Scrap and Salvage",
@@ -94,17 +103,19 @@ function main() {
     price_sell: 870000,
     scu_sell_stock: 4,
   });
-  assert.strictEqual(devlin.sellToYouPrice, 870000);
-  assert.strictEqual(devlin.buyFromYouPrice, 0);
+  assert.strictEqual(devlin.sellToYouPrice, 0);
+  assert.strictEqual(devlin.buyFromYouPrice, 870000);
 
   const golden = terminalIntel.shapeTerminalRow({
     terminal_name: "The Golden Riviera",
     price_buy: 281500,
     price_sell: 0,
-    scu_buy_avg: 3,
+    scu_buy: 3,
+    scu_buy_min: 1,
   });
-  assert.strictEqual(golden.buyFromYouPrice, 281500);
-  assert.strictEqual(golden.sellToYouPrice, 0);
+  assert.strictEqual(golden.buyFromYouPrice, 0);
+  assert.strictEqual(golden.sellToYouPrice, 281500);
+  assert.strictEqual(golden.stockScu, 1);
 
   console.log("test-terminal-intel: OK");
 }

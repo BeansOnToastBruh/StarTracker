@@ -5,6 +5,7 @@ const {
   buildRewardDisplayLines,
   aggregateRewards,
 } = require("./rewardFormat");
+const { commodityKey } = require("./commodityHaul");
 
 function fmtShort(iso) {
   if (!iso) return "?";
@@ -144,6 +145,28 @@ function applyContractObjective(row, e) {
   }
 }
 
+function computeOpenCommodityLots(trades) {
+  const lots = [];
+  for (const t of trades) {
+    if (t.action === "buy") {
+      lots.push({ ...t, scuRemaining: t.scu });
+      continue;
+    }
+    if (t.action !== "sell") continue;
+    let sellLeft = t.scu;
+    const key = commodityKey(t.commodityRaw);
+    for (const lot of lots) {
+      if (lot.scuRemaining <= 0) continue;
+      if (commodityKey(lot.commodityRaw) !== key) continue;
+      const matched = Math.min(sellLeft, lot.scuRemaining);
+      lot.scuRemaining -= matched;
+      sellLeft -= matched;
+      if (sellLeft <= 0) break;
+    }
+  }
+  return lots.filter((lot) => lot.scuRemaining > 0);
+}
+
 function linkRewardsToContracts(contracts, rewards) {
   for (const r of rewards) {
     let linked = false;
@@ -212,6 +235,7 @@ function buildRollup(session) {
   const insuranceClaims = [];
   const shopPurchases = [];
   const commodityHauls = [];
+  const commodityTrades = [];
   const loadoutSnapshots = [];
 
   for (const e of session.events) {
@@ -391,6 +415,22 @@ function buildRollup(session) {
           summary: e.summary,
         });
         break;
+      case "commodity_trade":
+        commodityTrades.push({
+          at: e.at,
+          summary: e.summary,
+          action: e.detail?.action || "buy",
+          commodity: e.detail?.commodity || "Unknown",
+          commodityRaw: e.detail?.commodityRaw || null,
+          resourceGuid: e.detail?.resourceGuid || null,
+          shop: e.detail?.shop || null,
+          shopRaw: e.detail?.shopRaw || null,
+          scu: e.detail?.scu ?? 0,
+          priceTotal: e.detail?.priceTotal ?? 0,
+          unitPrice: e.detail?.unitPrice ?? 0,
+          verified: !!e.detail?.verified,
+        });
+        break;
       case "commodity_haul":
         commodityHauls.push({
           at: e.at,
@@ -468,6 +508,10 @@ function buildRollup(session) {
   const finesTotal = fines.reduce((s, f) => s + (f.amount || 0), 0);
   const shopSpendTotal = shopPurchases.reduce((s, p) => s + (p.price || 0), 0);
   const commodityProfitTotal = commodityHauls.reduce((s, h) => s + (h.profit || 0), 0);
+  const commoditySpendTotal = commodityTrades
+    .filter((t) => t.action === "buy")
+    .reduce((s, t) => s + (t.priceTotal || 0), 0);
+  const commodityOpenLots = computeOpenCommodityLots(commodityTrades);
 
   return {
     durationLabel: formatDuration(sessionDurationMs(session)),
@@ -495,6 +539,9 @@ function buildRollup(session) {
     shopPurchases,
     shopSpendTotal,
     commodityHauls,
+    commodityTrades,
+    commodityOpenLots,
+    commoditySpendTotal,
     commodityProfitTotal,
     loadoutSnapshots,
     stats: { ...session.stats },

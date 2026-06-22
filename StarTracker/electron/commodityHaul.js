@@ -3,10 +3,15 @@ const { formatShopName } = require("./commerceFormat");
 const PAIR_TIMEOUT_MS = 6 * 60 * 60 * 1000;
 const PENDING_TTL_MS = 120 * 1000;
 
+const DEFAULT_COMMODITY_GUID_MAP = {
+  "999e3149-fd10-49ac-914f-8911e61c6122": "ResourceType.Bexalite",
+};
+
 function createCommodityCtx() {
   return {
     commodityPending: new Map(),
     commodityBuyLots: [],
+    commodityGuidMap: { ...DEFAULT_COMMODITY_GUID_MAP },
   };
 }
 
@@ -23,10 +28,45 @@ function commodityKey(raw) {
   return formatCommodityName(raw).toLowerCase();
 }
 
-function parseCommodityFields(body) {
-  const side = /CommoditySellRequest|SendCommoditySellRequest/i.test(body)
+function resolveCommodityFromGuid(ctx, guid) {
+  if (!guid) return null;
+  const key = String(guid).toLowerCase();
+  return ctx?.commodityGuidMap?.[key] || null;
+}
+
+function learnCommodityGuid(ctx, guid, name) {
+  if (!guid || !name || !ctx) return;
+  if (!ctx.commodityGuidMap) ctx.commodityGuidMap = { ...DEFAULT_COMMODITY_GUID_MAP };
+  ctx.commodityGuidMap[String(guid).toLowerCase()] = name;
+}
+
+function parseScu(body) {
+  const cscuM = body.match(/quantity\[([\d.]+)\s*cSCU\]/i);
+  if (cscuM) {
+    const scu = Number(cscuM[1]) / 100;
+    return Number.isFinite(scu) && scu > 0 ? scu : 1;
+  }
+  const scuM = body.match(/(?:^|[^\w])scu\[(\d+)\]/i);
+  if (scuM) return Math.max(1, Number(scuM[1]) || 1);
+  const qtyM = body.match(/(?:^|[^\w])quantity\[(\d+)\]/i);
+  if (qtyM) return Math.max(1, Number(qtyM[1]) || 1);
+  const amountM = body.match(/(?:^|[^\w])(?:amount|volume)\[(\d+)\]/i);
+  if (amountM) return Math.max(1, Number(amountM[1]) || 1);
+  return 1;
+}
+
+function isModernCommodityRequest(body) {
+  return (
+    /SShopCommodity(?:Buy|Sell)Request/i.test(body) || /resourceGUID\[/i.test(body)
+  );
+}
+
+function parseCommodityFields(body, ctx) {
+  const side = /CommoditySellRequest|SendCommoditySellRequest|SShopCommoditySellRequest/i.test(
+    body
+  )
     ? "sell"
-    : /CommodityBuyRequest|SendCommodityBuyRequest/i.test(body)
+    : /CommodityBuyRequest|SendCommodityBuyRequest|SShopCommodityBuyRequest/i.test(body)
       ? "buy"
       : null;
   if (!side) return null;
@@ -37,15 +77,22 @@ function parseCommodityFields(body) {
     body.match(/commodityName\[([^\]]+)\]/i) ||
     body.match(/commodity\[([^\]]+)\]/i) ||
     body.match(/itemName\[([^\]]+)\]/i);
+  const guidM = body.match(/resourceGUID\[([^\]]+)\]/i);
   const priceM = body.match(
     /(?:client_price|totalPrice|total_price|price)\[([\d.]+)\]/i
   );
-  const scuM = body.match(/(?:scu|quantity|amount|volume)\[(\d+)\]/i);
 
-  if (!playerM || !shopM || !commodityM || !priceM) return null;
+  if (!playerM || !shopM || !priceM) return null;
+
+  let commodityRaw = commodityM?.[1] || null;
+  let resourceGuid = guidM?.[1] || null;
+  if (!commodityRaw && resourceGuid) {
+    commodityRaw = resolveCommodityFromGuid(ctx, resourceGuid) || resourceGuid;
+  }
+  if (!commodityRaw) return null;
 
   const price = Number(priceM[1]);
-  const scu = scuM ? Math.max(1, Number(scuM[1]) || 1) : 1;
+  const scu = parseScu(body);
   if (!Number.isFinite(price) || price <= 0) return null;
 
   return {
@@ -53,11 +100,13 @@ function parseCommodityFields(body) {
     playerId: playerM[1],
     shopRaw: shopM[1],
     shop: formatShopName(shopM[1]),
-    commodityRaw: commodityM[1],
-    commodity: formatCommodityName(commodityM[1]),
+    commodityRaw,
+    commodity: formatCommodityName(commodityRaw),
+    resourceGuid,
     priceTotal: price,
     scu,
     unitPrice: price / scu,
+    isModern: isModernCommodityRequest(body),
   };
 }
 
@@ -89,6 +138,36 @@ function recordBuyLot(ctx, row, at) {
     unitPrice: row.unitPrice,
     at,
   });
+}
+
+function emitCommodityTrade(ctx, row, at, emit) {
+  const priceLabel = Math.round(row.priceTotal).toLocaleString();
+  if (row.side === "buy") {
+    recordBuyLot(ctx, row, at);
+    emit({
+      type: "commodity_trade",
+      at,
+      summary: `Bought ${row.scu} SCU ${row.commodity} for ${priceLabel} aUEC`,
+      detail: {
+        action: "buy",
+        ...row,
+        verified: true,
+      },
+    });
+    return;
+  }
+
+  emit({
+    type: "commodity_trade",
+    at,
+    summary: `Sold ${row.scu} SCU ${row.commodity} for ${priceLabel} aUEC`,
+    detail: {
+      action: "sell",
+      ...row,
+      verified: true,
+    },
+  });
+  tryEmitHaul(ctx, row, at, emit);
 }
 
 function tryEmitHaul(ctx, sellRow, sellAt, emit) {
@@ -137,15 +216,41 @@ function tryEmitHaul(ctx, sellRow, sellAt, emit) {
   }
 }
 
+function trackCommodityGuidHints(body, ctx) {
+  if (!ctx) return false;
+  if (!/AddingCommodityBox|AddPlayerCommodityItem/i.test(body)) return false;
+
+  const guidM = body.match(/resourceGUID\[([^\]]+)\]/i);
+  if (!guidM) return false;
+
+  const nameM =
+    body.match(/commodityName\[([^\]]+)\]/i) ||
+    body.match(/commodity\[([^\]]+)\]/i) ||
+    body.match(/itemName\[([^\]]+)\]/i) ||
+    body.match(/resourceName\[([^\]]+)\]/i);
+  if (nameM) learnCommodityGuid(ctx, guidM[1], nameM[1]);
+  return true;
+}
+
 function appendCommodityCommerce(body, at, ctx, emit) {
   if (!ctx.commodityPending) ctx.commodityPending = new Map();
   if (!ctx.commodityBuyLots) ctx.commodityBuyLots = [];
+  if (!ctx.commodityGuidMap) ctx.commodityGuidMap = { ...DEFAULT_COMMODITY_GUID_MAP };
   prunePending(ctx, at);
 
-  const request = parseCommodityFields(body);
+  if (trackCommodityGuidHints(body, ctx) && !/Commodity(?:Buy|Sell)Request/i.test(body)) {
+    return;
+  }
+
+  const request = parseCommodityFields(body, ctx);
   if (request) {
     if (!ctx.playerGEID) ctx.playerGEID = request.playerId;
     if (request.playerId !== ctx.playerGEID) return;
+
+    if (request.isModern) {
+      emitCommodityTrade(ctx, request, at, emit);
+      return;
+    }
 
     ctx.commodityPending.set(
       pendingKey(request.playerId, request.shopRaw, request.side),
@@ -183,33 +288,7 @@ function appendCommodityCommerce(body, at, ctx, emit) {
   if (!pending) return;
 
   ctx.commodityPending.delete(pendingKey(playerId, shopRaw, side));
-
-  if (side === "buy") {
-    recordBuyLot(ctx, pending, at);
-    emit({
-      type: "commodity_trade",
-      at,
-      summary: `Bought ${pending.scu} SCU ${pending.commodity} for ${Math.round(pending.priceTotal).toLocaleString()} aUEC`,
-      detail: {
-        action: "buy",
-        ...pending,
-        verified: true,
-      },
-    });
-    return;
-  }
-
-  emit({
-    type: "commodity_trade",
-    at,
-    summary: `Sold ${pending.scu} SCU ${pending.commodity} for ${Math.round(pending.priceTotal).toLocaleString()} aUEC`,
-    detail: {
-      action: "sell",
-      ...pending,
-      verified: true,
-    },
-  });
-  tryEmitHaul(ctx, pending, at, emit);
+  emitCommodityTrade(ctx, pending, at, emit);
 }
 
 module.exports = {
@@ -218,5 +297,6 @@ module.exports = {
   formatCommodityName,
   commodityKey,
   parseCommodityFields,
+  DEFAULT_COMMODITY_GUID_MAP,
   PAIR_TIMEOUT_MS,
 };

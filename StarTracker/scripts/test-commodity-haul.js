@@ -136,10 +136,39 @@ function runShopPurchaseUntouched() {
   assert.strictEqual(purchases[0].detail.price, 1250);
 }
 
+function runModernBexaliteBuy() {
+  const ctx = makeCtx();
+  const session = createSession({ playerNick: "TestPilot" });
+
+  const line =
+    `${ts("10.757")} [Notice] <CEntityComponentCommodityUIProvider::SendCommodityBuyRequest> ` +
+    `Sending SShopCommodityBuyRequest - playerId[${PLAYER}] shopId[524868903021] ` +
+    `shopName[SCShop_Trdpst_Warehouse_INDY_Int_B] kioskId[524868902994] ` +
+    `price[1413316.000000] shopPricePerCentiSCU[235.552505] ` +
+    `resourceGUID[999e3149-fd10-49ac-914f-8911e61c6122] autoLoading[0] ` +
+    `quantity[6000.000000 cSCU] Cargo Box Data: boxSize[4.000000] | unitAmount[15]`;
+
+  feed(ctx, session, line);
+
+  const rollup = snapshot(session).rollup;
+  assert.strictEqual(rollup.commodityTrades.length, 1, "one commodity trade");
+  assert.strictEqual(rollup.commodityTrades[0].action, "buy");
+  assert.strictEqual(rollup.commodityTrades[0].commodity, "Bexalite");
+  assert.strictEqual(rollup.commodityTrades[0].scu, 60);
+  assert.strictEqual(rollup.commodityTrades[0].priceTotal, 1413316);
+  assert.strictEqual(rollup.commodityOpenLots.length, 1);
+  assert.strictEqual(rollup.commodityOpenLots[0].scuRemaining, 60);
+  assert.strictEqual(rollup.commoditySpendTotal, 1413316);
+  assert.strictEqual(rollup.stats.commodityBuys, 1);
+  assert.strictEqual(rollup.stats.commoditySpend, 1413316);
+  assert.strictEqual(rollup.commodityHauls.length, 0, "buy alone is not a haul");
+}
+
 runScenario();
 runPartialHaul();
 runRejectedFlow();
 runLossHaul();
 runShopPurchaseUntouched();
+runModernBexaliteBuy();
 
 console.log("test-commodity-haul: all passed");

@@ -1206,7 +1206,11 @@ function tabBadgeCount(tabId, rollup) {
         (rollup.abandoned?.length || 0)
       );
     case "rewards":
-      return (rollup.rewardEntries?.length || 0) + (rollup.commodityHauls?.length || 0);
+      return (
+        (rollup.rewardEntries?.length || 0) +
+        (rollup.commodityHauls?.length || 0) +
+        (rollup.commodityTrades?.length || 0)
+      );
     case "blueprints":
       return rollup.blueprintEntries?.length || 0;
     case "deaths":
@@ -1220,7 +1224,10 @@ function tabBadgeCount(tabId, rollup) {
     case "insurance":
       return rollup.insuranceClaims?.length || 0;
     case "shopping":
-      return rollup.shopPurchases?.length || 0;
+      return (
+        (rollup.shopPurchases?.length || 0) +
+        (rollup.commodityTrades?.filter((t) => t.action === "buy").length || 0)
+      );
     case "loadout":
       return rollup.loadoutSnapshots?.length || 0;
     case "history":
@@ -1581,7 +1588,7 @@ function buildOverview(session) {
       "◆",
       Math.round(r.shopSpendTotal ?? 0).toLocaleString(),
       "Shop spend",
-      `${r.loadoutSnapshots?.length ?? 0} loadout snap${(r.loadoutSnapshots?.length ?? 0) === 1 ? "" : "s"}`,
+      `${r.commodityTrades?.filter((t) => t.action === "buy").length ?? 0} commodity buy${(r.commodityTrades?.filter((t) => t.action === "buy").length ?? 0) === 1 ? "" : "s"} · ${r.loadoutSnapshots?.length ?? 0} loadout snap${(r.loadoutSnapshots?.length ?? 0) === 1 ? "" : "s"}`,
       "utility"
     ),
   ];
@@ -1604,6 +1611,20 @@ function buildOverview(session) {
       );
     }
     lines.push(`</div>`);
+  }
+  if (r.commodityTrades?.length) {
+    lines.push(`<div class="sci-fi-divider"><span>Commodity trades</span></div>`);
+    lines.push(`<ul class="mini-feed commodity-trade-feed">`);
+    for (const trade of [...r.commodityTrades].reverse().slice(0, 8)) {
+      const actionLabel = trade.action === "sell" ? "Sold" : "Bought";
+      lines.push(
+        `<li><span class="muted">${fmtTime(trade.at)}</span> ` +
+          `<strong>${escapeHtml(trade.commodity)}</strong> · ${trade.scu} SCU · ` +
+          `${actionLabel} at ${escapeHtml(displayText(trade.shop))} · ` +
+          `${Math.round(trade.priceTotal).toLocaleString()} aUEC</li>`
+      );
+    }
+    lines.push(`</ul>`);
   }
   if (r.commodityHauls?.length) {
     lines.push(`<div class="sci-fi-divider"><span>Cargo hauls</span></div>`);
@@ -1766,12 +1787,52 @@ function buildCommodityHaulRows(hauls) {
     .join("");
 }
 
+function buildCommodityTradeRows(trades) {
+  return trades
+    .slice()
+    .reverse()
+    .map((trade) => {
+      const isBuy = trade.action === "buy";
+      return entryCard({
+        time: fmtDateTime(trade.at),
+        badge: isBuy ? "Cargo buy" : "Cargo sell",
+        badgeClass: isBuy ? "entry-warn" : "entry-good",
+        title: trade.commodity,
+        description: `${trade.scu} SCU at ${displayText(trade.shop)} · ${Math.round(trade.priceTotal).toLocaleString()} aUEC`,
+        extraHtml: isBuy
+          ? `<p class="entry-extra muted">${Math.round(trade.unitPrice).toLocaleString()} aUEC per SCU · commodity terminal purchase</p>`
+          : `<p class="entry-extra muted">${Math.round(trade.unitPrice).toLocaleString()} aUEC per SCU · commodity terminal sale</p>`,
+      });
+    })
+    .join("");
+}
+
+function buildCommodityOpenRows(lots) {
+  return lots
+    .slice()
+    .reverse()
+    .map((lot) =>
+      entryCard({
+        time: fmtDateTime(lot.at),
+        badge: "Open cargo",
+        badgeClass: "",
+        title: lot.commodity,
+        description: `${lot.scuRemaining} SCU remaining · bought at ${displayText(lot.shop)}`,
+        extraHtml: `<p class="entry-extra muted">Paid ${Math.round(lot.unitPrice * lot.scuRemaining).toLocaleString()} aUEC · not sold yet this session</p>`,
+      })
+    )
+    .join("");
+}
+
 function buildRewards(rollup) {
   if (!rollup) return emptyPanel(tabById("rewards"));
   const entries = rollup.rewardEntries || [];
   const hauls = rollup.commodityHauls || [];
+  const trades = rollup.commodityTrades || [];
+  const openLots = rollup.commodityOpenLots || [];
   const haulProfit = rollup.commodityProfitTotal ?? 0;
-  if (!entries.length && !hauls.length) return emptyPanel(tabById("rewards"));
+  const commoditySpend = rollup.commoditySpendTotal ?? 0;
+  if (!entries.length && !hauls.length && !trades.length) return emptyPanel(tabById("rewards"));
 
   const t = rollup.rewardTotals || {};
   const parts = [];
@@ -1780,6 +1841,11 @@ function buildRewards(rollup) {
   if (t.totalAuec > 0) {
     totals.push(
       `<div class="reward-total-card"><span class="reward-lbl">aUEC confirmed</span><span class="reward-total-val">${t.totalAuec.toLocaleString()}</span></div>`
+    );
+  }
+  if (commoditySpend > 0) {
+    totals.push(
+      `<div class="reward-total-card"><span class="reward-lbl">Commodity spend</span><span class="reward-total-val">${Math.round(commoditySpend).toLocaleString()}</span></div>`
     );
   }
   if (haulProfit !== 0) {
@@ -1843,6 +1909,16 @@ function buildRewards(rollup) {
       })
       .join("")
   );
+
+  if (openLots.length) {
+    parts.push(`<div class="subhead">Open cargo</div>`);
+    parts.push(buildCommodityOpenRows(openLots));
+  }
+
+  if (trades.length) {
+    parts.push(`<div class="subhead">Commodity terminal</div>`);
+    parts.push(buildCommodityTradeRows(trades));
+  }
 
   if (hauls.length) {
     parts.push(`<div class="subhead">Cargo hauls</div>`);
@@ -2041,34 +2117,53 @@ function buildInsurance(rollup) {
 }
 
 function buildShopping(rollup) {
-  if (!rollup?.shopPurchases?.length) return emptyPanel(tabById("shopping"));
-  const total = Math.round(rollup.shopSpendTotal ?? 0);
-  const head = `<p class="panel-summary">Shop spend logged: <strong>${total.toLocaleString()} aUEC</strong></p>`;
-  const rows = rollup.shopPurchases
-    .slice()
-    .reverse()
-    .map((p) => {
-      const badge =
-        p.category === "ship"
-          ? "Ship"
-          : p.category === "equipment"
-            ? "Equipment"
-            : "Purchase";
-      const qty =
-        p.quantity > 1 ? ` · Qty ${p.quantity}` : "";
-      const verifyNote = p.verified
-        ? "Verified from Star Citizen game data."
-        : "Name estimated until looked up online.";
-      return entryCard({
-        time: fmtDateTime(p.at),
-        badge,
-        badgeClass: "",
-        title: p.item,
-        description: `${Math.round(p.price).toLocaleString()} aUEC at ${displayText(p.shop)}${qty}. ${verifyNote}`,
-      });
-    })
-    .join("");
-  return head + rows;
+  const shopRows = rollup?.shopPurchases || [];
+  const commodityBuys = (rollup?.commodityTrades || []).filter((t) => t.action === "buy");
+  if (!shopRows.length && !commodityBuys.length) return emptyPanel(tabById("shopping"));
+
+  const parts = [];
+  const shopTotal = Math.round(rollup.shopSpendTotal ?? 0);
+  const commodityTotal = Math.round(rollup.commoditySpendTotal ?? 0);
+
+  if (shopRows.length) {
+    parts.push(
+      `<p class="panel-summary">Shop spend logged: <strong>${shopTotal.toLocaleString()} aUEC</strong></p>`
+    );
+    parts.push(
+      shopRows
+        .slice()
+        .reverse()
+        .map((p) => {
+          const badge =
+            p.category === "ship"
+              ? "Ship"
+              : p.category === "equipment"
+                ? "Equipment"
+                : "Purchase";
+          const qty = p.quantity > 1 ? ` · Qty ${p.quantity}` : "";
+          const verifyNote = p.verified
+            ? "Verified from Star Citizen game data."
+            : "Name estimated until looked up online.";
+          return entryCard({
+            time: fmtDateTime(p.at),
+            badge,
+            badgeClass: "",
+            title: p.item,
+            description: `${Math.round(p.price).toLocaleString()} aUEC at ${displayText(p.shop)}${qty}. ${verifyNote}`,
+          });
+        })
+        .join("")
+    );
+  }
+
+  if (commodityBuys.length) {
+    parts.push(
+      `<p class="panel-summary">Commodity terminal spend: <strong>${commodityTotal.toLocaleString()} aUEC</strong></p>`
+    );
+    parts.push(buildCommodityTradeRows(commodityBuys));
+  }
+
+  return parts.join("");
 }
 
 function isLoadoutCombatGear(item) {
@@ -4382,7 +4477,7 @@ function renderSmugglerRouteRows(routes) {
       const stockScu = tr?.buyTerminal?.stockScu;
       const stockCell =
         stockScu != null && stockScu > 0
-          ? `<strong class="smuggle-stock-live">${formatFleetCell(stockScu)} SCU</strong><div class="muted small">live UEX</div>`
+          ? `<strong class="smuggle-stock-live">${formatFleetCell(stockScu)} SCU</strong><div class="muted small">at buy terminal</div>`
           : `<span class="muted">—</span><div class="muted small">refresh for stock</div>`;
       const buyCell = tr?.buyTerminal
         ? `${displayText(tr.buyTerminal.terminal)}<div class="muted small">${fmtPurchaseCostPerScu(tr.buyTerminal.sellToYouPrice)}</div>`
@@ -4409,7 +4504,7 @@ function renderSmugglerRouteRows(routes) {
     })
     .join("");
   return `<div class="catalog-table-wrap"><table class="catalog-table smuggler-routes-table">
-    <thead><tr><th></th><th>Route</th><th>Commodity</th><th>Risk</th><th>Stock</th><th>Buy</th><th>Sell</th><th>Est. profit</th></tr></thead>
+    <thead><tr><th></th><th>Route</th><th>Commodity</th><th>Risk</th><th>Terminal stock</th><th>Buy</th><th>Sell</th><th>Est. profit</th></tr></thead>
     <tbody>${body}</tbody>
   </table></div>`;
 }
@@ -4542,7 +4637,18 @@ function fmtTradeStock(stockScu, isTerminal) {
   const v = Number(stockScu);
   const cls =
     v <= 0 ? "trade-stock-empty" : v < 64 ? "trade-stock-low" : "trade-stock-ok";
-  return `<strong class="mono data-readout ${cls}">${formatFleetCell(v)}</strong><div class="muted small">SCU stock</div>`;
+  return `<strong class="mono data-readout ${cls}">${formatFleetCell(v)}</strong><div class="muted small">SCU at terminal</div>`;
+}
+
+function fmtRouteHaulScu(route) {
+  const scu = route?.commodityScu ?? route?.cargoScuUsed ?? 0;
+  const units = route?.commodityUnits;
+  const weight = route?.weightScu;
+  const unitHint =
+    units != null && weight > 1 && units !== scu
+      ? `<div class="muted small">${formatFleetCell(units)}× ${formatFleetCell(weight)} SCU units</div>`
+      : "";
+  return `<span class="mono data-readout">${formatFleetCell(scu)}</span>${unitHint}<div class="muted small">max haul SCU</div>`;
 }
 
 function fmtTradeDemand(demandScu, isTerminal) {
@@ -4600,7 +4706,7 @@ function renderTradeRouteRows(routes) {
         <td class="trade-route-stock">${fmtTradeStock(buy?.stockScu, isTerminal)}</td>
         <td class="trade-route-sell">${displayText(sellLabel)}<div class="muted small mono">${fmtSalePayoutPerScu(sellPrice > 0 ? sellPrice : null)}</div></td>
         <td class="trade-route-demand">${fmtTradeDemand(sell?.demandScu, isTerminal)}</td>
-        <td class="trade-route-scu"><span class="mono data-readout">${formatFleetCell(r.commodityUnits ?? r.commodityScu)}</span><div class="muted small">${formatFleetCell(r.commodityScu ?? r.cargoScuUsed)} SCU</div></td>
+        <td class="trade-route-scu">${fmtRouteHaulScu(r)}</td>
         <td class="trade-route-profit">${fmtTradeProfit(profitVal, spreadVal)}</td>
       </tr>${renderInlineDetailRow(colspan, host, key)}`;
     })

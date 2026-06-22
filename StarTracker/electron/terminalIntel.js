@@ -1,4 +1,5 @@
 const { getCommoditiesCache, shapeCommodityRow } = require("./guidesHub");
+const { terminalStockScu, terminalDemandScu } = require("./uexStock");
 
 const UEX_BASE = "https://api.uexcorp.space/2.0";
 const terminalCache = new Map();
@@ -39,16 +40,8 @@ function terminalPlayerPrices(raw) {
 
 function shapeTerminalRow(raw) {
   const { sellToYou, buyFromYou } = terminalPlayerPrices(raw);
-  const stockToBuy =
-    Number(raw.scu_buy_avg) ||
-    Number(raw.scu_buy_max) ||
-    Number(raw.scu_buy) ||
-    0;
-  const demandToSell =
-    Number(raw.scu_sell_stock) ||
-    Number(raw.scu_sell_avg) ||
-    Number(raw.scu_sell) ||
-    0;
+  const stockToBuy = terminalStockScu(raw);
+  const demandToSell = terminalDemandScu(raw);
   return {
     terminal: raw.terminal_name || "Unknown terminal",
     terminalCode: raw.terminal_code || null,
@@ -159,16 +152,18 @@ function bestSellTerminal(terminals) {
 function routeFromTerminals(commodity, buyTerminal, sellTerminal, cargoScu) {
   if (!commodity || !buyTerminal || !sellTerminal) return null;
   const weight = Number(commodity.weightScu) > 0 ? Number(commodity.weightScu) : 1;
-  const maxByCargo = Math.floor(cargoScu / weight);
-  const maxByStock = buyTerminal.stockScu > 0 ? Math.floor(buyTerminal.stockScu / weight) : maxByCargo;
-  const maxByDemand = sellTerminal.demandScu > 0 ? Math.floor(sellTerminal.demandScu / weight) : maxByCargo;
-  const units = Math.max(0, Math.min(maxByCargo, maxByStock, maxByDemand));
+  const cargoCap = Math.max(Number(cargoScu) || 0, 0);
+  const stockCap = buyTerminal.stockScu > 0 ? buyTerminal.stockScu : cargoCap;
+  const demandCap = sellTerminal.demandScu > 0 ? sellTerminal.demandScu : cargoCap;
+  const haulScu = Math.max(0, Math.min(cargoCap, stockCap, demandCap));
+  const units = weight > 0 ? Math.floor(haulScu / weight) : haulScu;
   const hasTerminalPrices = buyTerminal.sellToYouPrice > 0 && sellTerminal.buyFromYouPrice > 0;
   const spread = hasTerminalPrices
     ? sellTerminal.buyFromYouPrice - buyTerminal.sellToYouPrice
     : commodity.spread || 0;
-  const invest = units * weight * (buyTerminal.sellToYouPrice || commodity.priceBuy || 0);
-  const profit = units * weight * spread;
+  const commodityScu = units * weight;
+  const invest = commodityScu * (buyTerminal.sellToYouPrice || commodity.priceBuy || 0);
+  const profit = commodityScu * spread;
   return {
     commodityId: commodity.id,
     name: commodity.name,
@@ -178,14 +173,14 @@ function routeFromTerminals(commodity, buyTerminal, sellTerminal, cargoScu) {
     buyTerminal,
     sellTerminal,
     commodityUnits: units,
-    commodityScu: units * weight,
+    commodityScu,
     spreadPerScu: spread,
     spreadIsEstimate: !hasTerminalPrices,
     investAuec: invest,
     totalProfit: profit,
     profitPerScu: spread,
-    stockLimited: maxByStock < maxByCargo,
-    demandLimited: maxByDemand < maxByCargo,
+    stockLimited: stockCap < cargoCap,
+    demandLimited: demandCap < cargoCap,
   };
 }
 
@@ -268,6 +263,8 @@ async function buildTerminalTradeRoutes(options = {}) {
 module.exports = {
   shapeTerminalRow,
   terminalPlayerPrices,
+  terminalStockScu,
+  terminalDemandScu,
   fetchCommodityTerminals,
   getCommodityTradeRoute,
   getSmugglerRouteLive,

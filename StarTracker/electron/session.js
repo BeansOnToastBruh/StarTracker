@@ -32,6 +32,9 @@ function createSession(overrides = {}) {
       shopPurchases: 0,
       commodityHauls: 0,
       commodityProfit: 0,
+      commodityBuys: 0,
+      commoditySells: 0,
+      commoditySpend: 0,
     },
     ...overrides,
   };
@@ -82,6 +85,13 @@ function bumpStats(session, event) {
     case "shop_purchase":
       s.shopPurchases += 1;
       if (event.detail?.price) s.shopSpend += event.detail.price;
+      break;
+    case "commodity_trade":
+      if (event.detail?.action === "sell") s.commoditySells += 1;
+      else s.commodityBuys += 1;
+      if (event.detail?.action === "buy" && event.detail?.priceTotal) {
+        s.commoditySpend += event.detail.priceTotal;
+      }
       break;
     case "commodity_haul":
       s.commodityHauls += 1;
