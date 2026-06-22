@@ -77,16 +77,34 @@ function main() {
     terminal_code: "test",
     city_name: "Area18",
     star_system_name: "Stanton",
-    price_buy: 3400,
-    price_sell: 2600,
+    price_buy: 2600,
+    price_sell: 3400,
     scu_sell_stock: 12.5,
     scu_buy_avg: 40,
   });
   assert.strictEqual(shaped.terminal, "Test TDD");
-  assert.strictEqual(shaped.sellToYouPrice, 3400, "price_buy is what you pay to buy");
-  assert.strictEqual(shaped.buyFromYouPrice, 2600, "price_sell is what you receive when selling");
+  assert.strictEqual(shaped.sellToYouPrice, 3400, "price_sell is terminal sell → player buy cost");
+  assert.strictEqual(shaped.buyFromYouPrice, 2600, "price_buy is terminal buy → player sell payout");
   assert.strictEqual(shaped.stockScu, 12.5);
   assert.strictEqual(shaped.demandScu, 40);
+
+  const devlin = terminalIntel.shapeTerminalRow({
+    terminal_name: "Devlin Scrap and Salvage",
+    price_buy: 0,
+    price_sell: 870000,
+    scu_sell_stock: 4,
+  });
+  assert.strictEqual(devlin.sellToYouPrice, 870000);
+  assert.strictEqual(devlin.buyFromYouPrice, 0);
+
+  const golden = terminalIntel.shapeTerminalRow({
+    terminal_name: "The Golden Riviera",
+    price_buy: 281500,
+    price_sell: 0,
+    scu_buy_avg: 3,
+  });
+  assert.strictEqual(golden.buyFromYouPrice, 281500);
+  assert.strictEqual(golden.sellToYouPrice, 0);
 
   console.log("test-terminal-intel: OK");
 }

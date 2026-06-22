@@ -20,11 +20,25 @@ function locationLabel(row) {
   return [row.city_name, row.planet_name, row.star_system_name].filter(Boolean).join(", ");
 }
 
+function terminalPlayerPrices(raw) {
+  // UEX commodities_prices rows are terminal-centric:
+  // price_sell = terminal sells to the player (your buy cost per SCU)
+  // price_buy = terminal buys from the player (your sell payout per SCU)
+  const sellToYou =
+    Number(raw.price_sell) ||
+    Number(raw.price_sell_avg) ||
+    Number(raw.price_sell_avg_week) ||
+    0;
+  const buyFromYou =
+    Number(raw.price_buy) ||
+    Number(raw.price_buy_avg) ||
+    Number(raw.price_buy_avg_week) ||
+    0;
+  return { sellToYou, buyFromYou };
+}
+
 function shapeTerminalRow(raw) {
-  // UEX: price_buy = per-SCU cost when the player buys from the terminal;
-  // price_sell = per-SCU payout when the player sells to the terminal.
-  const sellToYou = Number(raw.price_buy) || 0;
-  const buyFromYou = Number(raw.price_sell) || 0;
+  const { sellToYou, buyFromYou } = terminalPlayerPrices(raw);
   const stockToBuy = Number(raw.scu_sell_stock) || Number(raw.scu_sell_avg) || 0;
   const demandToSell = Number(raw.scu_buy_avg) || Number(raw.scu_buy_max) || 0;
   return {
@@ -118,10 +132,11 @@ function routeFromTerminals(commodity, buyTerminal, sellTerminal, cargoScu) {
   const maxByStock = buyTerminal.stockScu > 0 ? Math.floor(buyTerminal.stockScu / weight) : maxByCargo;
   const maxByDemand = sellTerminal.demandScu > 0 ? Math.floor(sellTerminal.demandScu / weight) : maxByCargo;
   const units = Math.max(0, Math.min(maxByCargo, maxByStock, maxByDemand));
-  const spread = buyTerminal.sellToYouPrice > 0 && sellTerminal.buyFromYouPrice > 0
+  const hasTerminalPrices = buyTerminal.sellToYouPrice > 0 && sellTerminal.buyFromYouPrice > 0;
+  const spread = hasTerminalPrices
     ? sellTerminal.buyFromYouPrice - buyTerminal.sellToYouPrice
     : commodity.spread || 0;
-  const invest = units * weight * buyTerminal.sellToYouPrice;
+  const invest = units * weight * (buyTerminal.sellToYouPrice || commodity.priceBuy || 0);
   const profit = units * weight * spread;
   return {
     commodityId: commodity.id,
@@ -134,6 +149,7 @@ function routeFromTerminals(commodity, buyTerminal, sellTerminal, cargoScu) {
     commodityUnits: units,
     commodityScu: units * weight,
     spreadPerScu: spread,
+    spreadIsEstimate: !hasTerminalPrices,
     investAuec: invest,
     totalProfit: profit,
     profitPerScu: spread,
@@ -220,6 +236,7 @@ async function buildTerminalTradeRoutes(options = {}) {
 
 module.exports = {
   shapeTerminalRow,
+  terminalPlayerPrices,
   fetchCommodityTerminals,
   getCommodityTradeRoute,
   getSmugglerRouteLive,

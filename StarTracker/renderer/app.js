@@ -4222,7 +4222,7 @@ function renderSmugglerRouteInlineDetail(route) {
         <span class="refinery-result-label">Est. profit (128 SCU haul)</span>
         <strong class="commodity-spread-positive">${fmtAuec(tr.totalProfit)}</strong>
         <span class="muted small">${formatFleetCell(tr.commodityUnits)} units · ${formatFleetCell(tr.commodityScu)} SCU${caps ? ` · ${caps}` : ""}</span>
-        <span class="muted small">Spread ${escapeHtml(fmtScuPrice(tr.spreadPerScu || route.topSpread))} per SCU</span>
+        <span class="muted small">${tr.spreadIsEstimate ? "Spread (UEX avg estimate) " : "Spread "}${escapeHtml(fmtScuPrice(tr.spreadPerScu || route.topSpread))} per SCU</span>
       </div>
     </div>`;
   }
