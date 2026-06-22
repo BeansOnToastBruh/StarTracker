@@ -514,6 +514,7 @@ app.whenReady().then(async () => {
   guidesHub.init({
     cacheDir: GUIDES_CACHE_DIR(),
     seedDir: GUIDES_SEED_DIR(),
+    rsiPlainTextFetcher: (url) => require("./rsiPatchNotes").fetchRsiPlainText(url),
   });
   combatIntel.init({
     cacheDir: COMBAT_CACHE_DIR(),
@@ -558,6 +559,11 @@ app.on("window-all-closed", (e) => e.preventDefault());
 app.on("before-quit", async () => {
   app.isQuitting = true;
   if (currentSession?.status === "active") finishSession();
+  try {
+    require("./rsiPatchNotes").closeRsiPatchWindow();
+  } catch {
+    /* ignore */
+  }
   await stopWatcher();
 });
 

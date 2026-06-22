@@ -3828,7 +3828,7 @@ function buildPatchNotesPanel(data) {
     .join("");
 
   const meta = data.meta?.fetchedAt
-    ? `<p class="guides-meta muted small">Game patches from star-citizen.wiki · cached ${escapeHtml(fmtDateTime(data.meta.fetchedAt))}${data.meta.stale ? " (stale)" : ""} · <button type="button" class="link" id="patchNotesRefreshBtn">Refresh patch notes</button></p>`
+    ? `<p class="guides-meta muted small">Game patches from RSI (Alpha 4.8.x) and star-citizen.wiki · cached ${escapeHtml(fmtDateTime(data.meta.fetchedAt))}${data.meta.stale ? " (stale)" : ""} · <button type="button" class="link" id="patchNotesRefreshBtn">Refresh patch notes</button></p>`
     : `<p class="guides-meta muted small"><button type="button" class="link" id="patchNotesRefreshBtn">Refresh patch notes</button></p>`;
 
   const appSection = localCards

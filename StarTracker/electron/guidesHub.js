@@ -2,9 +2,15 @@ const fs = require("fs");
 const path = require("path");
 const {
   parsePatchNotesText,
+  splitPatchDocument,
+  isPatchNotesBody,
+  comparePatchVersions,
   normalizeRsiUrl,
   wikiCommLinkUrl,
 } = require("./patchNotesFormat");
+
+const RSI_ALPHA_48_URL =
+  "https://robertsspaceindustries.com/en/comm-link/Patch-Notes/21168-Star-Citizen-Alpha-48";
 
 const UEX_BASE = "https://api.uexcorp.space/2.0";
 const WIKI_COMM_LINKS = "https://api.star-citizen.wiki/api/comm-links";
@@ -12,13 +18,17 @@ const WIKI_COMM_LINKS = "https://api.star-citizen.wiki/api/comm-links";
 const COMMODITIES_TTL_MS = 24 * 60 * 60 * 1000;
 const PATCH_NOTES_TTL_MS = 6 * 60 * 60 * 1000;
 const PATCH_NOTES_CACHE_FILE = "patch-notes-cache-v2.json";
+const WIKI_ALPHA_48_ID = 21168;
+const ALPHA_48_VERSION_RE = /^4\.8(?:\.\d+)?$/;
 
 let cacheDir = null;
 let seedDir = null;
+let rsiPlainTextFetcher = null;
 
 function init(options = {}) {
   cacheDir = options.cacheDir || null;
   seedDir = options.seedDir || null;
+  rsiPlainTextFetcher = options.rsiPlainTextFetcher || null;
 }
 
 function sleep(ms) {
@@ -330,12 +340,84 @@ async function fetchPatchNoteDetail(wikiId) {
     parsed,
     rsiUrl: normalizeRsiUrl(row.rsi_url, wikiId, row.title),
     wikiUrl: wikiCommLinkUrl(wikiId, row.api_public_url),
+    title: row.title,
+    date: row.created_at || null,
+    dateHuman: row.created_at_human || null,
+    channel: row.channel || null,
+    series: row.series || null,
   };
+}
+
+async function fetchRsiAlpha48PlainText() {
+  if (!rsiPlainTextFetcher) return "";
+  try {
+    return await rsiPlainTextFetcher(RSI_ALPHA_48_URL);
+  } catch {
+    return "";
+  }
+}
+
+function buildAlpha48PatchEntries(wikiDetail, rsiText) {
+  const splits = splitPatchDocument(rsiText);
+  if (!splits.length) return [];
+
+  const wikiBody = wikiDetail?.bodyText || "";
+  const wikiParsed = wikiDetail?.parsed || parsePatchNotesText(wikiBody);
+  const rsiUrl = wikiDetail?.rsiUrl || RSI_ALPHA_48_URL;
+  const wikiUrl = wikiDetail?.wikiUrl || wikiCommLinkUrl(WIKI_ALPHA_48_ID);
+
+  const patches = splits
+    .map((split) => {
+      const version = split.version || parsePatchVersion(split.headline);
+      if (!version || !ALPHA_48_VERSION_RE.test(version)) return null;
+
+      const useWikiBody =
+        version === "4.8" && wikiBody.length > (split.text?.length || 0) + 500;
+      const parsed = useWikiBody ? wikiParsed : split.parsed;
+      const intro = parsed?.intro?.length ? parsed.intro : split.parsed?.intro || [];
+      const sections = parsed?.sections?.length
+        ? parsed.sections
+        : split.parsed?.sections || [];
+
+      return sanitizePatchNoteEntry({
+        id: `rsi-21168-v${version.replace(/\./g, "-")}`,
+        wikiId: WIKI_ALPHA_48_ID,
+        title: `Star Citizen Alpha ${version}`,
+        version,
+        date: wikiDetail?.date || null,
+        dateHuman: split.dateHuman || wikiDetail?.dateHuman || null,
+        channel: "Patch Notes",
+        series: wikiDetail?.series || null,
+        rsiUrl,
+        wikiUrl,
+        headline: split.headline || `Star Citizen Alpha ${version}`,
+        intro,
+        sections,
+        source: useWikiBody ? "rsi+star-citizen.wiki" : "rsi",
+        isGamePatch: true,
+      });
+    })
+    .filter(Boolean);
+
+  patches.sort((a, b) => comparePatchVersions(a.version, b.version));
+  return patches;
+}
+
+function stripAlpha48WikiDuplicates(remote, alpha48Patches) {
+  if (!alpha48Patches?.length) return remote;
+  const versions = new Set(alpha48Patches.map((p) => p.version));
+  return remote.filter((row) => {
+    if (!row?.version || !ALPHA_48_VERSION_RE.test(row.version)) return true;
+    if (versions.has(row.version)) return false;
+    if (row.wikiId === WIKI_ALPHA_48_ID) return false;
+    return !isPatchNotesBody(row.bodyText || "");
+  });
 }
 
 async function fetchPatchNotesRemote() {
   const json = await fetchJson(`${WIKI_COMM_LINKS}?limit=120`);
   const candidates = (json.data || []).filter(isGamePatchCommLink).slice(0, 12);
+  let wikiAlpha48Detail = null;
   const remote = [];
   for (const row of candidates) {
     let detail = {
@@ -343,6 +425,11 @@ async function fetchPatchNotesRemote() {
       parsed: { headline: null, intro: [], sections: [] },
       rsiUrl: null,
       wikiUrl: null,
+      title: row.title,
+      date: row.created_at || null,
+      dateHuman: row.created_at_human || null,
+      channel: row.channel || null,
+      series: row.series || null,
     };
     try {
       detail = await fetchPatchNoteDetail(row.id);
@@ -350,6 +437,13 @@ async function fetchPatchNotesRemote() {
       detail.rsiUrl = normalizeRsiUrl(row.rsi_url, row.id, row.title);
       detail.wikiUrl = wikiCommLinkUrl(row.id, row.api_public_url);
     }
+
+    if (Number(row.id) === WIKI_ALPHA_48_ID) {
+      wikiAlpha48Detail = detail;
+    }
+
+    if (!isPatchNotesBody(detail.bodyText)) continue;
+
     const sanitized = sanitizePatchNoteEntry({
       id: `wiki-${row.id}`,
       wikiId: row.id,
@@ -369,14 +463,24 @@ async function fetchPatchNotesRemote() {
     });
     if (sanitized) remote.push(sanitized);
   }
-  remote.sort((a, b) => {
+
+  const rsiText = await fetchRsiAlpha48PlainText();
+  const alpha48Patches = buildAlpha48PatchEntries(wikiAlpha48Detail, rsiText);
+  let merged = stripAlpha48WikiDuplicates(remote, alpha48Patches);
+  if (alpha48Patches.length) {
+    merged = [...alpha48Patches, ...merged];
+  }
+
+  merged.sort((a, b) => {
+    const byVersion = comparePatchVersions(a.version, b.version);
+    if (byVersion !== 0) return byVersion;
     const da = a.date ? new Date(a.date).getTime() : 0;
     const db = b.date ? new Date(b.date).getTime() : 0;
     return db - da;
   });
   const entry = {
     fetchedAt: new Date().toISOString(),
-    remote,
+    remote: merged,
   };
   const cp = cachePath(PATCH_NOTES_CACHE_FILE);
   if (cp) writeJsonFile(cp, entry);

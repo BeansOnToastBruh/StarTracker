@@ -6,6 +6,17 @@ const SKIP_BLOCKS = [
   /^Report a Bug$/i,
   /^RSI Launcher$/i,
   /^Download the launcher/i,
+  /^EXPAND ALL \/ COLLAPSE ALL$/i,
+  /^EXPAND ALL$/i,
+  /^COLLAPSE ALL$/i,
+  /^Update$/i,
+  /^Home$/i,
+  /^Patch Notes$/i,
+  /^Features$/i,
+  /^Bug Fixes$/i,
+  /^Known Issues$/i,
+  /^4\.\d+ Previous Release Notes$/i,
+  /^4\.\d+ Release Notes$/i,
   /^Occupying:/i,
   /^Professional Merchants/i,
   /^A dozen confused/i,
@@ -22,6 +33,8 @@ const SKIP_BLOCKS = [
 const MAJOR_HEADERS = [
   "Build Information",
   "Features and Gameplay",
+  "Features & Updates",
+  "Content & Feature Updates",
   "Content",
   "UI Changes",
   "Bug Fixes & Technical Updates",
@@ -58,6 +71,7 @@ function isMajorHeader(line) {
 function isSubHeader(line) {
   const t = line.trim();
   if (t.length > 64 || t.length < 3) return false;
+  if (/^\d+\.\d+(?:\.\d+)?:\s+/i.test(t)) return true;
   if (/^(Fixed|Added|Updated|Players|Client|Server|Improved|Adjusted|Resolved|Removed|Changed)\b/i.test(t)) {
     return false;
   }
@@ -173,6 +187,85 @@ function parsePatchNotesText(raw) {
   };
 }
 
+function comparePatchVersions(a, b) {
+  const pa = String(a || "0")
+    .split(".")
+    .map((n) => Number(n) || 0);
+  const pb = String(b || "0")
+    .split(".")
+    .map((n) => Number(n) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    const da = pa[i] || 0;
+    const db = pb[i] || 0;
+    if (da !== db) return db - da;
+  }
+  return 0;
+}
+
+function extractPatchDateHuman(text) {
+  const m = String(text || "").match(
+    /\n((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4})\n/i
+  );
+  return m ? m[1].trim() : null;
+}
+
+function isPatchNotesBody(text) {
+  const t = String(text || "");
+  if (/DEFENDERS NEEDED/i.test(t) && !/Bug Fixes/i.test(t)) return false;
+  if (t.length < 250) return false;
+  return (
+    /Bug Fixes|Build Information|Known Issues|Features and Gameplay|Features & Updates|Build Update:/i.test(
+      t
+    )
+  );
+}
+
+/**
+ * RSI stacks multiple LIVE patches on one comm-link (e.g. 4.8.2, 4.8.1, 4.8 on 21168).
+ */
+function splitPatchDocument(raw) {
+  const text = String(raw || "").replace(/\r\n/g, "\n").trim();
+  if (!text) return [];
+
+  const markers = [];
+  const re = /Star Citizen Alpha (4\.\d+(?:\.\d+)?) LIVE/gi;
+  let match;
+  while ((match = re.exec(text)) !== null) {
+    markers.push({
+      index: match.index,
+      version: match[1],
+      headline: match[0],
+    });
+  }
+
+  if (!markers.length) {
+    return [
+      {
+        version: null,
+        headline: null,
+        dateHuman: extractPatchDateHuman(text),
+        text,
+        parsed: parsePatchNotesText(text),
+      },
+    ];
+  }
+
+  const out = [];
+  for (let i = 0; i < markers.length; i += 1) {
+    const chunk = text
+      .slice(markers[i].index, markers[i + 1]?.index ?? text.length)
+      .trim();
+    out.push({
+      version: markers[i].version,
+      headline: markers[i].headline,
+      dateHuman: extractPatchDateHuman(chunk),
+      text: chunk,
+      parsed: parsePatchNotesText(chunk),
+    });
+  }
+  return out;
+}
+
 function isSclOrBadTransmission(url, title) {
   const u = String(url || "").trim();
   const t = String(title || "").trim();
@@ -221,6 +314,10 @@ function wikiCommLinkUrl(wikiId, apiPublicUrl) {
 
 module.exports = {
   parsePatchNotesText,
+  splitPatchDocument,
+  isPatchNotesBody,
+  comparePatchVersions,
+  extractPatchDateHuman,
   normalizeRsiUrl,
   wikiCommLinkUrl,
   MAJOR_HEADERS,
