@@ -12,6 +12,7 @@ function createCommodityCtx() {
     commodityPending: new Map(),
     commodityBuyLots: [],
     commodityGuidMap: { ...DEFAULT_COMMODITY_GUID_MAP },
+    commodityTradeDedupe: new Set(),
   };
 }
 
@@ -40,17 +41,37 @@ function learnCommodityGuid(ctx, guid, name) {
   ctx.commodityGuidMap[String(guid).toLowerCase()] = name;
 }
 
+function parseCargoBoxScu(body) {
+  const boxM = body.match(/boxSize\[([\d.]+)\].*?unitAmount\[(\d+)\]/i);
+  if (!boxM) return null;
+  const box = Number(boxM[1]);
+  const units = Number(boxM[2]);
+  if (!Number.isFinite(box) || !Number.isFinite(units) || box <= 0 || units <= 0) {
+    return null;
+  }
+  const scu = box * units;
+  return Number.isFinite(scu) && scu > 0 ? scu : null;
+}
+
 function parseScu(body) {
+  const boxScu = parseCargoBoxScu(body);
   const cscuM = body.match(/quantity\[([\d.]+)\s*cSCU\]/i);
   if (cscuM) {
     const scu = Number(cscuM[1]) / 100;
-    return Number.isFinite(scu) && scu > 0 ? scu : 1;
+    if (Number.isFinite(scu) && scu > 0) return scu;
   }
   const scuM = body.match(/(?:^|[^\w])scu\[(\d+)\]/i);
   if (scuM) return Math.max(1, Number(scuM[1]) || 1);
-  const qtyM = body.match(/(?:^|[^\w])quantity\[(\d+)\]/i);
-  if (qtyM) return Math.max(1, Number(qtyM[1]) || 1);
-  const amountM = body.match(/(?:^|[^\w])(?:amount|volume)\[(\d+)\]/i);
+  const qtyM = body.match(/(?:^|[^\w])quantity\[([\d.]+)\]/i);
+  if (qtyM) {
+    const qty = Number(qtyM[1]);
+    if (Number.isFinite(qty) && qty > 0) {
+      if (boxScu && Math.abs(qty - boxScu) < 0.01) return boxScu;
+      return qty;
+    }
+  }
+  if (boxScu) return boxScu;
+  const amountM = body.match(/(?:^|[^\w])volume\[(\d+)\]/i);
   if (amountM) return Math.max(1, Number(amountM[1]) || 1);
   return 1;
 }
@@ -79,7 +100,7 @@ function parseCommodityFields(body, ctx) {
     body.match(/itemName\[([^\]]+)\]/i);
   const guidM = body.match(/resourceGUID\[([^\]]+)\]/i);
   const priceM = body.match(
-    /(?:client_price|totalPrice|total_price|price)\[([\d.]+)\]/i
+    /(?:client_price|totalPrice|total_price|price|amount)\[([\d.]+)\]/i
   );
 
   if (!playerM || !shopM || !priceM) return null;
@@ -140,7 +161,33 @@ function recordBuyLot(ctx, row, at) {
   });
 }
 
+function tradeDedupeKey(row, at) {
+  const t = new Date(at).getTime();
+  const bucket = Number.isFinite(t) ? Math.floor(t / 2000) : 0;
+  return [
+    row.side,
+    row.shopRaw,
+    row.resourceGuid || row.commodityRaw,
+    Math.round(row.priceTotal),
+    Math.round(row.scu * 100),
+    bucket,
+  ].join("|");
+}
+
+function shouldSkipDuplicateTrade(ctx, row, at) {
+  if (!ctx.commodityTradeDedupe) ctx.commodityTradeDedupe = new Set();
+  const key = tradeDedupeKey(row, at);
+  if (ctx.commodityTradeDedupe.has(key)) return true;
+  ctx.commodityTradeDedupe.add(key);
+  if (ctx.commodityTradeDedupe.size > 400) {
+    ctx.commodityTradeDedupe = new Set([key]);
+  }
+  return false;
+}
+
 function emitCommodityTrade(ctx, row, at, emit) {
+  if (shouldSkipDuplicateTrade(ctx, row, at)) return;
+
   const priceLabel = Math.round(row.priceTotal).toLocaleString();
   if (row.side === "buy") {
     recordBuyLot(ctx, row, at);

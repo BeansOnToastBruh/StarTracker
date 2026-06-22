@@ -75,6 +75,7 @@ const CRAFTING_CACHE_DIR = () => path.join(app.getPath("userData"), "crafting-in
 let tray = null;
 let mainWindow = null;
 let watcher = null;
+let lastWatcherPath = null;
 let currentSession = null;
 let pastSessions = [];
 let watching = false;
@@ -460,7 +461,7 @@ function watcherTargetPath() {
   return resolveLogPath(cfg.logPath, { custom: cfg.logPathCustom });
 }
 
-async function startWatcher() {
+async function startWatcher(opts = {}) {
   await stopWatcher();
   const resolved = watcherTargetPath();
   if (!fs.existsSync(resolved)) {
@@ -468,9 +469,14 @@ async function startWatcher() {
       `Couldn't find Game.log.\n${resolved}\n\nUse Browse in the app footer to select your Game.log (usually in .../StarCitizen/LIVE/Game.log).`
     );
   }
+  const samePath = lastWatcherPath === resolved;
+  const startAtEnd =
+    opts.startAtEnd ??
+    (samePath && currentSession?.status === "active");
   watching = true;
   watcher = new LogWatcher({
     path: resolved,
+    startAtEnd,
     onEvent: handleLogEvent,
     onError: (err) => {
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -478,6 +484,7 @@ async function startWatcher() {
       }
     },
   });
+  lastWatcherPath = resolved;
   await watcher.start();
   broadcastState();
 }

@@ -164,11 +164,62 @@ function runModernBexaliteBuy() {
   assert.strictEqual(rollup.commodityHauls.length, 0, "buy alone is not a haul");
 }
 
+function runModernBexaliteSellAndHaul() {
+  const ctx = makeCtx();
+  const session = createSession({ playerNick: "TestPilot" });
+
+  feed(
+    ctx,
+    session,
+    `${ts("10.757")} [Notice] <CEntityComponentCommodityUIProvider::SendCommodityBuyRequest> ` +
+      `Sending SShopCommodityBuyRequest - playerId[${PLAYER}] shopName[SCShop_Trdpst_Warehouse_INDY_Int_B] ` +
+      `price[1413316.000000] resourceGUID[999e3149-fd10-49ac-914f-8911e61c6122] ` +
+      `quantity[6000.000000 cSCU] Cargo Box Data: boxSize[4.000000] | unitAmount[15]`
+  );
+
+  feed(
+    ctx,
+    session,
+    `${ts("28.887")} [Notice] <CEntityComponentCommodityUIProvider::SendCommoditySellRequest> ` +
+      `Sending SShopCommoditySellRequest - playerId[${PLAYER}] shopName[SCShop_Trdpst_Warehouse_OTLW_Int_B] ` +
+      `amount[866400.000000] resourceGUID[999e3149-fd10-49ac-914f-8911e61c6122] ` +
+      `quantity[32] transactionMode[ResourceContainer] Cargo Box Data:  [boxSize[4] | unitAmount[8]]`
+  );
+
+  const rollup = snapshot(session).rollup;
+  assert.strictEqual(rollup.commodityTrades.length, 2, "buy and sell");
+  assert.strictEqual(rollup.commodityTrades[1].action, "sell");
+  assert.strictEqual(rollup.commodityTrades[1].scu, 32);
+  assert.strictEqual(rollup.commodityTrades[1].priceTotal, 866400);
+  assert.strictEqual(rollup.commodityHauls.length, 1);
+  assert.strictEqual(rollup.commodityHauls[0].scu, 32);
+  assert.strictEqual(rollup.commodityOpenLots.length, 1);
+  assert.strictEqual(rollup.commodityOpenLots[0].scuRemaining, 28);
+}
+
+function runModernTradeDedupe() {
+  const ctx = makeCtx();
+  const session = createSession({ playerNick: "TestPilot" });
+  const line =
+    `${ts("10.757")} [Notice] <CEntityComponentCommodityUIProvider::SendCommodityBuyRequest> ` +
+    `Sending SShopCommodityBuyRequest - playerId[${PLAYER}] shopName[SCShop_Trdpst_Warehouse_INDY_Int_B] ` +
+    `price[1413316.000000] resourceGUID[999e3149-fd10-49ac-914f-8911e61c6122] ` +
+    `quantity[6000.000000 cSCU] Cargo Box Data: boxSize[4.000000] | unitAmount[15]`;
+
+  feed(ctx, session, line);
+  feed(ctx, session, line);
+
+  const rollup = snapshot(session).rollup;
+  assert.strictEqual(rollup.commodityTrades.length, 1, "duplicate log line ignored");
+}
+
 runScenario();
 runPartialHaul();
 runRejectedFlow();
 runLossHaul();
 runShopPurchaseUntouched();
 runModernBexaliteBuy();
+runModernBexaliteSellAndHaul();
+runModernTradeDedupe();
 
 console.log("test-commodity-haul: all passed");

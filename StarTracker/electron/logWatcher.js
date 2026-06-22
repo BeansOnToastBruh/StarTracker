@@ -13,6 +13,7 @@ class LogWatcher {
     this.path = opts.path;
     this.onEvent = opts.onEvent;
     this.onError = opts.onError || (() => {});
+    this.startAtEnd = !!opts.startAtEnd;
     this.fd = null;
     this.offset = 0;
     this.buffer = "";
@@ -47,7 +48,9 @@ class LogWatcher {
   async _open() {
     this.fd = await fs.promises.open(this.path, "r");
     const stat = await this.fd.stat();
-    this.offset = Math.max(0, stat.size - 2 * 1024 * 1024);
+    this.offset = this.startAtEnd
+      ? stat.size
+      : Math.max(0, stat.size - 2 * 1024 * 1024);
   }
 
   _scheduleRead() {

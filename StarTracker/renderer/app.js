@@ -1807,21 +1807,13 @@ function buildCommodityTradeRows(trades) {
     .join("");
 }
 
-function buildCommodityOpenRows(lots) {
-  return lots
-    .slice()
-    .reverse()
-    .map((lot) =>
-      entryCard({
-        time: fmtDateTime(lot.at),
-        badge: "Open cargo",
-        badgeClass: "",
-        title: lot.commodity,
-        description: `${lot.scuRemaining} SCU remaining · bought at ${displayText(lot.shop)}`,
-        extraHtml: `<p class="entry-extra muted">Paid ${Math.round(lot.unitPrice * lot.scuRemaining).toLocaleString()} aUEC · not sold yet this session</p>`,
-      })
-    )
-    .join("");
+function buildCommodityOpenSummary(lots) {
+  if (!lots?.length) return "";
+  const lines = lots.map(
+    (lot) =>
+      `${lot.scuRemaining} SCU ${lot.commodity} at ${displayText(lot.shop)}`
+  );
+  return `<p class="panel-summary muted">Open cargo: <strong>${lines.join(" · ")}</strong></p>`;
 }
 
 function buildRewards(rollup) {
@@ -1911,8 +1903,7 @@ function buildRewards(rollup) {
   );
 
   if (openLots.length) {
-    parts.push(`<div class="subhead">Open cargo</div>`);
-    parts.push(buildCommodityOpenRows(openLots));
+    parts.push(buildCommodityOpenSummary(openLots));
   }
 
   if (trades.length) {
