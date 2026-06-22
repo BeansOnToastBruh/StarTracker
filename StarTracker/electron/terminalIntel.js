@@ -21,8 +21,10 @@ function locationLabel(row) {
 }
 
 function shapeTerminalRow(raw) {
-  const buyFromYou = Number(raw.price_buy) || 0;
-  const sellToYou = Number(raw.price_sell) || 0;
+  // UEX: price_buy = per-SCU cost when the player buys from the terminal;
+  // price_sell = per-SCU payout when the player sells to the terminal.
+  const sellToYou = Number(raw.price_buy) || 0;
+  const buyFromYou = Number(raw.price_sell) || 0;
   const stockToBuy = Number(raw.scu_sell_stock) || Number(raw.scu_sell_avg) || 0;
   const demandToSell = Number(raw.scu_buy_avg) || Number(raw.scu_buy_max) || 0;
   return {

@@ -83,6 +83,8 @@ function main() {
     scu_buy_avg: 40,
   });
   assert.strictEqual(shaped.terminal, "Test TDD");
+  assert.strictEqual(shaped.sellToYouPrice, 3400, "price_buy is what you pay to buy");
+  assert.strictEqual(shaped.buyFromYouPrice, 2600, "price_sell is what you receive when selling");
   assert.strictEqual(shaped.stockScu, 12.5);
   assert.strictEqual(shaped.demandScu, 40);
 
