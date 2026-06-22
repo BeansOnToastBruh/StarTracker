@@ -98,6 +98,8 @@ contextBridge.exposeInMainWorld("debrief", {
   loadoutSimulate: (options) => ipcRenderer.invoke("loadout-simulate", options),
   guidesGetTradeRoutes: (options) =>
     ipcRenderer.invoke("guides-get-trade-routes", options),
+  guidesGetTradeRoutesTerminal: (options) =>
+    ipcRenderer.invoke("guides-get-trade-routes-terminal", options),
   guidesGetTradeRouteDetail: (options) =>
     ipcRenderer.invoke("guides-get-trade-route-detail", options),
   guidesGetTradePresets: () => ipcRenderer.invoke("guides-get-trade-presets"),

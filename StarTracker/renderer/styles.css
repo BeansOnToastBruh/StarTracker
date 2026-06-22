@@ -171,11 +171,22 @@ body {
   position: absolute;
   inset: -20%;
   background:
-    radial-gradient(ellipse 55% 45% at 12% 18%, rgba(126, 80, 180, 0.22), transparent 55%),
-    radial-gradient(ellipse 50% 40% at 88% 12%, rgba(212, 168, 83, 0.14), transparent 50%),
-    radial-gradient(ellipse 60% 50% at 70% 85%, rgba(60, 100, 180, 0.16), transparent 55%),
-    radial-gradient(ellipse 40% 35% at 40% 60%, rgba(180, 100, 140, 0.1), transparent 50%);
+    radial-gradient(ellipse 55% 45% at 12% 18%, rgba(30, 140, 200, 0.32), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 88% 12%, rgba(212, 168, 83, 0.22), transparent 50%),
+    radial-gradient(ellipse 60% 50% at 70% 85%, rgba(40, 90, 160, 0.24), transparent 55%),
+    radial-gradient(ellipse 40% 35% at 40% 60%, rgba(80, 160, 200, 0.14), transparent 50%);
   animation: nebula-drift 90s ease-in-out infinite alternate;
+}
+
+.cosmos-constellation {
+  position: absolute;
+  inset: 0;
+  opacity: 0.42;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 600'%3E%3Cg fill='none' stroke='%237eb8ff' stroke-opacity='0.35' stroke-width='0.6'%3E%3Cpath d='M40 120 L180 80 L260 160 L380 100'/%3E%3Cpath d='M520 60 L640 140 L720 90 L760 200'/%3E%3Cpath d='M100 420 L220 380 L340 460 L480 400 L620 480'/%3E%3Cpath d='M600 320 L680 280 L740 360'/%3E%3C/g%3E%3Cg fill='%23d4a853' fill-opacity='0.55'%3E%3Ccircle cx='40' cy='120' r='1.5'/%3E%3Ccircle cx='180' cy='80' r='1.2'/%3E%3Ccircle cx='260' cy='160' r='1.4'/%3E%3Ccircle cx='380' cy='100' r='1.8'/%3E%3Ccircle cx='520' cy='60' r='1.3'/%3E%3Ccircle cx='640' cy='140' r='1.6'/%3E%3Ccircle cx='720' cy='90' r='1.2'/%3E%3Ccircle cx='100' cy='420' r='1.5'/%3E%3Ccircle cx='340' cy='460' r='1.4'/%3E%3Ccircle cx='620' cy='480' r='1.7'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 120% 120%;
+  background-position: calc(50% + var(--parallax-x, 0) * -18px) calc(50% + var(--parallax-y, 0) * -12px);
+  pointer-events: none;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 45%, black 20%, transparent 75%);
 }
 
 html[data-theme="light"] .cosmos-nebula {
@@ -203,7 +214,7 @@ html[data-theme="light"] .cosmos-nebula {
   background-image:
     radial-gradient(1.2px 1.2px at 35px 95px, rgba(212, 168, 83, 0.4), transparent),
     radial-gradient(1px 1px at 145px 25px, rgba(126, 184, 255, 0.35), transparent),
-    radial-gradient(1px 1px at 95px 155px, rgba(184, 146, 255, 0.3), transparent);
+    radial-gradient(1px 1px at 95px 155px, rgba(80, 160, 200, 0.3), transparent);
   background-size: 160px 160px;
   opacity: 0.4;
   animation: stars-drift-mid 80s linear infinite reverse;
@@ -217,6 +228,7 @@ html[data-theme="light"] .cosmos-nebula {
   background-size: 180px 180px;
   opacity: 0.42;
   animation: stars-twinkle 8s ease-in-out infinite alternate;
+  transform: translate(calc(var(--parallax-x, 0) * 5px), calc(var(--parallax-y, 0) * 3px));
 }
 
 .cosmos-vignette {
@@ -303,6 +315,47 @@ html[data-theme="light"] .cosmos-stars {
   display: flex;
   align-items: center;
   gap: 0.85rem;
+  position: relative;
+}
+
+.header-orbit-deco {
+  position: absolute;
+  left: 2.6rem;
+  top: -0.15rem;
+  width: 3.2rem;
+  height: 3.2rem;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.orbit-planet {
+  position: absolute;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  margin: -0.275rem 0 0 -0.275rem;
+  background: radial-gradient(circle at 35% 30%, #7eb8ff, #2a5080);
+  box-shadow: 0 0 10px rgba(126, 184, 255, 0.5);
+}
+
+.orbit-moon {
+  position: absolute;
+  width: 0.28rem;
+  height: 0.28rem;
+  border-radius: 50%;
+  top: 0.15rem;
+  right: 0.2rem;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
+  animation: orbit-moon-spin 12s linear infinite;
+  transform-origin: 1.4rem 1.4rem;
+}
+
+@keyframes orbit-moon-spin {
+  from { transform: rotate(0deg) translateX(1.1rem) rotate(0deg); }
+  to { transform: rotate(360deg) translateX(1.1rem) rotate(-360deg); }
 }
 
 .brand-title-row {
@@ -653,7 +706,7 @@ html[data-theme="light"] .tabs-group {
 
 .tabs-group-session .tabs-group-label { color: var(--accent-secondary); }
 .tabs-group-catalog .tabs-group-label { color: var(--accent); }
-.tabs-group-guides .tabs-group-label { color: var(--contract); }
+.tabs-group-guides .tabs-group-label { color: var(--accent-secondary); }
 
 .tabs-divider {
   width: 2px;
@@ -702,10 +755,25 @@ html[data-theme="light"] .tabs-group {
 html[data-theme="dark"] .tab-btn.is-active {
   border-color: var(--hud-frame);
   border-top: 2px solid var(--accent);
-  box-shadow: inset 0 1px 0 rgba(212, 168, 83, 0.15);
+  box-shadow: inset 0 1px 0 rgba(212, 168, 83, 0.15), 0 0 18px rgba(126, 184, 255, 0.12);
   color: var(--text);
-  background: linear-gradient(180deg, rgba(212, 168, 83, 0.1), rgba(16, 13, 28, 0.95));
+  background: linear-gradient(180deg, rgba(212, 168, 83, 0.12), rgba(16, 13, 28, 0.95));
 }
+
+.tab-btn.is-active .tab-icon {
+  color: var(--accent);
+  text-shadow: 0 0 12px var(--accent-glow);
+  animation: tab-icon-glow 2.8s ease-in-out infinite;
+}
+
+@keyframes tab-icon-glow {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.35); }
+}
+
+.tab-btn-cat-economy.is-active { box-shadow: inset 0 2px 0 rgba(212, 168, 83, 0.5), 0 0 16px rgba(212, 168, 83, 0.1); }
+.tab-btn-cat-combat.is-active { box-shadow: inset 0 2px 0 rgba(240, 128, 128, 0.45), 0 0 16px rgba(240, 128, 128, 0.08); }
+.tab-btn-cat-production.is-active { box-shadow: inset 0 2px 0 rgba(110, 207, 154, 0.4), 0 0 16px rgba(110, 207, 154, 0.08); }
 
 html[data-theme="light"] .tab-btn.is-active {
   background: var(--panel);
@@ -3731,8 +3799,8 @@ html[data-theme="light"] .top h1 {
   overflow: hidden;
   border: 1px solid var(--hud-frame);
   background:
-    linear-gradient(135deg, rgba(50, 32, 90, 0.55) 0%, rgba(10, 16, 36, 0.85) 55%, rgba(8, 12, 24, 0.95) 100%);
-  box-shadow: var(--glow-primary), inset 0 1px 0 rgba(126, 184, 255, 0.1);
+    linear-gradient(135deg, rgba(18, 48, 72, 0.65) 0%, rgba(12, 22, 38, 0.88) 50%, rgba(8, 12, 24, 0.96) 100%);
+  box-shadow: var(--glow-secondary), inset 0 1px 0 rgba(126, 184, 255, 0.12);
 }
 
 .command-hero::before,
@@ -4197,23 +4265,35 @@ html[data-theme="light"] .top h1 {
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .cosmos-nebula,
+  .cosmos-constellation,
   .cosmos-stars-far,
   .cosmos-stars-mid,
   .cosmos-stars-near,
   .radar-sweep,
   .orbit-ring,
+  .orbit-moon,
   .overview-scanning-visual,
   .hub-intro::after,
   .status-led.is-recording,
-  .stats.is-live .stat .val {
+  .stats.is-live .stat .val,
+  .tab-btn.is-active .tab-icon,
+  .tab-panel.is-active .panel-body,
+  .data-link-pulse {
     animation: none !important;
+  }
+
+  .cosmos-nebula,
+  .cosmos-constellation {
+    transform: none !important;
   }
 
   .tab-panel.is-active,
   .welcome-card::before,
   .welcome-card:hover,
   .overview-stat-card:hover,
-  .tab-btn:hover .tab-icon {
+  .tab-btn:hover .tab-icon,
+  .guide-card:hover,
+  .trade-route-row:hover {
     animation: none !important;
     transform: none !important;
     transition: none !important;
@@ -4235,4 +4315,277 @@ html[data-theme="light"] .top h1 {
   .overview-stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .header-orbit-deco {
+    display: none;
+  }
+
+  .panel-theme-banner {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.62rem;
+  }
 }
+
+/* ── MFD panel themes & HUD chrome ── */
+.mono.data-readout {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.tab-panel.panel-theme-economy,
+.tab-panel.panel-theme-combat,
+.tab-panel.panel-theme-production,
+.tab-panel.panel-theme-progress,
+.tab-panel.panel-theme-reference,
+.tab-panel.panel-theme-news {
+  position: relative;
+}
+
+.panel-theme-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 1rem;
+  margin: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-secondary);
+  background: linear-gradient(90deg, rgba(126, 184, 255, 0.08), transparent 70%);
+  position: relative;
+  overflow: hidden;
+}
+
+.panel-theme-banner::before,
+.panel-theme-banner::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+}
+
+.panel-theme-banner::before {
+  top: 0.35rem;
+  left: 0.35rem;
+  border-top: 1px solid var(--accent);
+  border-left: 1px solid var(--accent);
+  opacity: 0.55;
+}
+
+.panel-theme-banner::after {
+  bottom: 0.35rem;
+  right: 0.35rem;
+  border-bottom: 1px solid var(--accent-secondary);
+  border-right: 1px solid var(--accent-secondary);
+  opacity: 0.55;
+}
+
+.panel-theme-banner-icon {
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.panel-theme-banner-tag {
+  padding: 0.12rem 0.45rem;
+  border: 1px solid var(--hud-frame);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--accent);
+  clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
+}
+
+.panel-theme-banner-label {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.panel-theme-banner-line {
+  flex: 1;
+  height: 1px;
+  margin-left: 0.35rem;
+  background: linear-gradient(90deg, var(--hud-frame), transparent);
+  animation: data-link-pulse 3s ease-in-out infinite;
+}
+
+@keyframes data-link-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.85; }
+}
+
+.panel-theme-banner-economy {
+  background: linear-gradient(90deg, rgba(212, 168, 83, 0.14), rgba(126, 184, 255, 0.06) 55%, transparent);
+  color: var(--accent);
+}
+
+.panel-theme-banner-combat {
+  background: linear-gradient(90deg, rgba(240, 128, 128, 0.12), transparent 65%);
+  color: #f09090;
+}
+
+.panel-theme-banner-combat .panel-theme-banner-tag {
+  border-color: rgba(240, 128, 128, 0.4);
+  color: #f09090;
+}
+
+.panel-theme-banner-combat::after {
+  background-image:
+    radial-gradient(circle, rgba(240, 128, 128, 0.15) 1px, transparent 1px);
+  background-size: 24px 24px;
+  border: none;
+  inset: 0;
+  width: auto;
+  height: auto;
+  opacity: 0.35;
+  mask-image: linear-gradient(90deg, transparent, black 30%, transparent);
+}
+
+.panel-theme-banner-production {
+  background: linear-gradient(90deg, rgba(110, 207, 154, 0.12), transparent 65%);
+}
+
+.panel-theme-banner-fleet,
+.panel-theme-banner-combat .panel-theme-banner-line {
+  background: linear-gradient(90deg, rgba(240, 128, 128, 0.35), transparent);
+}
+
+.tab-panel.is-active .panel-body {
+  animation: panel-reveal 0.32s ease-out;
+}
+
+@keyframes panel-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.guide-card,
+.stat,
+.welcome-card,
+.trade-route-row,
+.overview-stat-card {
+  transition: transform 0.18s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.guide-card:hover,
+.overview-stat-card:hover {
+  transform: translateY(-2px) translate(calc(var(--parallax-x, 0) * -1px), calc(var(--parallax-y, 0) * -1px));
+  box-shadow: var(--glow-secondary);
+}
+
+.hub-intro-trade {
+  border-left-color: var(--accent);
+  background: linear-gradient(90deg, rgba(212, 168, 83, 0.14), rgba(16, 13, 28, 0.85) 60%);
+}
+
+.hub-intro-trade::after {
+  content: "";
+  display: block;
+  height: 2px;
+  margin-top: 0.45rem;
+  background: linear-gradient(90deg, var(--accent), var(--accent-secondary), transparent);
+  opacity: 0.5;
+  animation: data-link-pulse 4s ease-in-out infinite;
+}
+
+/* Trade route table — lane cards */
+.trade-routes-wrap {
+  border: 1px solid var(--hud-frame);
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(12, 18, 32, 0.6), rgba(8, 10, 18, 0.85));
+  box-shadow: inset 0 1px 0 rgba(126, 184, 255, 0.06);
+}
+
+.trade-routes-table tbody tr.trade-route-row {
+  border-left: 2px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.trade-routes-table tbody tr.trade-route-row:hover {
+  background: rgba(126, 184, 255, 0.06);
+  border-left-color: var(--accent-secondary);
+  transform: translateX(2px);
+}
+
+.trade-route-lane {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+  font-size: 0.68rem;
+  opacity: 0.85;
+}
+
+.trade-route-origin,
+.trade-route-dest {
+  max-width: 7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trade-route-arrow {
+  color: var(--accent);
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  text-shadow: 0 0 8px var(--accent-glow);
+}
+
+.trade-stock-ok { color: var(--good); }
+.trade-stock-low { color: var(--warn); }
+.trade-stock-empty { color: var(--muted); }
+
+.trade-profit-high { color: var(--good); text-shadow: 0 0 10px rgba(110, 207, 154, 0.35); }
+.trade-profit-mid { color: var(--accent); }
+.trade-profit-low { color: var(--text); }
+
+.trade-route-detail-card {
+  position: relative;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+}
+
+.trade-route-detail-card::before {
+  content: "";
+  position: absolute;
+  top: 0.3rem;
+  left: 0.3rem;
+  width: 8px;
+  height: 8px;
+  border-top: 1px solid var(--accent-secondary);
+  border-left: 1px solid var(--accent-secondary);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.trade-route-profit-card {
+  border-color: var(--accent);
+  background: linear-gradient(145deg, rgba(212, 168, 83, 0.12), rgba(8, 12, 20, 0.85));
+}
+
+.tab-briefing {
+  position: relative;
+}
+
+.tab-briefing::after {
+  content: "";
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  width: 2rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-secondary));
+  opacity: 0.4;
+  animation: data-link-pulse 2.5s ease-in-out infinite;
+}
+
+.tab-intel-cat-economy { color: var(--accent); border-color: rgba(212, 168, 83, 0.4); }
+.tab-intel-cat-combat { color: #f09090; border-color: rgba(240, 128, 128, 0.35); }
+.tab-intel-cat-production { color: var(--good); border-color: rgba(110, 207, 154, 0.35); }

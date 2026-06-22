@@ -688,8 +688,8 @@ async function refreshInlineExpandHost(host) {
       break;
     }
     case INLINE_HOST.SHIP_BUILDER:
-      if (activeTab === "guides-loadout" && shipBuilderLastPayload?.tableHtml) {
-        patchShipBuilderTable(shipBuilderLastPayload.tableHtml);
+      if (activeTab === "guides-loadout" && shipBuilderLastPayload?.rows) {
+        patchShipBuilderTableFromPayload();
       }
       break;
     default:
@@ -721,6 +721,13 @@ function patchShipBuilderTable(tableHtml) {
   if (wrap) {
     wrap.outerHTML = tableHtml;
   }
+}
+
+function patchShipBuilderTableFromPayload() {
+  if (!shipBuilderLastPayload?.rows) return;
+  patchShipBuilderTable(
+    renderShipBuilderRows(shipBuilderLastPayload.rows, shipBuilderLastPayload.emptyMessage)
+  );
 }
 
 async function toggleInlineExpand(host, key, meta = {}) {
@@ -854,6 +861,10 @@ const debouncedTradeRouteSearch = debounce(() => {
   if (activeTab === "guides-trade-routes") refreshTradeRoutesTab({ filterOnly: true });
 }, 320);
 
+const debouncedTradeRouteScu = debounce(() => {
+  if (activeTab === "guides-trade-routes") refreshTradeRoutesTab();
+}, 450);
+
 const debouncedCraftingPreview = debounce(async () => {
   await refreshCraftingPreview();
 }, 180);
@@ -950,15 +961,39 @@ function contractMissionExtra(c, innerAfterObjectives = "") {
   return `<div class="entry-extra">${renderContractObjectives(c)}${innerAfterObjectives}</div>`;
 }
 
+const GUIDE_THEME_LABELS = {
+  economy: { label: "Economy Intel", tag: "TRADE LANES" },
+  combat: { label: "Combat Systems", tag: "TARGETING" },
+  production: { label: "Production Bay", tag: "REFINERY" },
+  progress: { label: "Standing Tracker", tag: "REP GRID" },
+  reference: { label: "Nav Database", tag: "LINKS" },
+  news: { label: "Comm Link", tag: "PATCH FEED" },
+};
+
+function guideThemeBanner(tabId) {
+  if (!tabId.startsWith("guides-")) return "";
+  const cat = tabMetaCategory(tabId);
+  const theme = GUIDE_THEME_LABELS[cat] || GUIDE_THEME_LABELS.reference;
+  const icon = TAB_ICONS[tabId] || "✦";
+  return `<div class="panel-theme-banner panel-theme-banner-${escapeAttr(cat)}" aria-hidden="true">
+    <span class="panel-theme-banner-icon">${icon}</span>
+    <span class="panel-theme-banner-tag">${escapeHtml(theme.tag)}</span>
+    <span class="panel-theme-banner-label">${escapeHtml(theme.label)}</span>
+    <span class="panel-theme-banner-line"></span>
+  </div>`;
+}
+
 function panelShell(tab, innerHtml) {
   const selected = tab.id === activeTab;
+  const themeClass = tab.id.startsWith("guides-") ? ` panel-theme-${tabMetaCategory(tab.id)}` : "";
   return `<section
     id="panel-${tab.id}"
-    class="tab-panel ${selected ? "is-active" : ""}"
+    class="tab-panel${themeClass} ${selected ? "is-active" : ""}"
     role="tabpanel"
     aria-labelledby="tab-${tab.id}"
     ${selected ? "" : 'hidden'}
   >
+    ${guideThemeBanner(tab.id)}
     <div class="panel-body">${innerHtml}</div>
   </section>`;
 }
@@ -3033,7 +3068,7 @@ async function renderLoadoutBuilderShell() {
     : `<p class="ship-builder-favorites-empty muted small">No favorite hulls yet. Switch to <strong>All ships</strong> and tap ☆ on any ship to pin it here — like Jump to, but for ship builder.</p>`;
 
   const tableHtml = renderShipBuilderRows(displayRows, emptyMsg);
-  shipBuilderLastPayload = { tableHtml };
+  shipBuilderLastPayload = { rows: displayRows, emptyMessage: emptyMsg };
 
   const modeFavActive = shipBuilderPickMode === "favorites" ? " is-active" : "";
   const modeAllActive = shipBuilderPickMode === "all" ? " is-active" : "";
@@ -3162,11 +3197,10 @@ async function refreshShipBuilderFilter() {
   const favSlugs = new Set(shipBuilderFavorites.map((s) => s.slug));
   const resolved = await resolveShipBuilderRows(state, favSlugs);
   const emptyMsg = shipBuilderEmptyMessage(state, resolved.fleetEmpty, resolved.remoteSource);
-  const tableHtml = renderShipBuilderRows(resolved.rows, emptyMsg);
-  shipBuilderLastPayload = { tableHtml };
+  shipBuilderLastPayload = { rows: resolved.rows, emptyMessage: emptyMsg };
 
   if (document.querySelector("#panel-guides-loadout .ship-picker-table-wrap")) {
-    patchShipBuilderTable(tableHtml);
+    patchShipBuilderTable(renderShipBuilderRows(resolved.rows, emptyMsg));
     document.querySelector("#panel-guides-loadout .ship-builder-pager")?.remove();
     const metaEl = document.querySelector("#panel-guides-loadout .ship-builder-index-meta");
     const indexTotal = resolved.meta?.total || 0;
@@ -4384,6 +4418,29 @@ function renderTradeRouteInlineDetail(detail) {
   </article>`;
 }
 
+function fmtTradeStock(stockScu, isTerminal) {
+  if (!isTerminal || stockScu == null) {
+    return `<span class="muted small">—</span><div class="muted small">UEX avg</div>`;
+  }
+  const v = Number(stockScu);
+  const cls =
+    v <= 0 ? "trade-stock-empty" : v < 64 ? "trade-stock-low" : "trade-stock-ok";
+  return `<strong class="mono data-readout ${cls}">${formatFleetCell(v)}</strong><div class="muted small">SCU stock</div>`;
+}
+
+function fmtTradeDemand(demandScu, isTerminal) {
+  if (!isTerminal || demandScu == null) {
+    return `<span class="muted small">—</span>`;
+  }
+  return `<span class="mono data-readout">${formatFleetCell(demandScu)}</span><div class="muted small">SCU demand</div>`;
+}
+
+function fmtTradeProfit(profitVal, spreadVal) {
+  const tier =
+    profitVal >= 500000 ? "trade-profit-high" : profitVal >= 100000 ? "trade-profit-mid" : "trade-profit-low";
+  return `<strong class="mono data-readout ${tier}">${fmtAuec(profitVal)}</strong><div class="muted small">${escapeHtml(fmtScuPrice(spreadVal))}/SCU</div>`;
+}
+
 function renderTradeRouteRows(routes) {
   if (!routes?.length) return "";
   const host = INLINE_HOST.TRADE;
@@ -4398,23 +4455,28 @@ function renderTradeRouteRows(routes) {
       const sellPrice = sell?.buyFromYouPrice ?? r.priceSell;
       const buyLabel = buy?.terminal || "UEX avg buy";
       const sellLabel = sell?.terminal || "UEX avg sell";
+      const buyLoc = buy?.location || buy?.system || "";
+      const sellLoc = sell?.location || sell?.system || "";
       const illegal = r.isIllegal ? `<span class="badge badge-warn">Illegal</span>` : "";
       const expanded = isInlineExpanded(host, key);
       const spreadVal = r.spreadPerScu ?? r.spread ?? r.profitPerScu ?? 0;
       const profitVal = r.totalProfit ?? 0;
+      const routeLane = isTerminal
+        ? `<div class="trade-route-lane muted small"><span class="trade-route-origin" title="${escapeAttr(buyLoc)}">${displayText(buyLabel)}</span><span class="trade-route-arrow" aria-hidden="true">⟶</span><span class="trade-route-dest" title="${escapeAttr(sellLoc)}">${displayText(sellLabel)}</span></div>`
+        : "";
       return `<tr class="trade-route-row ${expandableRowClass(host, key)}" data-trade-route="${key}" tabindex="0" role="button" aria-expanded="${expanded}">
         <td class="expand-chevron-cell"><span class="expand-chevron" aria-hidden="true">${expandChevron(host, key)}</span></td>
-        <td>${displayText(r.name)}${illegal ? ` ${illegal}` : ""}<div class="muted small mono">${escapeHtml(r.code || "")}</div></td>
-        <td>${displayText(buyLabel)}<div class="muted small">${escapeHtml(fmtScuPrice(buyPrice))}${isTerminal ? "" : " /SCU"}</div></td>
-        <td>${isTerminal ? formatFleetCell(buy?.stockScu) : `<span class="muted small">—</span>`}</td>
-        <td>${displayText(sellLabel)}<div class="muted small">${escapeHtml(fmtScuPrice(sellPrice))}${isTerminal ? "" : " /SCU"}</div></td>
-        <td>${isTerminal ? formatFleetCell(sell?.demandScu) : `<span class="muted small">—</span>`}</td>
-        <td>${formatFleetCell(r.commodityUnits ?? r.commodityScu)}<div class="muted small">${formatFleetCell(r.commodityScu ?? r.cargoScuUsed)} SCU</div></td>
-        <td class="commodity-spread-positive"><strong>${fmtAuec(profitVal)}</strong><div class="muted small">${escapeHtml(fmtScuPrice(spreadVal))}/SCU</div></td>
+        <td class="trade-route-commodity">${displayText(r.name)}${illegal ? ` ${illegal}` : ""}<div class="muted small mono">${escapeHtml(r.code || "")}</div>${routeLane}</td>
+        <td class="trade-route-buy">${displayText(buyLabel)}<div class="muted small mono">${escapeHtml(fmtScuPrice(buyPrice))}${isTerminal ? "" : " /SCU"}</div></td>
+        <td class="trade-route-stock">${fmtTradeStock(buy?.stockScu, isTerminal)}</td>
+        <td class="trade-route-sell">${displayText(sellLabel)}<div class="muted small mono">${escapeHtml(fmtScuPrice(sellPrice))}${isTerminal ? "" : " /SCU"}</div></td>
+        <td class="trade-route-demand">${fmtTradeDemand(sell?.demandScu, isTerminal)}</td>
+        <td class="trade-route-scu"><span class="mono data-readout">${formatFleetCell(r.commodityUnits ?? r.commodityScu)}</span><div class="muted small">${formatFleetCell(r.commodityScu ?? r.cargoScuUsed)} SCU</div></td>
+        <td class="trade-route-profit">${fmtTradeProfit(profitVal, spreadVal)}</td>
       </tr>${renderInlineDetailRow(colspan, host, key)}`;
     })
     .join("");
-  return `<div class="catalog-table-wrap"><table class="catalog-table trade-routes-table">
+  return `<div class="catalog-table-wrap trade-routes-wrap"><table class="catalog-table trade-routes-table">
     <thead><tr><th></th><th>Commodity</th><th>Buy</th><th>Stock</th><th>Sell</th><th>Demand</th><th>SCU</th><th>Est. profit</th></tr></thead>
     <tbody>${body}</tbody>
   </table></div>`;
@@ -4447,7 +4509,7 @@ function buildTradeRoutesPanel(data, presets) {
   tradeRoutesLastPayload = { tableHtml, routes, cargoScu: data.cargoScu || state.cargoScu || 128 };
 
   return `${meta}
-    <div class="hub-intro hub-intro-accent"><strong>Trade profit calculator.</strong> Instant UEX average buy/sell spread for ${escapeHtml(String(data.cargoScu || state.cargoScu || 128))} SCU cargo. <strong>Expand any row</strong> for exact terminal pairs, stock, and demand.</div>
+    <div class="hub-intro hub-intro-accent hub-intro-trade"><strong>Trade profit calculator.</strong> Terminal-level buy/sell pairs for <span class="mono data-readout">${escapeHtml(String(data.cargoScu || state.cargoScu || 128))} SCU</span> cargo — profit capped by stock &amp; demand. <strong>Expand any row</strong> for all terminals.</div>
     ${toolbar}
     ${disclaimer}
     ${tableHtml}
@@ -4588,6 +4650,33 @@ async function refreshTradeRoutesTab(options = {}) {
   await loadGuideTab("guides-trade-routes", { filterOnly: !!options.filterOnly });
 }
 
+function resortTradeRoutesClient() {
+  const state = guideQueryByTab["guides-trade-routes"] || {};
+  if (!tradeRoutesLastPayload?.routes?.length) {
+    refreshTradeRoutesTab();
+    return;
+  }
+  let routes = [...tradeRoutesLastPayload.routes].map((r) => ({
+    ...r,
+    spreadPerScu: r.spreadPerScu ?? r.spread ?? r.profitPerScu ?? 0,
+  }));
+  if (state.sort === "spread") {
+    routes.sort(
+      (a, b) =>
+        (b.spreadPerScu || 0) - (a.spreadPerScu || 0) ||
+        (b.totalProfit || 0) - (a.totalProfit || 0)
+    );
+  } else {
+    routes.sort(
+      (a, b) =>
+        (b.totalProfit || 0) - (a.totalProfit || 0) ||
+        (b.spreadPerScu || 0) - (a.spreadPerScu || 0)
+    );
+  }
+  tradeRoutesLastPayload = { ...tradeRoutesLastPayload, routes };
+  patchPanelTable("#panel-guides-trade-routes", renderTradeRouteRows(routes));
+}
+
 async function loadGuideTab(tabId, options = {}) {
   if (!tabId.startsWith("guides-")) return;
 
@@ -4649,15 +4738,14 @@ async function loadGuideTab(tabId, options = {}) {
       !!options.filterOnly &&
       document.querySelector("#panel-guides-trade-routes .trade-routes-toolbar");
     if (!filterOnly) {
-      setPanelHtml(tabId, `<p class="muted small">Loading trade routes…</p>`);
+      setPanelHtml(tabId, `<p class="muted small">Loading terminal routes &amp; stock from UEX…</p>`);
     }
     try {
       const [presetsData, data] = await Promise.all([
         window.debrief.guidesGetTradePresets(),
-        window.debrief.guidesGetTradeRoutes({
+        window.debrief.guidesGetTradeRoutesTerminal({
           cargoScu: state.cargoScu || 128,
           includeIllegal: !!state.includeIllegal,
-          minSpread: state.minSpread || 0,
           query: (state.query || "").trim(),
           sort: state.sort || "profit",
           limit: 50,
@@ -4666,7 +4754,7 @@ async function loadGuideTab(tabId, options = {}) {
       const panelHtml = buildTradeRoutesPanel(data, presetsData.presets || []);
       if (filterOnly) {
         const panel = document.querySelector("#panel-guides-trade-routes .panel-body");
-        const table = panel?.querySelector(".catalog-table-wrap");
+        const table = panel?.querySelector(".trade-routes-wrap, .catalog-table-wrap");
         const emptyMsg = panel?.querySelector(".trade-routes-empty");
         const routes = data.routes || [];
         if (routes.length) {
@@ -4674,8 +4762,13 @@ async function loadGuideTab(tabId, options = {}) {
           const tableHtml = renderTradeRouteRows(routes);
           if (table) patchPanelTable("#panel-guides-trade-routes", tableHtml);
           else panel?.insertAdjacentHTML("beforeend", tableHtml);
+          tradeRoutesLastPayload = {
+            routes,
+            cargoScu: data.cargoScu || state.cargoScu || 128,
+          };
         } else if (panel && !emptyMsg) {
           table?.remove();
+          tradeRoutesLastPayload = { routes: [], cargoScu: data.cargoScu || state.cargoScu || 128 };
           panel
             .querySelector(".trade-routes-toolbar")
             ?.insertAdjacentHTML(
@@ -5096,7 +5189,15 @@ function initGuidesUi() {
       return;
     }
 
-    if (e.target.id === "tradeRouteSort" || e.target.id === "tradeIncludeIllegal") {
+    if (e.target.id === "tradeRouteSort") {
+      const state = guideQueryByTab["guides-trade-routes"] || {};
+      state.sort = e.target.value || "profit";
+      guideQueryByTab["guides-trade-routes"] = state;
+      resortTradeRoutesClient();
+      return;
+    }
+
+    if (e.target.id === "tradeIncludeIllegal") {
       refreshTradeRoutesTab();
       return;
     }
@@ -5154,6 +5255,10 @@ function initGuidesUi() {
       loadFleetCompareTab(tabId, { resetOffset: true });
       return;
     }
+    if (e.target.id === "tradeCargoScu") {
+      refreshTradeRoutesTab();
+      return;
+    }
     const input = e.target.closest("[data-guide-search]");
     if (!input) return;
     const tabId = input.dataset.guideSearch;
@@ -5182,6 +5287,11 @@ function initGuidesUi() {
       state.query = e.target.value;
       guideQueryByTab["guides-trade-routes"] = state;
       debouncedTradeRouteSearch();
+      return;
+    }
+
+    if (e.target.id === "tradeCargoScu") {
+      debouncedTradeRouteScu();
       return;
     }
 
@@ -5567,6 +5677,27 @@ function initArchiveUi() {
   refreshLogArchiveList();
 }
 
+function initHudParallax() {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  let raf = null;
+  document.documentElement.style.setProperty("--parallax-x", "0");
+  document.documentElement.style.setProperty("--parallax-y", "0");
+  document.addEventListener(
+    "mousemove",
+    (e) => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = null;
+        const x = (e.clientX / window.innerWidth - 0.5) * 2;
+        const y = (e.clientY / window.innerHeight - 0.5) * 2;
+        document.documentElement.style.setProperty("--parallax-x", x.toFixed(3));
+        document.documentElement.style.setProperty("--parallax-y", y.toFixed(3));
+      });
+    },
+    { passive: true }
+  );
+}
+
 initTheme();
 initStats();
 initTabs();
@@ -5580,6 +5711,7 @@ initArchiveUi();
 initLoadoutUi();
 initCatalogUi();
 initGuidesUi();
+initHudParallax();
 
 $("btnTheme").addEventListener("click", toggleTheme);
 $("btnNew").addEventListener("click", () => window.debrief.startSession());
