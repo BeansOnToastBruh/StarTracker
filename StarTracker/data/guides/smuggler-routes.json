@@ -5,22 +5,22 @@
     "risk": "Medium",
     "illegal": true,
     "commodityHints": ["Any commodity marked Illegal in UEX"],
-    "buyTerminalName": "Devlin Scrap and Salvage",
-    "sellTerminalName": "The Golden Revere",
-    "buyLocations": ["Devlin Scrap and Salvage"],
-    "sellLocations": ["The Golden Revere"],
-    "notes": "High spread illegal refined loop. Verify live stock at Devlin before hauling — UEX updates when players report terminal data."
+    "buyTerminalName": "The Golden Riviera",
+    "sellTerminalName": "Devlin Scrap and Salvage",
+    "buyLocations": ["The Golden Riviera"],
+    "sellLocations": ["Devlin Scrap and Salvage"],
+    "notes": "High spread illegal refined loop. Buy at Golden Riviera (Pyro), sell at Devlin — verify live stock before hauling."
   },
   {
     "id": "illegal-refined-devlin-golden",
-    "name": "Illegal refined goods (Devlin → Golden Revere)",
+    "name": "Illegal refined goods (Golden Riviera → Devlin)",
     "risk": "Very high",
     "illegal": true,
     "commodityHints": ["Any commodity marked Illegal in UEX"],
-    "buyTerminalName": "Devlin Scrap and Salvage",
-    "sellTerminalName": "The Golden Revere",
-    "buyLocations": ["Devlin Scrap and Salvage"],
-    "sellLocations": ["The Golden Revere"],
+    "buyTerminalName": "The Golden Riviera",
+    "sellTerminalName": "Devlin Scrap and Salvage",
+    "buyLocations": ["The Golden Riviera"],
+    "sellLocations": ["Devlin Scrap and Salvage"],
     "notes": "Same corridor as the narrow spread route with higher risk profile. Check commodity legality and scan risk near major ports."
   },
   {

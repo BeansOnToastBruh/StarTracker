@@ -223,17 +223,19 @@ function compactTerminalPrice(row) {
     .filter(Boolean)
     .join(", ");
   const playerBuyPerScu =
-    Number(row.price_sell) ||
-    Number(row.price_sell_avg) ||
-    Number(row.price_sell_avg_week) ||
-    0;
-  const playerSellPerScu =
     Number(row.price_buy) ||
     Number(row.price_buy_avg) ||
     Number(row.price_buy_avg_week) ||
     0;
-  const stockScu = Number(row.scu_sell_stock) || Number(row.scu_sell_avg) || 0;
-  const demandScu = Number(row.scu_buy_avg) || Number(row.scu_buy_max) || 0;
+  const playerSellPerScu =
+    Number(row.price_sell) ||
+    Number(row.price_sell_avg) ||
+    Number(row.price_sell_avg_week) ||
+    0;
+  const stockScu =
+    Number(row.scu_buy_avg) || Number(row.scu_buy_max) || Number(row.scu_buy) || 0;
+  const demandScu =
+    Number(row.scu_sell_stock) || Number(row.scu_sell_avg) || Number(row.scu_sell) || 0;
   return {
     terminal: row.terminal_name || null,
     location: location || null,

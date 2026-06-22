@@ -4190,6 +4190,28 @@ html[data-theme="light"] .top h1 {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
+/* Readable panels — no backdrop blur over scrolling content (Electron GPU smear) */
+.panel-body .guide-card,
+.panel-body .guide-route-card,
+.panel-body .patch-note-card,
+.panel-body .entry,
+.inline-detail-panel,
+.loadout-builder-panel,
+.combat-profile-panel,
+.catalog-detail {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.panel-body .guide-card:hover,
+.panel-body .overview-stat-card:hover {
+  transform: none;
+}
+
+.tab-panel.is-active .panel-body {
+  animation: none;
+}
+
 .guide-card:hover,
 .guide-route-card:hover {
   box-shadow: var(--glow-secondary), inset 0 1px 0 rgba(255, 255, 255, 0.05);
@@ -4452,21 +4474,6 @@ html[data-theme="light"] .top h1 {
   background: linear-gradient(90deg, rgba(240, 128, 128, 0.35), transparent);
 }
 
-.tab-panel.is-active .panel-body {
-  animation: panel-reveal 0.32s ease-out;
-}
-
-@keyframes panel-reveal {
-  from {
-    opacity: 0;
-    transform: translateY(5px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
 .guide-card,
 .stat,
 .welcome-card,
@@ -4479,6 +4486,13 @@ html[data-theme="light"] .top h1 {
 .overview-stat-card:hover {
   transform: translateY(-2px) translate(calc(var(--parallax-x, 0) * -1px), calc(var(--parallax-y, 0) * -1px));
   box-shadow: var(--glow-secondary);
+}
+
+.panel-body .guide-card:hover,
+.panel-body .overview-stat-card:hover,
+.panel-body .trade-route-row:hover {
+  transform: none;
+  box-shadow: var(--stat-shadow);
 }
 
 .hub-intro-trade {
@@ -4546,6 +4560,43 @@ html[data-theme="light"] .top h1 {
 .trade-profit-high { color: var(--good); text-shadow: 0 0 10px rgba(110, 207, 154, 0.35); }
 .trade-profit-mid { color: var(--accent); }
 .trade-profit-low { color: var(--text); }
+.trade-profit-loss,
+.commodity-spread-negative {
+  color: #f08080;
+  font-weight: 600;
+}
+
+.trade-route-loss-warn {
+  margin: 0 0 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border-left: 3px solid #f08080;
+  background: rgba(240, 128, 128, 0.08);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.trade-price-hint {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  margin-top: 0.12rem;
+}
+
+.trade-price-main {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.trade-net-summary {
+  margin: 0 0 0.75rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--accent-secondary);
+  background: rgba(126, 184, 255, 0.06);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
 
 .trade-route-detail-card {
   position: relative;
@@ -4589,3 +4640,84 @@ html[data-theme="light"] .top h1 {
 .tab-intel-cat-economy { color: var(--accent); border-color: rgba(212, 168, 83, 0.4); }
 .tab-intel-cat-combat { color: #f09090; border-color: rgba(240, 128, 128, 0.35); }
 .tab-intel-cat-production { color: var(--good); border-color: rgba(110, 207, 154, 0.35); }
+
+/* Ship builder — compact weapon/component tables */
+.loadout-builder-panel .catalog-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.loadout-builder-panel .catalog-table th:nth-child(1),
+.loadout-builder-panel .catalog-table td:nth-child(1) {
+  width: 34%;
+  white-space: normal;
+  word-break: break-word;
+  padding-right: 0.65rem;
+}
+
+.loadout-builder-panel .catalog-table th:nth-child(2),
+.loadout-builder-panel .catalog-table td:nth-child(2) {
+  width: 3.5rem;
+  white-space: nowrap;
+}
+
+.loadout-builder-panel .catalog-table th:nth-child(3),
+.loadout-builder-panel .catalog-table td:nth-child(3) {
+  width: 5.5rem;
+  white-space: nowrap;
+}
+
+.loadout-builder-panel .catalog-table th:nth-child(4),
+.loadout-builder-panel .catalog-table td:nth-child(4) {
+  width: auto;
+}
+
+.loadout-builder-panel .loadout-slot-select {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Ship services */
+.service-chip {
+  display: inline-block;
+  padding: 0.12rem 0.45rem;
+  margin: 0.1rem 0.2rem 0.1rem 0;
+  border-radius: 3px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: 1px solid var(--border-subtle);
+}
+
+.service-refuel {
+  color: var(--accent-secondary);
+  border-color: rgba(126, 184, 255, 0.35);
+  background: rgba(126, 184, 255, 0.1);
+}
+
+.service-repair {
+  color: var(--good);
+  border-color: rgba(110, 207, 154, 0.35);
+  background: rgba(110, 207, 154, 0.1);
+}
+
+.service-ammo {
+  color: #f0a060;
+  border-color: rgba(240, 160, 96, 0.35);
+  background: rgba(240, 160, 96, 0.1);
+}
+
+.ship-service-chips {
+  white-space: normal;
+}
+
+.ship-service-summary {
+  margin: 0.45rem 0 0.65rem;
+  font-size: 0.82rem;
+}
+
+.cosmos-scanlines {
+  opacity: 0.04;
+}

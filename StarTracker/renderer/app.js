@@ -2450,10 +2450,19 @@ function renderCatalogShipRows(rows) {
       .join("")}</tbody></table></div>`;
 }
 
+function renderServiceChips(services) {
+  if (!services) return `<span class="muted">—</span>`;
+  const chips = [];
+  if (services.refuel) chips.push(`<span class="service-chip service-refuel">Refuel</span>`);
+  if (services.repair) chips.push(`<span class="service-chip service-repair">Repair</span>`);
+  if (services.shipAmmo) chips.push(`<span class="service-chip service-ammo">Ammo</span>`);
+  return chips.length ? chips.join(" ") : `<span class="muted">—</span>`;
+}
+
 function renderCatalogShipServiceRows(rows) {
   if (!rows.length) return emptyPanel(tabById("catalog-ship-services"));
   const host = INLINE_HOST.CATALOG;
-  const colspan = 4;
+  const colspan = 5;
   let body = "";
   let lastSystem = null;
   for (const row of rows) {
@@ -2468,10 +2477,11 @@ function renderCatalogShipServiceRows(rows) {
       <td>${displayText(row.name)}</td>
       <td class="muted small">${displayText(row.location || "")}</td>
       <td>${displayText(row.kind || "")}</td>
+      <td class="ship-service-chips">${renderServiceChips(row.services)}</td>
     </tr>${renderInlineDetailRow(colspan, host, key)}`;
   }
   return `<div class="catalog-table-wrap"><table class="catalog-table catalog-ship-services-table">
-    <thead><tr><th></th><th>Place</th><th>Location</th><th>Type</th></tr></thead>
+    <thead><tr><th></th><th>Place</th><th>Location</th><th>Type</th><th>Services</th></tr></thead>
     <tbody>${body}</tbody></table></div>`;
 }
 
@@ -2517,6 +2527,7 @@ function renderPlaceDetail(detail) {
       (t) => `<tr>
         <td>${displayText(t.name)}</td>
         <td>${displayText(t.type || "")}</td>
+        <td class="ship-service-chips">${renderServiceChips(t.services)}</td>
       </tr>`
     )
     .join("");
@@ -2525,10 +2536,10 @@ function renderPlaceDetail(detail) {
       <h3>${displayText(detail.name)}</h3>
     </header>
     <p class="muted small">${displayText(detail.system || "")} · ${displayText(detail.location || "")}</p>
-    <p class="muted small">Ship services pad and shop terminals at this location.</p>
+    <p class="ship-service-summary">Available here: ${renderServiceChips(detail.services)}</p>
     <div class="catalog-table-wrap"><table class="catalog-table">
-      <thead><tr><th>Terminal</th><th>Type</th></tr></thead>
-      <tbody>${terminals || `<tr><td colspan="2" class="muted">No terminals listed</td></tr>`}</tbody>
+      <thead><tr><th>Terminal</th><th>Type</th><th>Services</th></tr></thead>
+      <tbody>${terminals || `<tr><td colspan="3" class="muted">No service terminals listed</td></tr>`}</tbody>
     </table></div>
   </article>`;
 }
@@ -3408,6 +3419,35 @@ function fmtScuPrice(n) {
   return `${Number(n).toLocaleString()} aUEC/SCU`;
 }
 
+function fmtPurchaseCostPerScu(n) {
+  if (n == null || n <= 0) return EMPTY_DISPLAY;
+  return `<span class="trade-price-main">${Number(n).toLocaleString()} aUEC/SCU</span> <span class="trade-price-hint">leaves your wallet when you buy</span>`;
+}
+
+function fmtSalePayoutPerScu(n) {
+  if (n == null || n <= 0) return EMPTY_DISPLAY;
+  return `<span class="trade-price-main">${Number(n).toLocaleString()} aUEC/SCU</span> <span class="trade-price-hint">into your wallet when you sell</span>`;
+}
+
+function fmtNetPerScuLine(buyCost, sellPayout) {
+  const buy = Number(buyCost);
+  const sell = Number(sellPayout);
+  if (!(buy > 0) || !(sell > 0)) return "";
+  const net = sell - buy;
+  const netAbs = Math.abs(net).toLocaleString();
+  if (net >= 0) {
+    return `<p class="trade-net-summary">Per SCU: buy ${buy.toLocaleString()} → sell ${sell.toLocaleString()} → <strong class="commodity-spread-positive">+${netAbs} aUEC profit</strong></p>`;
+  }
+  return `<p class="trade-net-summary">Per SCU: buy ${buy.toLocaleString()} → sell ${sell.toLocaleString()} → <strong class="commodity-spread-negative">−${netAbs} aUEC loss</strong></p>`;
+}
+
+function fmtSpreadPerScu(spreadVal) {
+  if (spreadVal == null || spreadVal === 0) return EMPTY_DISPLAY;
+  const cls = spreadVal < 0 ? "commodity-spread-negative" : "commodity-spread-positive";
+  const prefix = spreadVal < 0 ? "Loss" : "Profit";
+  return `<span class="${cls}">${prefix} ${escapeHtml(fmtScuPrice(Math.abs(spreadVal)))}</span>`;
+}
+
 function guidesMetaLine(meta) {
   const fetchedAt =
     meta && typeof meta === "object" ? meta.fetchedAt : meta || null;
@@ -4182,9 +4222,9 @@ function renderSmugglerRouteInlineDetail(route) {
     .map(
       (c) => `<tr>
         <td><strong>${displayText(c.name)}</strong></td>
-        <td>${escapeHtml(fmtScuPrice(c.buy))}</td>
-        <td>${escapeHtml(fmtScuPrice(c.sell))}</td>
-        <td class="commodity-spread-positive">${escapeHtml(fmtScuPrice(c.spread))}</td>
+        <td>${escapeHtml(fmtScuPrice(c.buy))}<div class="muted small">avg purchase cost</div></td>
+        <td>${escapeHtml(fmtScuPrice(c.sell))}<div class="muted small">avg sale payout</div></td>
+        <td class="${(c.spread || 0) < 0 ? "commodity-spread-negative" : "commodity-spread-positive"}">${escapeHtml(fmtScuPrice(c.spread))}</td>
       </tr>`
     )
     .join("");
@@ -4192,6 +4232,10 @@ function renderSmugglerRouteInlineDetail(route) {
   const tr = route.terminalRoute;
   const topName =
     tr?.name || route.commodities?.[0]?.name || route.commodityHints?.[0] || "Unknown commodity";
+  const routeLoss = tr && tr.spreadPerScu < 0;
+  const lossBanner = routeLoss
+    ? `<p class="trade-route-loss-warn"><strong>This route loses money at these terminals.</strong> You spend more to buy each SCU than the sell terminal pays you for it. That is not two separate payouts — buy cost and sale payout are compared for the same cargo.</p>`
+    : "";
 
   let terminalHtml = "";
   if (tr?.buyTerminal && tr?.sellTerminal) {
@@ -4203,26 +4247,27 @@ function renderSmugglerRouteInlineDetail(route) {
     ]
       .filter(Boolean)
       .join(", ");
-    terminalHtml = `<div class="trade-route-detail-grid">
+    const profitClass = tr.totalProfit < 0 ? "trade-profit-loss" : "commodity-spread-positive";
+    terminalHtml = `${lossBanner}${fmtNetPerScuLine(buy.sellToYouPrice, sell.buyFromYouPrice)}<div class="trade-route-detail-grid">
       <div class="trade-route-detail-card">
-        <span class="refinery-result-label">Buy</span>
+        <span class="refinery-result-label">1 · Buy cargo here</span>
         <strong>${displayText(topName)}</strong>
         <span>${displayText(buy.terminal || "Unknown terminal")}</span>
         <span class="muted small">${displayText(buy.location || buy.system || "")}</span>
-        <span>${escapeHtml(fmtScuPrice(buy.sellToYouPrice))} per SCU · <strong>${formatFleetCell(buy.stockScu)} SCU in stock</strong></span>
+        <span>${fmtPurchaseCostPerScu(buy.sellToYouPrice)} · <strong>${formatFleetCell(buy.stockScu)} SCU in stock</strong></span>
       </div>
       <div class="trade-route-detail-card">
-        <span class="refinery-result-label">Sell</span>
+        <span class="refinery-result-label">2 · Sell cargo here</span>
         <strong>${displayText(topName)}</strong>
         <span>${displayText(sell.terminal || "Unknown terminal")}</span>
         <span class="muted small">${displayText(sell.location || sell.system || "")}</span>
-        <span>${escapeHtml(fmtScuPrice(sell.buyFromYouPrice))} per SCU · demand ${formatFleetCell(sell.demandScu)} SCU</span>
+        <span>${fmtSalePayoutPerScu(sell.buyFromYouPrice)} · demand ${formatFleetCell(sell.demandScu)} SCU</span>
       </div>
       <div class="trade-route-detail-card trade-route-profit-card">
-        <span class="refinery-result-label">Est. profit (128 SCU haul)</span>
-        <strong class="commodity-spread-positive">${fmtAuec(tr.totalProfit)}</strong>
+        <span class="refinery-result-label">Est. ${tr.totalProfit < 0 ? "loss" : "profit"} (${formatFleetCell(tr.commodityScu || 0)} SCU haul)</span>
+        <strong class="${profitClass}">${fmtAuec(tr.totalProfit)}</strong>
         <span class="muted small">${formatFleetCell(tr.commodityUnits)} units · ${formatFleetCell(tr.commodityScu)} SCU${caps ? ` · ${caps}` : ""}</span>
-        <span class="muted small">${tr.spreadIsEstimate ? "Spread (UEX avg estimate) " : "Spread "}${escapeHtml(fmtScuPrice(tr.spreadPerScu || route.topSpread))} per SCU</span>
+        <span class="muted small">${tr.spreadIsEstimate ? "UEX average spread (not this terminal pair): " : "Net per SCU: "}${fmtSpreadPerScu(tr.spreadPerScu)}</span>
       </div>
     </div>`;
   }
@@ -4240,7 +4285,7 @@ function renderSmugglerRouteInlineDetail(route) {
     ${terminalHtml}
     ${commodityRows ? `<h4 class="guide-detail-sub">Matching illegal commodities (UEX)</h4>
       <div class="catalog-table-wrap"><table class="catalog-table smuggle-commodity-table">
-        <thead><tr><th>Commodity</th><th>Avg buy</th><th>Avg sell</th><th>Spread</th></tr></thead>
+        <thead><tr><th>Commodity</th><th>Avg buy cost</th><th>Avg sell payout</th><th>Spread</th></tr></thead>
         <tbody>${commodityRows}</tbody>
       </table></div>` : `<p class="muted small">No UEX illegal commodity matches for this route's hints yet. Refresh prices on the Market tab.</p>`}
     ${route.notes ? `<p class="muted small">${displayText(route.notes)}</p>` : ""}
@@ -4269,17 +4314,16 @@ function renderSmugglerRouteRows(routes) {
           ? `<strong class="smuggle-stock-live">${formatFleetCell(stockScu)} SCU</strong><div class="muted small">live UEX</div>`
           : `<span class="muted">—</span><div class="muted small">refresh for stock</div>`;
       const buyCell = tr?.buyTerminal
-        ? `${displayText(tr.buyTerminal.terminal)}<div class="muted small">${escapeHtml(fmtScuPrice(tr.buyTerminal.sellToYouPrice))} buy</div>`
+        ? `${displayText(tr.buyTerminal.terminal)}<div class="muted small">${fmtPurchaseCostPerScu(tr.buyTerminal.sellToYouPrice)}</div>`
         : displayText(route.buyTerminalName || route.buyLocations?.[0] || EMPTY_DISPLAY);
       const sellCell = tr?.sellTerminal
-        ? `${displayText(tr.sellTerminal.terminal)}<div class="muted small">${escapeHtml(fmtScuPrice(tr.sellTerminal.buyFromYouPrice))} sell</div>`
+        ? `${displayText(tr.sellTerminal.terminal)}<div class="muted small">${fmtSalePayoutPerScu(tr.sellTerminal.buyFromYouPrice)}</div>`
         : displayText(route.sellTerminalName || route.sellLocations?.[0] || EMPTY_DISPLAY);
-      const profitCell =
-        tr?.totalProfit > 0
-          ? `<strong class="commodity-spread-positive">${fmtAuec(tr.totalProfit)}</strong><div class="muted small">${escapeHtml(fmtScuPrice(tr.spreadPerScu || route.topSpread))}/SCU</div>`
-          : route.topSpread != null
-            ? `${escapeHtml(fmtScuPrice(route.topSpread))}<div class="muted small">per SCU spread</div>`
-            : EMPTY_DISPLAY;
+      const profitCell = tr
+        ? fmtTradeProfit(tr.totalProfit, tr.spreadPerScu)
+        : route.topSpread != null
+          ? `${escapeHtml(fmtScuPrice(route.topSpread))}<div class="muted small">UEX avg spread</div>`
+          : EMPTY_DISPLAY;
       const expanded = isInlineExpanded(host, key);
       return `<tr class="smuggle-route-row ${expandableRowClass(host, key)}" data-smuggle-route="${escapeAttr(key)}" tabindex="0" role="button" aria-expanded="${expanded}">
         <td class="expand-chevron-cell"><span class="expand-chevron" aria-hidden="true">${expandChevron(host, key)}</span></td>
@@ -4390,29 +4434,31 @@ function renderTradeRouteInlineDetail(detail) {
     .filter(Boolean)
     .join(" · ");
   return `<article class="inline-detail-inner trade-route-detail">
+    ${fmtNetPerScuLine(buy?.sellToYouPrice, sell?.buyFromYouPrice)}
     <div class="trade-route-detail-grid">
       <div class="trade-route-detail-card">
-        <span class="refinery-result-label">Buy at</span>
+        <span class="refinery-result-label">1 · Buy cargo here</span>
         <strong>${displayText(buy?.terminal || "Unknown")}</strong>
         <span class="muted small">${displayText(buy?.location || buy?.system || "")}</span>
-        <span>${escapeHtml(fmtScuPrice(buy?.sellToYouPrice))} per SCU · ${formatFleetCell(buy?.stockScu)} SCU stock</span>
+        <span>${fmtPurchaseCostPerScu(buy?.sellToYouPrice)} · ${formatFleetCell(buy?.stockScu)} SCU stock</span>
       </div>
       <div class="trade-route-detail-card">
-        <span class="refinery-result-label">Sell at</span>
+        <span class="refinery-result-label">2 · Sell cargo here</span>
         <strong>${displayText(sell?.terminal || "Unknown")}</strong>
         <span class="muted small">${displayText(sell?.location || sell?.system || "")}</span>
-        <span>${escapeHtml(fmtScuPrice(sell?.buyFromYouPrice))} per SCU · ${formatFleetCell(sell?.demandScu)} SCU demand</span>
+        <span>${fmtSalePayoutPerScu(sell?.buyFromYouPrice)} · ${formatFleetCell(sell?.demandScu)} SCU demand</span>
       </div>
       <div class="trade-route-detail-card trade-route-profit-card">
-        <span class="refinery-result-label">Route profit</span>
-        <strong class="commodity-spread-positive">${fmtAuec(r.totalProfit)}</strong>
+        <span class="refinery-result-label">Route ${r.totalProfit < 0 ? "loss" : "profit"}</span>
+        <strong class="${r.totalProfit < 0 ? "trade-profit-loss" : "commodity-spread-positive"}">${fmtAuec(r.totalProfit)}</strong>
         <span class="muted small">${formatFleetCell(r.commodityUnits)} units · invest ${fmtAuec(r.investAuec)}${caps ? ` · ${caps}` : ""}</span>
+        <span class="muted small">Net per SCU: ${fmtSpreadPerScu(r.spreadPerScu)}</span>
       </div>
     </div>
     ${detail.disclaimer ? `<p class="muted small">${displayText(detail.disclaimer)}</p>` : ""}
     <h4 class="guide-detail-sub">Other terminals</h4>
     <div class="catalog-table-wrap"><table class="catalog-table">
-      <thead><tr><th>Terminal</th><th>Location</th><th>Buy price</th><th>Sell price</th><th>Stock</th><th>Demand</th></tr></thead>
+      <thead><tr><th>Terminal</th><th>Location</th><th>Buy cost / SCU</th><th>Sell payout / SCU</th><th>Stock</th><th>Demand</th></tr></thead>
       <tbody>${termRows || `<tr><td colspan="6" class="muted">No terminal data</td></tr>`}</tbody>
     </table></div>
   </article>`;
@@ -4436,9 +4482,21 @@ function fmtTradeDemand(demandScu, isTerminal) {
 }
 
 function fmtTradeProfit(profitVal, spreadVal) {
-  const tier =
-    profitVal >= 500000 ? "trade-profit-high" : profitVal >= 100000 ? "trade-profit-mid" : "trade-profit-low";
-  return `<strong class="mono data-readout ${tier}">${fmtAuec(profitVal)}</strong><div class="muted small">${escapeHtml(fmtScuPrice(spreadVal))}/SCU</div>`;
+  const loss = Number(profitVal) < 0 || Number(spreadVal) < 0;
+  const tier = loss
+    ? "trade-profit-loss"
+    : profitVal >= 500000
+      ? "trade-profit-high"
+      : profitVal >= 100000
+        ? "trade-profit-mid"
+        : "trade-profit-low";
+  const spreadLabel =
+    spreadVal != null && spreadVal !== 0
+      ? loss
+        ? `Loss ${escapeHtml(fmtScuPrice(Math.abs(spreadVal)))}/SCU`
+        : `${escapeHtml(fmtScuPrice(spreadVal))}/SCU`
+      : "";
+  return `<strong class="mono data-readout ${tier}">${fmtAuec(profitVal)}</strong>${spreadLabel ? `<div class="muted small">${spreadLabel}</div>` : ""}`;
 }
 
 function renderTradeRouteRows(routes) {
@@ -4467,9 +4525,9 @@ function renderTradeRouteRows(routes) {
       return `<tr class="trade-route-row ${expandableRowClass(host, key)}" data-trade-route="${key}" tabindex="0" role="button" aria-expanded="${expanded}">
         <td class="expand-chevron-cell"><span class="expand-chevron" aria-hidden="true">${expandChevron(host, key)}</span></td>
         <td class="trade-route-commodity">${displayText(r.name)}${illegal ? ` ${illegal}` : ""}<div class="muted small mono">${escapeHtml(r.code || "")}</div>${routeLane}</td>
-        <td class="trade-route-buy">${displayText(buyLabel)}<div class="muted small mono">${escapeHtml(fmtScuPrice(buyPrice))}${isTerminal ? "" : " /SCU"}</div></td>
+        <td class="trade-route-buy">${displayText(buyLabel)}<div class="muted small mono">${fmtPurchaseCostPerScu(buyPrice > 0 ? buyPrice : null)}</div></td>
         <td class="trade-route-stock">${fmtTradeStock(buy?.stockScu, isTerminal)}</td>
-        <td class="trade-route-sell">${displayText(sellLabel)}<div class="muted small mono">${escapeHtml(fmtScuPrice(sellPrice))}${isTerminal ? "" : " /SCU"}</div></td>
+        <td class="trade-route-sell">${displayText(sellLabel)}<div class="muted small mono">${fmtSalePayoutPerScu(sellPrice > 0 ? sellPrice : null)}</div></td>
         <td class="trade-route-demand">${fmtTradeDemand(sell?.demandScu, isTerminal)}</td>
         <td class="trade-route-scu"><span class="mono data-readout">${formatFleetCell(r.commodityUnits ?? r.commodityScu)}</span><div class="muted small">${formatFleetCell(r.commodityScu ?? r.cargoScuUsed)} SCU</div></td>
         <td class="trade-route-profit">${fmtTradeProfit(profitVal, spreadVal)}</td>
@@ -4477,7 +4535,7 @@ function renderTradeRouteRows(routes) {
     })
     .join("");
   return `<div class="catalog-table-wrap trade-routes-wrap"><table class="catalog-table trade-routes-table">
-    <thead><tr><th></th><th>Commodity</th><th>Buy</th><th>Stock</th><th>Sell</th><th>Demand</th><th>SCU</th><th>Est. profit</th></tr></thead>
+    <thead><tr><th></th><th>Commodity</th><th>Buy cost / SCU</th><th>Stock</th><th>Sell payout / SCU</th><th>Demand</th><th>SCU</th><th>Est. profit</th></tr></thead>
     <tbody>${body}</tbody>
   </table></div>`;
 }
@@ -4517,10 +4575,11 @@ function buildTradeRoutesPanel(data, presets) {
 }
 
 function buildExternalToolsHubPanel(data, starmapSystems = []) {
-  const categories = data.categories || [];
-  const inAppCount = data.inAppCount || 0;
-  const dataSources = data.dataSources || [];
-  const disclaimer = data.disclaimer
+  const categories = Array.isArray(data?.categories) ? data.categories : [];
+  const inAppCount = data?.inAppCount || 0;
+  const dataSources = Array.isArray(data?.dataSources) ? data.dataSources : [];
+  const systems = Array.isArray(starmapSystems) ? starmapSystems : [];
+  const disclaimer = data?.disclaimer
     ? `<p class="guides-meta muted small">${displayText(data.disclaimer)}</p>`
     : "";
   const intro = `<div class="hub-intro"><strong>Community tools directory.</strong> ${inAppCount} tools overlap with in-app tabs. ${dataSources.filter((d) => d.integrated === true).length} data sources are integrated into StarTracker; others open in your browser.</div>`;
@@ -4534,19 +4593,23 @@ function buildExternalToolsHubPanel(data, starmapSystems = []) {
             ? `<span class="badge badge-warn">Cross-linked</span>`
             : `<span class="badge badge-muted">External</span>`;
       const powers = (src.powers || []).map((p) => `<li>${displayText(p)}</li>`).join("");
+      const openBtn = src.url
+        ? `<button type="button" class="btn btn-sm btn-ghost" data-guide-external="${escapeAttr(src.url)}">Open</button>`
+        : "";
       return `<article class="guide-card data-source-card">
         <header><h3>${displayText(src.name)} ${badge}</h3></header>
         <p>${displayText(src.description)}</p>
         ${powers ? `<ul class="guide-list data-source-powers">${powers}</ul>` : ""}
-        <button type="button" class="btn btn-sm btn-ghost" data-guide-external="${escapeAttr(src.url)}">Open</button>
+        ${openBtn}
       </article>`;
     })
     .join("");
 
-  const systemChips = starmapSystems
+  const systemChips = systems
+    .filter((s) => s?.rsiUrl || s?.webUrl)
     .map(
       (s) =>
-        `<button type="button" class="quick-nav-chip" data-guide-external="${escapeAttr(s.rsiUrl || s.webUrl || "")}" title="RSI Starmap">${escapeHtml(s.name)}</button>`
+        `<button type="button" class="quick-nav-chip" data-guide-external="${escapeAttr(s.rsiUrl || s.webUrl)}" title="RSI Starmap">${escapeHtml(s.name || "System")}</button>`
     )
     .join("");
 
@@ -4576,11 +4639,14 @@ function buildExternalToolsHubPanel(data, starmapSystems = []) {
           const tags = (tool.tags || [])
             .map((t) => `<span class="tag-chip">${escapeHtml(t)}</span>`)
             .join("");
+          const openBtn = tool.url
+            ? `<button type="button" class="btn btn-sm btn-ghost" data-guide-external="${escapeAttr(tool.url)}">Open site</button>`
+            : "";
           return `<article class="guide-card external-tool-card">
             <header><h3>${status}${displayText(tool.name)}</h3>${tags ? `<div class="tag-row">${tags}</div>` : ""}</header>
             <p>${displayText(tool.description)}</p>
             ${inApp}
-            <button type="button" class="btn btn-sm btn-ghost" data-guide-external="${escapeAttr(tool.url)}">Open site</button>
+            ${openBtn}
           </article>`;
         })
         .join("");
@@ -4886,7 +4952,8 @@ function initGuidesUi() {
   $("tabPanels")?.addEventListener("click", async (e) => {
     const external = e.target.closest("[data-guide-external]");
     if (external?.dataset.guideExternal) {
-      window.debrief.openUpdateUrl(external.dataset.guideExternal);
+      const url = external.dataset.guideExternal.trim();
+      if (url) window.debrief.openUpdateUrl(url);
       return;
     }
 
@@ -5678,24 +5745,7 @@ function initArchiveUi() {
 }
 
 function initHudParallax() {
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  let raf = null;
-  document.documentElement.style.setProperty("--parallax-x", "0");
-  document.documentElement.style.setProperty("--parallax-y", "0");
-  document.addEventListener(
-    "mousemove",
-    (e) => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = null;
-        const x = (e.clientX / window.innerWidth - 0.5) * 2;
-        const y = (e.clientY / window.innerHeight - 0.5) * 2;
-        document.documentElement.style.setProperty("--parallax-x", x.toFixed(3));
-        document.documentElement.style.setProperty("--parallax-y", y.toFixed(3));
-      });
-    },
-    { passive: true }
-  );
+  /* Disabled — mouse parallax + backdrop-filter caused blurry, shifting UI in Electron. */
 }
 
 initTheme();

@@ -290,17 +290,22 @@ function buildPlacesFromTerminals(terminals) {
         kind: placeKindFromTerminal(terminal),
         location: terminal.location || placeName,
         shipServices: true,
+        services: { refuel: false, repair: false, shipAmmo: false },
         terminals: [],
       });
     }
 
     const place = byKey.get(key);
     if (!hasShipService(terminal.services)) continue;
+    place.services.refuel = place.services.refuel || terminal.services.refuel;
+    place.services.repair = place.services.repair || terminal.services.repair;
+    place.services.shipAmmo = place.services.shipAmmo || terminal.services.shipAmmo;
     place.terminals.push({
       id: terminal.id,
       name: terminal.name,
       code: terminal.code,
       type: terminal.type,
+      services: { ...terminal.services },
     });
   }
 

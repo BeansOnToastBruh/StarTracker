@@ -21,26 +21,34 @@ function locationLabel(row) {
 }
 
 function terminalPlayerPrices(raw) {
-  // UEX commodities_prices rows are terminal-centric:
-  // price_sell = terminal sells to the player (your buy cost per SCU)
-  // price_buy = terminal buys from the player (your sell payout per SCU)
+  // UEX commodities_prices + commodities_routes use the same field names as /commodities:
+  // price_buy = your purchase cost per SCU at this terminal (route origin price)
+  // price_sell = your sale payout per SCU at this terminal (route destination price)
   const sellToYou =
-    Number(raw.price_sell) ||
-    Number(raw.price_sell_avg) ||
-    Number(raw.price_sell_avg_week) ||
-    0;
-  const buyFromYou =
     Number(raw.price_buy) ||
     Number(raw.price_buy_avg) ||
     Number(raw.price_buy_avg_week) ||
+    0;
+  const buyFromYou =
+    Number(raw.price_sell) ||
+    Number(raw.price_sell_avg) ||
+    Number(raw.price_sell_avg_week) ||
     0;
   return { sellToYou, buyFromYou };
 }
 
 function shapeTerminalRow(raw) {
   const { sellToYou, buyFromYou } = terminalPlayerPrices(raw);
-  const stockToBuy = Number(raw.scu_sell_stock) || Number(raw.scu_sell_avg) || 0;
-  const demandToSell = Number(raw.scu_buy_avg) || Number(raw.scu_buy_max) || 0;
+  const stockToBuy =
+    Number(raw.scu_buy_avg) ||
+    Number(raw.scu_buy_max) ||
+    Number(raw.scu_buy) ||
+    0;
+  const demandToSell =
+    Number(raw.scu_sell_stock) ||
+    Number(raw.scu_sell_avg) ||
+    Number(raw.scu_sell) ||
+    0;
   return {
     terminal: raw.terminal_name || "Unknown terminal",
     terminalCode: raw.terminal_code || null,
@@ -96,17 +104,40 @@ function pickTerminal(terminals, hint, mode) {
 
 async function getSmugglerRouteLive(route, cargoScu = 128) {
   const cache = await getCommoditiesCache(false);
-  const topId = route.commodities?.[0]?.id || route.topCommodityId;
-  const commodity = (cache.rows || []).find((r) => r.id === Number(topId));
-  if (!commodity?.id) return null;
-
-  const terminals = await fetchCommodityTerminals(commodity.id);
   const buyHint = route.buyTerminalName || route.buyLocations?.[0] || "";
   const sellHint = route.sellTerminalName || route.sellLocations?.[0] || "";
-  const buyTerminal = pickTerminal(terminals, buyHint, "buy");
-  const sellTerminal = pickTerminal(terminals, sellHint, "sell");
-  const shaped = commodity.spread != null ? commodity : shapeCommodityRow(commodity);
-  return routeFromTerminals(shaped, buyTerminal, sellTerminal, cargoScu);
+
+  const candidateIds = (route.commodities || [])
+    .map((c) => Number(c.id))
+    .filter(Boolean);
+  if (!candidateIds.length && route.topCommodityId) {
+    candidateIds.push(Number(route.topCommodityId));
+  }
+
+  let best = null;
+  for (const id of candidateIds.slice(0, 10)) {
+    const raw = (cache.rows || []).find((r) => r.id === id);
+    if (!raw) continue;
+    try {
+      const terminals = await fetchCommodityTerminals(id);
+      const buyTerminal = pickTerminal(terminals, buyHint, "buy");
+      const sellTerminal = pickTerminal(terminals, sellHint, "sell");
+      if (!buyTerminal || !sellTerminal) continue;
+      const shaped = raw.spread != null ? raw : shapeCommodityRow(raw);
+      const result = routeFromTerminals(shaped, buyTerminal, sellTerminal, cargoScu);
+      if (!result) continue;
+      if (
+        !best ||
+        result.totalProfit > best.totalProfit ||
+        (result.totalProfit === best.totalProfit && result.spreadPerScu > best.spreadPerScu)
+      ) {
+        best = result;
+      }
+    } catch {
+      /* try next commodity */
+    }
+  }
+  return best;
 }
 
 function bestBuyTerminal(terminals) {
