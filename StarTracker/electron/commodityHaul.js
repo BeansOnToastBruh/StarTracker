@@ -33,9 +33,14 @@ function parseCommodityFields(body) {
 
   const playerM = body.match(/playerId\[(\d+)\]/i);
   const shopM = body.match(/shopName\[([^\]]+)\]/i);
-  const commodityM = body.match(/commodityName\[([^\]]+)\]/i);
-  const priceM = body.match(/(?:client_price|totalPrice|price)\[([\d.]+)\]/i);
-  const scuM = body.match(/(?:scu|quantity|amount)\[(\d+)\]/i);
+  const commodityM =
+    body.match(/commodityName\[([^\]]+)\]/i) ||
+    body.match(/commodity\[([^\]]+)\]/i) ||
+    body.match(/itemName\[([^\]]+)\]/i);
+  const priceM = body.match(
+    /(?:client_price|totalPrice|total_price|price)\[([\d.]+)\]/i
+  );
+  const scuM = body.match(/(?:scu|quantity|amount|volume)\[(\d+)\]/i);
 
   if (!playerM || !shopM || !commodityM || !priceM) return null;
 
@@ -149,12 +154,21 @@ function appendCommodityCommerce(body, at, ctx, emit) {
     return;
   }
 
-  const flowM = body.match(
-    /ShopFlowResponse.*?playerId\[(\d+)\].*?shopName\[([^\]]+)\].*?result\[(\w+)\].*?type\[(Buying|Selling)\]/i
-  );
-  if (!flowM) return;
+  if (!/ShopFlowResponse/i.test(body)) return;
 
-  const [, playerId, shopRaw, result, flowType] = flowM;
+  const playerM = body.match(/playerId\[(\d+)\]/i);
+  const shopM = body.match(/shopName\[([^\]]+)\]/i);
+  const resultM =
+    body.match(/result\[(\w+)\]/i) || body.match(/result[=:\s]+(\w+)/i);
+  const typeM =
+    body.match(/type\[(Buying|Selling)\]/i) ||
+    body.match(/type[=:\s]+(Buying|Selling)/i);
+  if (!playerM || !shopM || !resultM || !typeM) return;
+
+  const playerId = playerM[1];
+  const shopRaw = shopM[1];
+  const result = resultM[1];
+  const flowType = typeM[1];
   if (!ctx.playerGEID) ctx.playerGEID = playerId;
   if (playerId !== ctx.playerGEID) return;
   if (!/^success$/i.test(result)) {
@@ -203,5 +217,6 @@ module.exports = {
   appendCommodityCommerce,
   formatCommodityName,
   commodityKey,
+  parseCommodityFields,
   PAIR_TIMEOUT_MS,
 };

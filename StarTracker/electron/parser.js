@@ -65,6 +65,7 @@ const {
   flushLoadoutBatch,
 } = require("./loadoutContext");
 const { formatPortLabel } = require("./loadoutFormat");
+const { labelForClassName, isVerified } = require("./sessionEnrichment");
 
 function emit(events, event) {
   if (!event) return events;

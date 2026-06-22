@@ -85,7 +85,7 @@ function bumpStats(session, event) {
       break;
     case "commodity_haul":
       s.commodityHauls += 1;
-      if (event.detail?.profit) s.commodityProfit += event.detail.profit;
+      if (event.detail?.profit != null) s.commodityProfit += event.detail.profit;
       break;
     default:
       break;

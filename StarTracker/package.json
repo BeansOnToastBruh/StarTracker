@@ -1,7 +1,7 @@
 {
   "name": "startracker",
   "productName": "StarTracker",
-  "version": "1.0.21",
+  "version": "1.0.22",
   "description": "StarTracker: Star Citizen session stats from Game.log, system tray companion",
   "main": "electron/main.js",
   "author": "",

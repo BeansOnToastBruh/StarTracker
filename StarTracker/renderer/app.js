@@ -1206,7 +1206,7 @@ function tabBadgeCount(tabId, rollup) {
         (rollup.abandoned?.length || 0)
       );
     case "rewards":
-      return rollup.rewardEntries?.length || 0;
+      return (rollup.rewardEntries?.length || 0) + (rollup.commodityHauls?.length || 0);
     case "blueprints":
       return rollup.blueprintEntries?.length || 0;
     case "deaths":
@@ -1746,41 +1746,75 @@ function buildMissions(rollup) {
   return entries.map((e) => e.html).join("");
 }
 
+function buildCommodityHaulRows(hauls) {
+  return hauls
+    .slice()
+    .reverse()
+    .map((haul) => {
+      const profitClass =
+        haul.profit >= 0 ? "commodity-spread-positive" : "trade-profit-loss";
+      const profitLabel = `${haul.profit >= 0 ? "+" : ""}${Math.round(haul.profit).toLocaleString()} aUEC`;
+      return entryCard({
+        time: fmtDateTime(haul.sellAt || haul.at),
+        badge: "Haul",
+        badgeClass: haul.profit >= 0 ? "entry-good" : "entry-warn",
+        title: haul.commodity,
+        description: `${haul.scu} SCU · ${displayText(haul.buyShop)} → ${displayText(haul.sellShop)}`,
+        extraHtml: `<p class="entry-extra"><span class="${profitClass}"><strong>${profitLabel}</strong></span> · bought ${fmtTime(haul.buyAt)} · sold ${fmtTime(haul.sellAt || haul.at)}</p>`,
+      });
+    })
+    .join("");
+}
+
 function buildRewards(rollup) {
   if (!rollup) return emptyPanel(tabById("rewards"));
   const entries = rollup.rewardEntries || [];
-  if (!entries.length) return emptyPanel(tabById("rewards"));
+  const hauls = rollup.commodityHauls || [];
+  const haulProfit = rollup.commodityProfitTotal ?? 0;
+  if (!entries.length && !hauls.length) return emptyPanel(tabById("rewards"));
 
   const t = rollup.rewardTotals || {};
   const parts = [];
+  const totals = [];
 
-  if (t.totalAuec > 0 || t.totalAuecEstimated > 0 || t.repByFaction?.length || t.itemCount > 0) {
-    const totals = [];
-    if (t.totalAuec > 0) {
-      totals.push(
-        `<div class="reward-total-card"><span class="reward-lbl">aUEC confirmed</span><span class="reward-total-val">${t.totalAuec.toLocaleString()}</span></div>`
-      );
-    }
-    if (t.totalAuecEstimated > 0) {
-      totals.push(
-        `<div class="reward-total-card"><span class="reward-lbl">aUEC estimated</span><span class="reward-total-val">~${t.totalAuecEstimated.toLocaleString()}</span></div>`
-      );
-    }
-    if (t.repByFaction?.length) {
-      for (const { faction, rep } of t.repByFaction) {
-        totals.push(
-          `<div class="reward-total-card"><span class="reward-lbl">${escapeHtml(faction)}</span><span class="reward-total-val">${rep.toLocaleString()} rep</span></div>`
-        );
-      }
-    }
-    if (t.itemCount > 0) {
-      totals.push(
-        `<div class="reward-total-card"><span class="reward-lbl">Item bundles</span><span class="reward-total-val">${t.itemCount} items</span></div>`
-      );
-    }
-    parts.push(
-      `<div class="reward-totals">${totals.join("")}</div><div class="subhead">By payout</div>`
+  if (t.totalAuec > 0) {
+    totals.push(
+      `<div class="reward-total-card"><span class="reward-lbl">aUEC confirmed</span><span class="reward-total-val">${t.totalAuec.toLocaleString()}</span></div>`
     );
+  }
+  if (haulProfit !== 0) {
+    totals.push(
+      `<div class="reward-total-card"><span class="reward-lbl">Cargo haul profit</span><span class="reward-total-val ${haulProfit >= 0 ? "commodity-spread-positive" : "trade-profit-loss"}">${haulProfit >= 0 ? "+" : ""}${Math.round(haulProfit).toLocaleString()}</span></div>`
+    );
+  }
+  if (t.totalAuec > 0 && haulProfit !== 0) {
+    totals.push(
+      `<div class="reward-total-card"><span class="reward-lbl">aUEC + hauls</span><span class="reward-total-val">${(t.totalAuec + haulProfit).toLocaleString()}</span></div>`
+    );
+  }
+  if (t.totalAuecEstimated > 0) {
+    totals.push(
+      `<div class="reward-total-card"><span class="reward-lbl">aUEC estimated</span><span class="reward-total-val">~${t.totalAuecEstimated.toLocaleString()}</span></div>`
+    );
+  }
+  if (t.repByFaction?.length) {
+    for (const { faction, rep } of t.repByFaction) {
+      totals.push(
+        `<div class="reward-total-card"><span class="reward-lbl">${escapeHtml(faction)}</span><span class="reward-total-val">${rep.toLocaleString()} rep</span></div>`
+      );
+    }
+  }
+  if (t.itemCount > 0) {
+    totals.push(
+      `<div class="reward-total-card"><span class="reward-lbl">Item bundles</span><span class="reward-total-val">${t.itemCount} items</span></div>`
+    );
+  }
+  if (totals.length) {
+    parts.push(`<div class="reward-totals">${totals.join("")}</div>`);
+  }
+
+  if (entries.length) {
+    parts.push(`<div class="subhead">By payout</div>`);
   }
 
   parts.push(
@@ -1809,6 +1843,11 @@ function buildRewards(rollup) {
       })
       .join("")
   );
+
+  if (hauls.length) {
+    parts.push(`<div class="subhead">Cargo hauls</div>`);
+    parts.push(buildCommodityHaulRows(hauls));
+  }
 
   return parts.join("");
 }
