@@ -865,6 +865,15 @@ const debouncedTradeRouteScu = debounce(() => {
   if (activeTab === "guides-trade-routes") refreshTradeRoutesTab();
 }, 450);
 
+const debouncedCraftingSearch = debounce(() => {
+  clearInlineExpand();
+  if (activeTab !== "guides-crafting") return;
+  const state = guideQueryByTab["guides-crafting"] || {};
+  state.page = 1;
+  guideQueryByTab["guides-crafting"] = state;
+  loadCraftingTab("guides-crafting");
+}, 320);
+
 const debouncedCraftingPreview = debounce(async () => {
   await refreshCraftingPreview();
 }, 180);
@@ -970,10 +979,24 @@ const GUIDE_THEME_LABELS = {
   news: { label: "Comm Link", tag: "PATCH FEED" },
 };
 
+const GUIDE_TAB_BANNER = {
+  "guides-commodities": { label: "Market Prices", tag: "MARKET" },
+  "guides-trade-routes": { label: "Trade Routes", tag: "ROUTES" },
+  "guides-smuggling": { label: "Smuggler Routes", tag: "SMUGGLE" },
+  "guides-loops": { label: "Game Loops", tag: "LOOPS" },
+  "guides-refinery": { label: "Production Bay", tag: "REFINERY" },
+  "guides-crafting": { label: "Crafting Workshop", tag: "WORKSHOP" },
+  "guides-fleet": { label: "Fleet Compare", tag: "FLEET" },
+  "guides-loadout": { label: "Ship Builder", tag: "BUILDER" },
+  "guides-patch-notes": { label: "Patch Notes", tag: "PATCH" },
+  "guides-external-tools": { label: "Credits To", tag: "TOOLS" },
+  "guides-reputation": { label: "Reputation", tag: "STANDING" },
+};
+
 function guideThemeBanner(tabId) {
   if (!tabId.startsWith("guides-")) return "";
   const cat = tabMetaCategory(tabId);
-  const theme = GUIDE_THEME_LABELS[cat] || GUIDE_THEME_LABELS.reference;
+  const theme = GUIDE_TAB_BANNER[tabId] || GUIDE_THEME_LABELS[cat] || GUIDE_THEME_LABELS.reference;
   const icon = TAB_ICONS[tabId] || "✦";
   return `<div class="panel-theme-banner panel-theme-banner-${escapeAttr(cat)}" aria-hidden="true">
     <span class="panel-theme-banner-icon">${icon}</span>
@@ -5527,6 +5550,16 @@ function initGuidesUi() {
 
     if (e.target.id === "tradeCargoScu") {
       debouncedTradeRouteScu();
+      return;
+    }
+
+    const craftingInput = e.target.closest("[data-crafting-search]");
+    if (craftingInput) {
+      const state = guideQueryByTab["guides-crafting"] || {};
+      state.query = craftingInput.value;
+      state.page = 1;
+      guideQueryByTab["guides-crafting"] = state;
+      debouncedCraftingSearch();
       return;
     }
 

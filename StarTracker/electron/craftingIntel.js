@@ -344,7 +344,10 @@ async function fetchBlueprintRaw(id) {
   if (!json?.data && key.includes("-")) {
     try {
       const list = await fetchJson(
-        `${WIKI_BASE}/blueprints?search=${encodeURIComponent(key)}&per_page=5`
+        `${WIKI_BASE}/blueprints?${new URLSearchParams({
+          "filter[query]": key,
+          per_page: "5",
+        }).toString()}`
       );
       const hit = (list?.data || []).find(
         (row) => slugFromBlueprint(row) === key || row.uuid === key
@@ -399,7 +402,7 @@ async function searchBlueprints(options = {}) {
     "page[number]": String(page),
     per_page: String(perPage),
   });
-  if (query) params.set("search", query);
+  if (query) params.set("filter[query]", query);
 
   const json = await fetchJson(`${WIKI_BASE}/blueprints?${params.toString()}`);
   const rows = (json?.data || []).map(shapeBlueprintSummary);

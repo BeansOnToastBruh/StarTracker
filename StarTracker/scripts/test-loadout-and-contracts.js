@@ -11,7 +11,7 @@ const ATTACH =
   '<2026-06-19T07:52:39.103Z> [Notice] <AttachmentReceived> Player[BeansOnToastBruh] Attachment[kap_combat_light_helmet_03_01_01_521511855020, kap_combat_light_helmet_03_01_01, 521511855020] Status[persistent] Port[Armor_Helmet] Elapsed[73.609268] [Team_CoreGameplayFeatures][Inventory]';
 const SPAWN = "<2026-06-19T07:52:40.000Z> [CSessionManager::OnClientSpawned] Spawned!";
 
-function run() {
+async function run() {
   const ctx = { playerNick: "BeansOnToastBruh", inUniverse: true };
   const events = [];
   for (const line of [ATTACH, SPAWN]) {
@@ -51,7 +51,26 @@ function run() {
   });
   assert.equal(rollup.loadoutSnapshots.length, 1);
 
+  let capturedWeaponSearchUrl = null;
+  const loadoutBuilder = require("../electron/loadoutBuilder");
+  const origFetch = global.fetch;
+  global.fetch = async (url) => {
+    if (String(url).includes("/api/items?")) capturedWeaponSearchUrl = String(url);
+    return { ok: true, json: async () => ({ data: [] }) };
+  };
+  await loadoutBuilder.searchShipWeapons({ query: "Omnisky" });
+  global.fetch = origFetch;
+  assert.ok(capturedWeaponSearchUrl, "searchShipWeapons should call items API");
+  assert.ok(
+    capturedWeaponSearchUrl.includes("filter%5Bquery%5D=Omnisky") ||
+      capturedWeaponSearchUrl.includes("filter[query]=Omnisky"),
+    `expected filter[query] in weapon search URL, got ${capturedWeaponSearchUrl}`
+  );
+
   console.log("test-loadout-and-contracts: OK");
 }
 
-run();
+run().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

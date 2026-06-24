@@ -265,7 +265,7 @@ async function searchShipWeapons(options = {}) {
   if (!query || query.length < 2) return { rows: [] };
 
   const json = await fetchJson(
-    `${WIKI_BASE}/items?search=${encodeURIComponent(query)}&per_page=40`
+    `${WIKI_BASE}/items?filter[query]=${encodeURIComponent(query)}&per_page=40`
   );
   const rows = [];
   for (const item of json?.data || []) {

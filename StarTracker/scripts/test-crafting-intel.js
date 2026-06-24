@@ -5,6 +5,7 @@ const {
   defaultQualityForModifier,
   parseBaseStats,
   computeCraftPreview,
+  searchBlueprints,
 } = require("../electron/craftingIntel");
 
 init({ cacheDir: null });
@@ -55,4 +56,25 @@ const preview = computeCraftPreview(blueprint, stats, { "ore-1": 1000 });
 assert.strictEqual(preview.stats[0].projectedFormatted, "46.0%");
 assert.strictEqual(preview.stats[0].baselineFormatted, "40.0%");
 
-console.log("test-crafting-intel: OK");
+let capturedSearchUrl = null;
+global.fetch = async (url) => {
+  if (String(url).includes("/api/blueprints?")) capturedSearchUrl = String(url);
+  return {
+    ok: true,
+    json: async () => ({ data: [], meta: { total: 0, last_page: 1 } }),
+  };
+};
+
+(async () => {
+  await searchBlueprints({ query: "ADP Core", page: 1, perPage: 10 });
+  assert.ok(capturedSearchUrl, "searchBlueprints should call blueprints API");
+  assert.ok(
+    capturedSearchUrl.includes("filter%5Bquery%5D=ADP+Core") ||
+      capturedSearchUrl.includes("filter[query]=ADP+Core"),
+    `expected filter[query] in URL, got ${capturedSearchUrl}`
+  );
+  console.log("test-crafting-intel: OK");
+})().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
