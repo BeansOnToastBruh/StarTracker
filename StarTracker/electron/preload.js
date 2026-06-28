@@ -109,4 +109,6 @@ contextBridge.exposeInMainWorld("debrief", {
   starmapLookupLocation: (name) => ipcRenderer.invoke("starmap-lookup-location", name),
   starmapListSystems: () => ipcRenderer.invoke("starmap-list-systems"),
   guidesGetReputation: () => ipcRenderer.invoke("guides-get-reputation"),
+  wikeloGetTrades: (options) => ipcRenderer.invoke("wikelo-get-trades", options),
+  wikeloRefreshTrades: () => ipcRenderer.invoke("wikelo-refresh-trades"),
 });

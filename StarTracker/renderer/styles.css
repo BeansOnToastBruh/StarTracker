@@ -740,6 +740,28 @@ html[data-theme="light"] .stat[data-stat="earn"] {
 .tabs-group-session .tabs-group-label { color: var(--accent-secondary); }
 .tabs-group-catalog .tabs-group-label { color: var(--accent); }
 .tabs-group-guides .tabs-group-label { color: var(--accent-secondary); }
+.tabs-group-wikelo .tabs-group-label { color: var(--accent-warm, #e8b86d); }
+
+.tab-btn-wikelo {
+  font-size: 0.72rem;
+}
+
+.wikelo-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin: 0.75rem 0;
+}
+
+.wikelo-trades-table td:nth-child(3),
+.wikelo-trades-table td:nth-child(4) {
+  max-width: 16rem;
+}
+
+.wikelo-item-list {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}
 
 .tabs-divider {
   width: 2px;

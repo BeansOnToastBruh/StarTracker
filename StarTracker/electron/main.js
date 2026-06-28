@@ -35,6 +35,7 @@ const terminalIntel = require("./terminalIntel");
 const externalToolsHub = require("./externalToolsHub");
 const starmapIntel = require("./starmapIntel");
 const reputationIntel = require("./reputationIntel");
+const wikeloIntel = require("./wikeloIntel");
 const {
   enrichSession,
   applyLabelsToSession,
@@ -523,6 +524,7 @@ app.whenReady().then(async () => {
   fleetCompare.init({ cacheDir: FLEET_CACHE_DIR() });
   refineryIntel.init({ seedDir: GUIDES_SEED_DIR() });
   craftingIntel.init({ cacheDir: CRAFTING_CACHE_DIR() });
+  wikeloIntel.init({ cacheDir: GUIDES_CACHE_DIR() });
   externalToolsHub.init({ seedDir: GUIDES_SEED_DIR() });
   gameDatabase.onSyncProgress((payload) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1020,3 +1022,9 @@ ipcMain.handle("guides-get-reputation", () => {
   const sessionRep = snap?.rollup?.rewardTotals?.repByFaction || [];
   return reputationIntel.getReputationSummary(sessionRep);
 });
+
+ipcMain.handle("wikelo-get-trades", (_, options) =>
+  wikeloIntel.getTrades(options || {})
+);
+
+ipcMain.handle("wikelo-refresh-trades", () => wikeloIntel.refreshTrades());

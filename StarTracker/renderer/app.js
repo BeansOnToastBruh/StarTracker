@@ -263,6 +263,51 @@ const GUIDE_TABS = [
   },
 ];
 
+const WIKIelo_TABS = [
+  {
+    id: "wikelo-all",
+    group: "wikelo",
+    label: "All",
+    hint: "Every Wikelo Emporium trade contract from star-citizen.wiki. Expand a row for the full ingredient list and description.",
+    empty: "No Wikelo trades loaded yet. Use Refresh below.",
+  },
+  {
+    id: "wikelo-favor",
+    group: "wikelo",
+    label: "Favor",
+    hint: "Turn in materials to earn Wikelo Favor tokens for higher-tier Emporium rewards.",
+    empty: "No favor trades match your search.",
+  },
+  {
+    id: "wikelo-armor",
+    group: "wikelo",
+    label: "Armor & gear",
+    hint: "Armor sets, backpacks, and undersuit pieces crafted by Wikelo from your haul.",
+    empty: "No armor trades match your search.",
+  },
+  {
+    id: "wikelo-weapons",
+    group: "wikelo",
+    label: "Weapons",
+    hint: "FPS weapons and magazines available through Wikelo Emporium contracts.",
+    empty: "No weapon trades match your search.",
+  },
+  {
+    id: "wikelo-ships",
+    group: "wikelo",
+    label: "Ships",
+    hint: "Special Wikelo paint schemes and limited ship variants.",
+    empty: "No ship trades match your search.",
+  },
+  {
+    id: "wikelo-other",
+    group: "wikelo",
+    label: "Other",
+    hint: "Miscellaneous Wikelo trades that do not fit the other categories.",
+    empty: "No other trades match your search.",
+  },
+];
+
 const SESSION_TAB_META = {
   overview: "pulse",
   missions: "contract",
@@ -303,11 +348,26 @@ const INTEL_TAB_META = {
   "guides-loadout": "combat",
 };
 
+const WIKIelo_TAB_META = {
+  "wikelo-all": "progress",
+  "wikelo-favor": "progress",
+  "wikelo-armor": "combat",
+  "wikelo-weapons": "combat",
+  "wikelo-ships": "ships",
+  "wikelo-other": "reference",
+};
+
 function tabMetaCategory(tabId) {
-  return INTEL_TAB_META[tabId] || SESSION_TAB_META[tabId] || CATALOG_TAB_META[tabId] || "reference";
+  return (
+    INTEL_TAB_META[tabId] ||
+    WIKIelo_TAB_META[tabId] ||
+    SESSION_TAB_META[tabId] ||
+    CATALOG_TAB_META[tabId] ||
+    "reference"
+  );
 }
 
-const TABS = [...SESSION_TABS, ...CATALOG_TABS, ...GUIDE_TABS];
+const TABS = [...SESSION_TABS, ...CATALOG_TABS, ...GUIDE_TABS, ...WIKIelo_TABS];
 
 const TAB_DESCRIPTIONS = {
   overview:
@@ -370,6 +430,18 @@ const TAB_DESCRIPTIONS = {
     "Every flyable ship, sortable like a fleet chart. Hull, shields, speed, cargo, and signatures from the wiki datamine.",
   "guides-loadout":
     "Step through ship, weapons, components, and hull stats. DPS updates live as you swap guns. Reset to stock anytime.",
+  "wikelo-all":
+    "Browse every Wikelo Emporium trade contract. See what to haul in and what you receive, with rep requirements when the wiki lists them.",
+  "wikelo-favor":
+    "Contracts that pay Wikelo Favor. Collect favors to unlock higher-tier Emporium crafts when stock rotates.",
+  "wikelo-armor":
+    "Armor and gear trades at the Wikelo Emporium. Expand a row for the full ingredient list.",
+  "wikelo-weapons":
+    "Personal weapons and magazines from Wikelo contracts. Check haul requirements before you fly.",
+  "wikelo-ships":
+    "Limited ship variants and Wikelo war specials. Rep and material costs vary by contract.",
+  "wikelo-other":
+    "Miscellaneous Wikelo Emporium trades including colors, components, and uncategorized rewards.",
 };
 
 const TAB_ICONS = {
@@ -403,6 +475,12 @@ const TAB_ICONS = {
   "guides-external-tools": "⊞",
   "guides-fleet": "🚀",
   "guides-loadout": "🔧",
+  "wikelo-all": "◈",
+  "wikelo-favor": "★",
+  "wikelo-armor": "⬢",
+  "wikelo-weapons": "⚔",
+  "wikelo-ships": "🛸",
+  "wikelo-other": "✦",
 };
 
 const QUICK_NAV_EMPTY_HINT =
@@ -419,6 +497,7 @@ const EMPTY_TIPS = {
   "guides-loadout": "Try gladius, cutlass-black, or hurricane as a starting slug.",
   "guides-refinery": "Start with Quantanium or Bexalite to compare refine vs raw sell value.",
   "guides-crafting": "Try ADP Core or search your armor piece to see mission sources and quality curves.",
+  "wikelo-favor": "Search carinite or kopion to find common favor turn-ins.",
   loadout: "Change gear or respawn in-game to capture a loadout snapshot.",
 };
 
@@ -468,6 +547,22 @@ const guideQueryByTab = {
   "guides-fleet": { query: "", offset: 0, sort: "manufacturer", limit: 80 },
   "guides-loadout": { query: "" },
 };
+const wikeloQueryByTab = {
+  "wikelo-all": { query: "" },
+  "wikelo-favor": { query: "" },
+  "wikelo-armor": { query: "" },
+  "wikelo-weapons": { query: "" },
+  "wikelo-ships": { query: "" },
+  "wikelo-other": { query: "" },
+};
+const WIKELO_CATEGORY_BY_TAB = {
+  "wikelo-all": "all",
+  "wikelo-favor": "favor",
+  "wikelo-armor": "armor",
+  "wikelo-weapons": "weapons",
+  "wikelo-ships": "ships",
+  "wikelo-other": "other",
+};
 let guideCommodityMeta = null;
 let fleetCompareMeta = null;
 let loadoutBuilderState = {
@@ -500,6 +595,9 @@ let lastCombatSearchRows = null;
 let guideCommodityLastPayload = null;
 let tradeRoutesLastPayload = null;
 let smugglerRoutesLastPayload = null;
+let wikeloMeta = null;
+let wikeloRefreshBusy = false;
+let wikeloTradesLastPayload = null;
 let craftingDetailCache = null;
 let craftingSearchLastRows = null;
 let craftingSearchMeta = null;
@@ -513,6 +611,7 @@ const INLINE_HOST = {
   COMMODITY: "guide-commodity",
   TRADE: "trade-route",
   SMUGGLE: "smuggle-route",
+  WIKELO: "wikelo-trade",
   CRAFTING: "crafting-blueprint",
   SHIP_BUILDER: "ship-builder",
 };
@@ -677,6 +776,16 @@ async function refreshInlineExpandHost(host) {
         await loadGuideTab("guides-smuggling");
       }
       break;
+    case INLINE_HOST.WIKELO:
+      if (activeTab.startsWith("wikelo-") && wikeloTradesLastPayload?.rows) {
+        patchPanelTable(
+          `#panel-${wikeloTradesLastPayload.tabId}`,
+          renderWikeloTradeRows(wikeloTradesLastPayload.rows, wikeloTradesLastPayload.tabId)
+        );
+      } else if (activeTab.startsWith("wikelo-")) {
+        await loadWikeloTab(activeTab);
+      }
+      break;
     case INLINE_HOST.CRAFTING: {
       const el = $("craftingSearchResults");
       if (el && craftingSearchLastRows) {
@@ -782,6 +891,10 @@ async function toggleInlineExpand(host, key, meta = {}) {
         null;
       html = renderSmugglerRouteInlineDetail(route);
       html += await buildTerminalStarmapLinks(route?.terminalRoute);
+    } else if (host === INLINE_HOST.WIKELO) {
+      const row =
+        wikeloTradesLastPayload?.rows?.find((t) => String(t.id) === String(key)) || null;
+      html = renderWikeloTradeDetail(row);
     } else if (host === INLINE_HOST.CRAFTING) {
       const detail = await window.debrief.craftingGetBlueprint(key);
       if (detail?.ok) {
@@ -846,6 +959,11 @@ const debouncedCatalogSearch = debounce((tabId) => {
 const debouncedGuideSearch = debounce((tabId) => {
   clearInlineExpand();
   if (activeTab === tabId) loadGuideTab(tabId, { resetOffset: true, filterOnly: true });
+}, 320);
+
+const debouncedWikeloSearch = debounce((tabId) => {
+  clearInlineExpand();
+  if (activeTab === tabId) loadWikeloTab(tabId, { filterOnly: true });
 }, 320);
 
 const debouncedFleetSearch = debounce((tabId) => {
@@ -993,10 +1111,23 @@ const GUIDE_TAB_BANNER = {
   "guides-reputation": { label: "Reputation", tag: "STANDING" },
 };
 
+const WIKIelo_TAB_BANNER = {
+  "wikelo-all": { label: "Emporium Trades", tag: "WIKELO" },
+  "wikelo-favor": { label: "Favor Trades", tag: "FAVOR" },
+  "wikelo-armor": { label: "Armor & Gear", tag: "ARMOR" },
+  "wikelo-weapons": { label: "Weapons", tag: "GUNS" },
+  "wikelo-ships": { label: "Ship Specials", tag: "SHIPS" },
+  "wikelo-other": { label: "Other Trades", tag: "MISC" },
+};
+
 function guideThemeBanner(tabId) {
-  if (!tabId.startsWith("guides-")) return "";
+  if (!tabId.startsWith("guides-") && !tabId.startsWith("wikelo-")) return "";
   const cat = tabMetaCategory(tabId);
-  const theme = GUIDE_TAB_BANNER[tabId] || GUIDE_THEME_LABELS[cat] || GUIDE_THEME_LABELS.reference;
+  const theme =
+    GUIDE_TAB_BANNER[tabId] ||
+    WIKIelo_TAB_BANNER[tabId] ||
+    GUIDE_THEME_LABELS[cat] ||
+    GUIDE_THEME_LABELS.reference;
   const icon = TAB_ICONS[tabId] || "✦";
   return `<div class="panel-theme-banner panel-theme-banner-${escapeAttr(cat)}" aria-hidden="true">
     <span class="panel-theme-banner-icon">${icon}</span>
@@ -1008,7 +1139,10 @@ function guideThemeBanner(tabId) {
 
 function panelShell(tab, innerHtml) {
   const selected = tab.id === activeTab;
-  const themeClass = tab.id.startsWith("guides-") ? ` panel-theme-${tabMetaCategory(tab.id)}` : "";
+  const themeClass =
+    tab.id.startsWith("guides-") || tab.id.startsWith("wikelo-")
+      ? ` panel-theme-${tabMetaCategory(tab.id)}`
+      : "";
   return `<section
     id="panel-${tab.id}"
     class="tab-panel${themeClass} ${selected ? "is-active" : ""}"
@@ -1181,7 +1315,9 @@ function tabButtonHtml(tab) {
       ? " tab-btn-catalog"
       : tab.group === "guides"
         ? " tab-btn-guides"
-        : " tab-btn-session";
+        : tab.group === "wikelo"
+          ? " tab-btn-wikelo"
+          : " tab-btn-session";
   const metaCat = tabMetaCategory(tab.id);
   const metaClass = ` tab-btn-cat-${metaCat}`;
   return `<button type="button" class="tab-btn${groupClass}${metaClass} ${selected ? "is-active" : ""}" role="tab" id="tab-${tab.id}" data-tab="${tab.id}" aria-selected="${selected}" aria-controls="panel-${tab.id}"><span class="tab-icon" aria-hidden="true">${icon}</span><span class="tab-label">${escapeHtml(tab.label)}</span><span class="tab-count" aria-hidden="true"></span></button>`;
@@ -1193,6 +1329,7 @@ function initTabs() {
   const sessionButtons = SESSION_TABS.map(tabButtonHtml).join("");
   const catalogButtons = CATALOG_TABS.map(tabButtonHtml).join("");
   const guideButtons = GUIDE_TABS.map(tabButtonHtml).join("");
+  const wikeloButtons = WIKIelo_TABS.map(tabButtonHtml).join("");
   nav.innerHTML = `<div class="tabs-scroll">
     <div class="tabs-group tabs-group-session" role="presentation">
       <span class="tabs-group-label">Session</span>${sessionButtons}
@@ -1204,6 +1341,10 @@ function initTabs() {
     <span class="tabs-divider" role="presentation" aria-hidden="true"></span>
     <div class="tabs-group tabs-group-guides" role="presentation">
       <span class="tabs-group-label">Intel</span>${guideButtons}
+    </div>
+    <span class="tabs-divider" role="presentation" aria-hidden="true"></span>
+    <div class="tabs-group tabs-group-wikelo" role="presentation">
+      <span class="tabs-group-label">Wikelo</span>${wikeloButtons}
     </div>
   </div>`;
   panels.innerHTML = TABS.map((t) => panelShell(t, emptyPanel(t))).join("");
@@ -1310,6 +1451,9 @@ function setActiveTab(id) {
   if (id.startsWith("guides-")) {
     loadGuideTab(id);
   }
+  if (id.startsWith("wikelo-")) {
+    loadWikeloTab(id);
+  }
   if (id === "loadout") {
     refreshLoadoutPanel().then(() => {
       if (loadoutExpandKey) loadLoadoutCombat(loadoutExpandKey).catch(() => {});
@@ -1341,6 +1485,7 @@ function searchFieldRestoreSelector(el) {
   if (!el) return null;
   if (el.id) return `#${CSS.escape(el.id)}`;
   if (el.dataset?.fleetSearch) return `[data-fleet-search="${CSS.escape(el.dataset.fleetSearch)}"]`;
+  if (el.dataset?.wikeloSearch) return `[data-wikelo-search="${CSS.escape(el.dataset.wikeloSearch)}"]`;
   if (el.dataset?.guideSearch) return `[data-guide-search="${CSS.escape(el.dataset.guideSearch)}"]`;
   if (el.dataset?.catalogSearch) return `[data-catalog-search="${CSS.escape(el.dataset.catalogSearch)}"]`;
   if (el.dataset?.craftingSearch) return `[data-crafting-search="${CSS.escape(el.dataset.craftingSearch)}"]`;
@@ -4538,6 +4683,160 @@ function buildSmugglerRoutesPanel(data) {
   return `${intro}${stockMeta}${disclaimer}${tableHtml}`;
 }
 
+function summarizeWikeloInputs(inputs) {
+  if (!inputs?.length) return EMPTY_DISPLAY;
+  if (inputs.length === 1) return inputs[0].requirement || inputs[0].name;
+  const first = inputs[0].requirement || inputs[0].name;
+  return `${first} +${inputs.length - 1} more`;
+}
+
+function summarizeWikeloRewards(rewards) {
+  if (!rewards?.length) return EMPTY_DISPLAY;
+  return rewards
+    .map((r) => `${r.name}${r.amount > 1 ? ` ×${r.amount}` : ""}`)
+    .join(", ");
+}
+
+function wikeloToolbar(tabId) {
+  const state = wikeloQueryByTab[tabId] || { query: "" };
+  const busy = wikeloRefreshBusy ? " disabled" : "";
+  return `<div class="catalog-toolbar catalog-toolbar-sticky wikelo-toolbar">
+    <input type="search" class="catalog-search" data-wikelo-search="${escapeAttr(tabId)}" placeholder="Search contract, item, reward…" value="${escapeAttr(state.query || "")}" />
+    <button type="button" class="btn btn-sm btn-ghost" data-wikelo-search-btn="${escapeAttr(tabId)}">Search</button>
+    <button type="button" class="btn btn-sm" data-wikelo-refresh${busy}>Refresh trades</button>
+  </div>
+  <p class="muted small">Deposit listed items at Wikelo Emporium freight elevators. Expand a row for the full haul list.</p>`;
+}
+
+function wikeloMetaLine(meta, total) {
+  const when = meta?.fetchedAt ? fmtDateTime(meta.fetchedAt) : null;
+  const stale = meta?.stale ? " Using cached copy." : "";
+  const busy = wikeloRefreshBusy ? " Refreshing…" : "";
+  const count = total != null ? `${total} trades · ` : "";
+  const base = when
+    ? `${count}Wikelo Emporium from star-citizen.wiki · cached ${escapeHtml(when)}.${busy}${stale}`
+    : `${count}Wikelo Emporium from star-citizen.wiki. Not cached yet.${busy}${stale}`;
+  return `<p class="guides-meta muted small">${base}</p>`;
+}
+
+function renderWikeloItemList(items, label) {
+  if (!items?.length) return `<p class="muted small">No ${escapeHtml(label)} listed.</p>`;
+  const rows = items
+    .map((item) => {
+      const amt =
+        item.requirement && item.requirement !== item.name
+          ? ` — ${escapeHtml(item.requirement)}`
+          : item.amount != null && item.amount !== 1
+            ? ` ×${escapeHtml(String(item.amount))}`
+            : "";
+      const link = item.wikiUrl
+        ? `<button type="button" class="link" data-guide-external="${escapeAttr(item.wikiUrl)}">${displayText(item.name)}</button>`
+        : displayText(item.name);
+      return `<li>${link}${amt}</li>`;
+    })
+    .join("");
+  return `<ul class="guide-list wikelo-item-list">${rows}</ul>`;
+}
+
+function renderWikeloTradeRows(rows, tabId) {
+  if (!rows?.length) {
+    return tabId ? emptyPanel(tabById(tabId)) : `<p class="muted">No Wikelo trades match your search.</p>`;
+  }
+  const host = INLINE_HOST.WIKELO;
+  const colspan = 5;
+  const body = rows
+    .map((row) => {
+      const expanded = isInlineExpanded(host, row.id);
+      return `<tr class="wikelo-trade-row ${expandableRowClass(host, row.id)}" data-wikelo-trade="${escapeAttr(row.id)}" tabindex="0" role="button" aria-expanded="${expanded}">
+        <td class="expand-chevron-cell"><span class="expand-chevron" aria-hidden="true">${expandChevron(host, row.id)}</span></td>
+        <td>${displayText(row.title)}</td>
+        <td>${displayText(summarizeWikeloInputs(row.inputs))}</td>
+        <td>${displayText(summarizeWikeloRewards(row.rewards))}</td>
+        <td>${row.repRequired ? displayText(row.repRequired) : EMPTY_DISPLAY}</td>
+      </tr>${renderInlineDetailRow(colspan, host, row.id)}`;
+    })
+    .join("");
+  return `<div class="catalog-table-wrap"><table class="catalog-table wikelo-trades-table">
+    <thead><tr><th></th><th>Contract</th><th>Trade in</th><th>Reward</th><th>Rep required</th></tr></thead>
+    <tbody>${body}</tbody>
+  </table></div>`;
+}
+
+function renderWikeloTradeDetail(row) {
+  if (!row) return `<p class="muted small">Trade not found.</p>`;
+  const locations = (row.locations || [])
+    .slice(0, 12)
+    .map((loc) => `<li>${displayText(loc)}</li>`)
+    .join("");
+  const wikiBtn = row.wikiUrl
+    ? `<button type="button" class="btn btn-sm btn-ghost" data-guide-external="${escapeAttr(row.wikiUrl)}">Wiki page</button>`
+    : "";
+  const repGain =
+    row.repGain != null && row.repGain !== 0
+      ? `<p class="muted small">Reputation gain: +${escapeHtml(String(row.repGain))}</p>`
+      : "";
+  return `<article class="inline-detail-inner wikelo-trade-detail">
+    ${row.description ? `<p class="muted small">${displayText(row.description)}</p>` : ""}
+    <div class="wikelo-detail-grid">
+      <div>
+        <h4 class="guide-detail-sub">Trade in</h4>
+        ${renderWikeloItemList(row.inputs, "inputs")}
+      </div>
+      <div>
+        <h4 class="guide-detail-sub">You receive</h4>
+        ${renderWikeloItemList(row.rewards, "rewards")}
+      </div>
+    </div>
+    ${locations ? `<h4 class="guide-detail-sub">Locations</h4><ul class="guide-list">${locations}</ul>` : ""}
+    ${repGain}
+    ${row.gameVersion ? `<p class="muted small">Game version: ${escapeHtml(row.gameVersion)}</p>` : ""}
+    ${wikiBtn}
+  </article>`;
+}
+
+async function loadWikeloTab(tabId, options = {}) {
+  if (!tabId.startsWith("wikelo-")) return;
+  const state = wikeloQueryByTab[tabId] || { query: "" };
+  wikeloQueryByTab[tabId] = state;
+  const category = WIKELO_CATEGORY_BY_TAB[tabId] || "all";
+  const filterOnly =
+    !!options.filterOnly && document.querySelector(`#panel-${tabId} .wikelo-toolbar`);
+
+  if (!filterOnly) {
+    setPanelHtml(
+      tabId,
+      `${wikeloMetaLine(wikeloMeta)}${wikeloToolbar(tabId)}<p class="muted small">Loading Wikelo trades…</p>`
+    );
+  }
+
+  try {
+    const data = await window.debrief.wikeloGetTrades({
+      category,
+      query: (state.query || "").trim(),
+    });
+    wikeloMeta = data.meta;
+    const tableHtml = renderWikeloTradeRows(data.rows, tabId);
+    wikeloTradesLastPayload = { tabId, rows: data.rows || [], meta: data.meta };
+    if (filterOnly) {
+      const metaEl = document.querySelector(`#panel-${tabId} .guides-meta`);
+      if (metaEl) metaEl.outerHTML = wikeloMetaLine(data.meta, data.total);
+      patchPanelTable(`#panel-${tabId}`, tableHtml);
+    } else {
+      setPanelHtml(
+        tabId,
+        `${wikeloMetaLine(data.meta, data.total)}${wikeloToolbar(tabId)}${tableHtml}`
+      );
+    }
+  } catch (e) {
+    if (!filterOnly) {
+      setPanelHtml(
+        tabId,
+        `${wikeloMetaLine(wikeloMeta)}${wikeloToolbar(tabId)}<p class="muted">Wikelo trades error: ${escapeHtml(e.message || String(e))}</p>`
+      );
+    }
+  }
+}
+
 function buildGameLoopsPanel(data) {
   const loops = data.loops || [];
   if (!loops.length) return `<p class="muted">No game loop guides loaded.</p>`;
@@ -5199,6 +5498,36 @@ function initGuidesUi() {
       return;
     }
 
+    const wikeloSearchBtn = e.target.closest("[data-wikelo-search-btn]");
+    if (wikeloSearchBtn) {
+      const tabId = wikeloSearchBtn.dataset.wikeloSearchBtn;
+      const input = document.querySelector(`[data-wikelo-search="${tabId}"]`);
+      if (input && wikeloQueryByTab[tabId]) {
+        clearInlineExpand();
+        wikeloQueryByTab[tabId].query = input.value.trim();
+        loadWikeloTab(tabId, { filterOnly: true });
+      }
+      return;
+    }
+
+    if (e.target.closest("[data-wikelo-refresh]")) {
+      wikeloRefreshBusy = true;
+      if (activeTab.startsWith("wikelo-")) loadWikeloTab(activeTab);
+      try {
+        await window.debrief.wikeloRefreshTrades();
+      } finally {
+        wikeloRefreshBusy = false;
+        if (activeTab.startsWith("wikelo-")) loadWikeloTab(activeTab);
+      }
+      return;
+    }
+
+    const wikeloRow = e.target.closest("[data-wikelo-trade]");
+    if (wikeloRow?.dataset.wikeloTrade) {
+      await toggleInlineExpand(INLINE_HOST.WIKELO, wikeloRow.dataset.wikeloTrade);
+      return;
+    }
+
     const searchBtn = e.target.closest("[data-guide-search-btn]");
     if (searchBtn) {
       const tabId = searchBtn.dataset.guideSearchBtn;
@@ -5517,6 +5846,15 @@ function initGuidesUi() {
       refreshTradeRoutesTab();
       return;
     }
+    const wikeloInput = e.target.closest("[data-wikelo-search]");
+    if (wikeloInput) {
+      const tabId = wikeloInput.dataset.wikeloSearch;
+      if (!wikeloQueryByTab[tabId]) return;
+      clearInlineExpand();
+      wikeloQueryByTab[tabId].query = wikeloInput.value.trim();
+      loadWikeloTab(tabId, { filterOnly: true });
+      return;
+    }
     const input = e.target.closest("[data-guide-search]");
     if (!input) return;
     const tabId = input.dataset.guideSearch;
@@ -5569,6 +5907,14 @@ function initGuidesUi() {
       if (!guideQueryByTab[tabId]) return;
       guideQueryByTab[tabId].query = fleetInput.value;
       debouncedFleetSearch(tabId);
+      return;
+    }
+    const wikeloInput = e.target.closest("[data-wikelo-search]");
+    if (wikeloInput) {
+      const tabId = wikeloInput.dataset.wikeloSearch;
+      if (!wikeloQueryByTab[tabId]) return;
+      wikeloQueryByTab[tabId].query = wikeloInput.value;
+      debouncedWikeloSearch(tabId);
       return;
     }
     const input = e.target.closest("[data-guide-search]");
