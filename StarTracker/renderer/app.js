@@ -1084,8 +1084,22 @@ function renderContractObjectives(c) {
     .join("")}</ul>`;
 }
 
+function formatMissionOrgLabel(name) {
+  if (!name) return "";
+  return String(name)
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ")
+    .trim();
+}
+
 function contractMissionExtra(c, innerAfterObjectives = "") {
-  return `<div class="entry-extra">${renderContractObjectives(c)}${innerAfterObjectives}</div>`;
+  const metaBits = [];
+  if (c.organization) metaBits.push(formatMissionOrgLabel(c.organization));
+  if (c.missionType) metaBits.push(c.missionType);
+  const meta = metaBits.length
+    ? `<p class="muted small">${escapeHtml(metaBits.join(" · "))}</p>`
+    : "";
+  return `<div class="entry-extra">${meta}${renderContractObjectives(c)}${innerAfterObjectives}</div>`;
 }
 
 const GUIDE_THEME_LABELS = {
@@ -1805,6 +1819,38 @@ function buildOverview(session) {
           `<strong>${escapeHtml(haul.commodity)}</strong> · ${haul.scu} SCU · ` +
           `${escapeHtml(displayText(haul.buyShop))} → ${escapeHtml(displayText(haul.sellShop))} · ` +
           `<span class="${profitClass}">${haul.profit >= 0 ? "+" : ""}${Math.round(haul.profit).toLocaleString()} aUEC</span></li>`
+      );
+    }
+    lines.push(`</ul>`);
+  }
+  if (r.quantumJumps?.length) {
+    lines.push(`<div class="sci-fi-divider"><span>Quantum travel</span></div>`);
+    lines.push(`<ul class="mini-feed">`);
+    for (const jump of [...r.quantumJumps].reverse().slice(0, 8)) {
+      lines.push(
+        `<li><span class="muted">${fmtTime(jump.at)}</span> ` +
+          `${escapeHtml(jump.from)} → ${escapeHtml(jump.to)}` +
+          `${jump.estimatedKm ? ` · ~${Math.round(jump.estimatedKm).toLocaleString()} km` : ""}</li>`
+      );
+    }
+    lines.push(`</ul>`);
+  }
+  if (r.locations?.length) {
+    lines.push(`<div class="sci-fi-divider"><span>Locations visited</span></div>`);
+    lines.push(`<ul class="mini-feed">`);
+    for (const loc of [...r.locations].reverse().slice(0, 8)) {
+      lines.push(
+        `<li><span class="muted">${fmtTime(loc.at)}</span> ${escapeHtml(loc.location)}</li>`
+      );
+    }
+    lines.push(`</ul>`);
+  }
+  if (r.partyEvents?.length) {
+    lines.push(`<div class="sci-fi-divider"><span>Party</span></div>`);
+    lines.push(`<ul class="mini-feed">`);
+    for (const p of [...r.partyEvents].reverse().slice(0, 4)) {
+      lines.push(
+        `<li><span class="muted">${fmtTime(p.at)}</span> ${escapeHtml(p.summary)}</li>`
       );
     }
     lines.push(`</ul>`);

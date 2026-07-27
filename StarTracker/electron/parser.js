@@ -15,6 +15,12 @@ const PATTERNS = {
   /** Alpha 4.9+ — old zone-transition QT lines are gone; arrival notices remain. */
   quantumArrived:
     /\[Notice\].*<Quantum Drive Arrived - Arrived at Final Destination>.*?\| (?:NOT AUTH \| )?(?<shipKey>[A-Za-z0-9_]+)\[(?<entityId>\d+)\]\|CSCItemNavigation::OnQuantumDriveArrived/,
+  locationInventory:
+    /\[Notice\].*<RequestLocationInventory>\s*Player\[(?<nick>[^\]]+)\] requested inventory for Location\[(?<loc>[^\]]+)\]/i,
+  missionOrgAccept:
+    /\[Notice\].*<CommsNotifications>\s*SendCommsNotification \+Missions\.Organization\.(?<orgPath>[^,]+),.*?Missions\.MissionType\.(?<missionType>[A-Za-z]+),.*?Missions\.CommsNotifications\.MissionAccept.*?Mission:\s*\[(?<missionId>[a-f0-9-]+)\]/i,
+  partyAccept:
+    /\[Notice\].*<Accept invitation>\s*Client\s+(?<geid>\d+)\s+accept invitation\s+(?<inviteId>[a-f0-9-]+)/i,
   contractGen: /contract: (?<id>[\w_-]+)/,
   notification:
     /\[Notice\] <SHUDEvent_OnNotification> Added notification "(?<text>[^"]+)" \[\d+\].*MissionId: \[(?<missionId>[^\]]+)\]/,
@@ -718,6 +724,14 @@ function parseLine(line, ctx = {}) {
     if (nickGeidM) ctx.playerGEID = nickGeidM[1];
   }
 
+  // Snapshot before nav lines on QT arrivals register passenger hulls as "piloted".
+  const qtPre = body.match(PATTERNS.quantumArrived);
+  const qtEntityId = qtPre?.groups?.entityId || null;
+  const qtWasLocal =
+    !!qtEntityId &&
+    (!!ctx.ownedVehicleIds?.has(qtEntityId) ||
+      ctx.lastPilotedVehicle?.entityId === qtEntityId);
+
   ingestVehicleSignals(body, ctx, ctx.playerNick, ctx.playerGEID, at);
   const shipLost = tryEmitShipDestruction(
     body,
@@ -769,10 +783,63 @@ function parseLine(line, ctx = {}) {
     const { missionId, generator, contract, definitionId } = markerM.groups;
     if (missionId && definitionId) {
       if (!ctx.missionWikiByMissionId) ctx.missionWikiByMissionId = new Map();
+      const prev = ctx.missionWikiByMissionId.get(missionId) || {};
       ctx.missionWikiByMissionId.set(missionId, {
+        ...prev,
         contractDefinitionId: definitionId,
         debugContract: contract,
         generatorName: generator,
+      });
+    }
+  }
+
+  const orgM = body.match(PATTERNS.missionOrgAccept);
+  if (orgM?.groups?.missionId) {
+    if (!ctx.missionWikiByMissionId) ctx.missionWikiByMissionId = new Map();
+    const prev = ctx.missionWikiByMissionId.get(orgM.groups.missionId) || {};
+    const orgPath = orgM.groups.orgPath || "";
+    const orgRoot = orgPath.split(".")[0] || orgPath;
+    ctx.missionWikiByMissionId.set(orgM.groups.missionId, {
+      ...prev,
+      organization: orgRoot,
+      organizationPath: orgPath,
+      missionType: orgM.groups.missionType || null,
+    });
+  }
+
+  const locM = body.match(PATTERNS.locationInventory);
+  if (locM?.groups) {
+    const nick = locM.groups.nick;
+    if (!ctx.playerNick || isPlayerEntity(nick, ctx.playerNick)) {
+      const locKey = locM.groups.loc;
+      const label = formatLocationLabel(locKey) || locKey;
+      if (!ctx.recentLocationKeys) ctx.recentLocationKeys = new Map();
+      const prevAt = ctx.recentLocationKeys.get(locKey);
+      const t = new Date(at).getTime();
+      if (!prevAt || t - new Date(prevAt).getTime() > 120_000) {
+        ctx.recentLocationKeys.set(locKey, at);
+        emit(out, {
+          type: "location",
+          at,
+          summary: `Visited ${label}`,
+          detail: { locationKey: locKey, location: label },
+        });
+      }
+    }
+  }
+
+  const partyM = body.match(PATTERNS.partyAccept);
+  if (partyM?.groups) {
+    if (!ctx.playerGEID || partyM.groups.geid === ctx.playerGEID) {
+      emit(out, {
+        type: "party",
+        at,
+        summary: "Joined party",
+        detail: {
+          action: "joined",
+          inviteId: partyM.groups.inviteId,
+          geid: partyM.groups.geid,
+        },
       });
     }
   }
@@ -919,29 +986,34 @@ function parseLine(line, ctx = {}) {
   m = body.match(PATTERNS.quantum);
   if (m?.groups) {
     const { fromSystem, toSystem, fromZone, toZone } = m.groups;
-    return {
-      type: "travel",
-      at,
-      summary: `QT ${beautifyName(fromSystem)} → ${beautifyName(toSystem)}`,
-      detail: { fromSystem, toSystem, fromZone, toZone, source: "zone_transition" },
-    };
+    return finish(
+      emit(out, {
+        type: "travel",
+        at,
+        summary: `QT ${beautifyName(fromSystem)} → ${beautifyName(toSystem)}`,
+        detail: { fromSystem, toSystem, fromZone, toZone, source: "zone_transition" },
+      })
+    );
   }
 
   m = body.match(PATTERNS.quantumArrived);
   if (m?.groups) {
+    if (!qtWasLocal) return finish(out);
     const shipClass = shipClassFromQtKey(m.groups.shipKey);
     const shipLabel = formatShipClassLabel(shipClass) || shipClass || "Unknown ship";
-    return {
-      type: "travel",
-      at,
-      summary: `QT arrived (${shipLabel})`,
-      detail: {
-        shipClass,
-        shipLabel,
-        entityId: m.groups.entityId || null,
-        source: "quantum_arrived",
-      },
-    };
+    return finish(
+      emit(out, {
+        type: "travel",
+        at,
+        summary: `QT arrived (${shipLabel})`,
+        detail: {
+          shipClass,
+          shipLabel,
+          entityId: m.groups.entityId || null,
+          source: "quantum_arrived",
+        },
+      })
+    );
   }
 
   m = body.match(PATTERNS.notificationAdded) || body.match(PATTERNS.notification);
@@ -985,7 +1057,9 @@ function parseLine(line, ctx = {}) {
             missionId,
             contractDefinitionId: wikiMeta?.contractDefinitionId || null,
             debugContract: wikiMeta?.debugContract || null,
-            faction: acceptPayout.faction || null,
+            organization: wikiMeta?.organization || null,
+            missionType: wikiMeta?.missionType || null,
+            faction: acceptPayout.faction || wikiMeta?.organization || null,
           },
         })
       );
@@ -1104,6 +1178,17 @@ function parseLine(line, ctx = {}) {
           at,
           summary: "Incapacitated (downed)",
           detail: { youDowned: true, incapAt: at },
+        })
+      );
+    }
+
+    if (/^Standby, Local Emergency Services Are En Route/i.test(text)) {
+      return finish(
+        emit(out, {
+          type: "combat",
+          at,
+          summary: "Emergency services en route",
+          detail: { emergencyServices: true },
         })
       );
     }

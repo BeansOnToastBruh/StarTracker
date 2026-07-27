@@ -1,5 +1,16 @@
 [
   {
+    "id": "startracker-1.0.30",
+    "version": "1.0.30",
+    "title": "StarTracker 1.0.30",
+    "date": "2026-07-27",
+    "startrackerNotes": [
+      "Ignore passenger Quantum Drive Arrivals (only count QT on ships you piloted).",
+      "Track location visits, party joins, mission organization/type, and emergency-services HUD.",
+      "Overview shows QT jumps and locations visited."
+    ]
+  },
+  {
     "id": "startracker-1.0.29",
     "version": "1.0.29",
     "title": "StarTracker 1.0.29",

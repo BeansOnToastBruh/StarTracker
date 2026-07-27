@@ -237,6 +237,8 @@ function buildRollup(session) {
   const commodityHauls = [];
   const commodityTrades = [];
   const loadoutSnapshots = [];
+  const locations = [];
+  const partyEvents = [];
 
   for (const e of session.events) {
     switch (e.type) {
@@ -247,6 +249,8 @@ function buildRollup(session) {
           row = {
             title: e.detail?.title || "Unnamed contract",
             missionId: e.detail?.missionId || null,
+            organization: e.detail?.organization || null,
+            missionType: e.detail?.missionType || null,
             acceptedAt: null,
             completedAt: null,
             failedAt: null,
@@ -258,7 +262,12 @@ function buildRollup(session) {
           contractMap.set(key, row);
           contracts.push(row);
         }
-        if (e.detail?.action === "accepted") row.acceptedAt = e.at;
+        if (e.detail?.action === "accepted") {
+          row.acceptedAt = e.at;
+          if (e.detail?.organization) row.organization = e.detail.organization;
+          if (e.detail?.missionType) row.missionType = e.detail.missionType;
+          if (e.detail?.title) row.title = e.detail.title;
+        }
         if (e.detail?.action === "completed") row.completedAt = e.at;
         if (e.detail?.action === "failed") row.failedAt = e.at;
         if (e.detail?.action === "abandoned") {
@@ -387,6 +396,20 @@ function buildRollup(session) {
         });
         break;
       }
+      case "location":
+        locations.push({
+          at: e.at,
+          location: e.detail?.location || e.summary,
+          locationKey: e.detail?.locationKey || null,
+        });
+        break;
+      case "party":
+        partyEvents.push({
+          at: e.at,
+          action: e.detail?.action || "joined",
+          summary: e.summary,
+        });
+        break;
       case "blueprint":
         blueprints.push({
           at: e.at,
@@ -548,6 +571,8 @@ function buildRollup(session) {
     totalFlightKm,
     totalFlightLabel: formatKm(totalFlightKm),
     flightIsEstimate: true,
+    locations,
+    partyEvents,
     fines,
     finesTotal,
     insuranceClaims,
