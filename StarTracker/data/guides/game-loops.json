@@ -24,6 +24,29 @@
     "relatedTabs": ["guides-commodities", "guides-refinery", "guides-crafting"]
   },
   {
+    "id": "battaglia",
+    "title": "Support the Miners (Recco Battaglia)",
+    "summary": "Alpha 4.9 Frontier Tensions introduces Recco Battaglia contracts — prospecting, mining support, recovery, salvage, and investigation work that builds People's Alliance standing in Nyx.",
+    "tips": [
+      "Accept Recco Battaglia / Support the Miners contracts from your mobiGlas.",
+      "Rewards and standing unlock further opportunities; larger ship rewards continue into later patches.",
+      "Pair with Mining and Crafting tabs when contracts call for ores or materials.",
+      "Session Missions and Rewards tabs log contracts and payouts when Game.log records them."
+    ],
+    "relatedTabs": ["missions", "rewards", "guides-commodities", "guides-crafting", "guides-reputation"]
+  },
+  {
+    "id": "wikelo",
+    "title": "Wikelo Emporium trades",
+    "summary": "Barter materials, scrip, and Favors at Wikelo Emporium stations for ships, armor, weapons, and specialty gear.",
+    "tips": [
+      "Wikelo trades tab lists trade-in items and rewards from star-citizen.wiki.",
+      "Favor contracts convert ores and scrip into Wikelo Favor for higher-tier trades.",
+      "Verify amounts in-game — datamine values can lag a patch."
+    ],
+    "relatedTabs": ["wikelo-all", "wikelo-favor", "guides-crafting", "missions"]
+  },
+  {
     "id": "crafting",
     "title": "Crafting blueprints",
     "summary": "Unlock schematics from missions, gather materials at the quality you want, then craft at a station. Material quality changes output stats.",

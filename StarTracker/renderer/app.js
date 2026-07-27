@@ -133,7 +133,7 @@ const SESSION_TABS = [
     id: "history",
     group: "session",
     label: "Log archive",
-    hint: "Game.log backups since patch 4.8. Click one to view everything we can parse from that file.",
+    hint: "Game.log backups since patch 4.8 (includes 4.9 LIVE). Click one to view everything we can parse from that file.",
     empty: "No log archives found. Set your Game.log path to the StarCitizen LIVE folder (logbackups lives beside it).",
   },
 ];
@@ -393,7 +393,7 @@ const TAB_DESCRIPTIONS = {
   ships:
     "Hulls you lost while flying or in control. Check this when you want a list of your own ship destructions.",
   history:
-    "Game.log backups since patch 4.8. Open an archive to review parsed stats from an older play session.",
+    "Game.log backups since patch 4.8 (includes 4.9 LIVE). Open an archive to review parsed stats from an older play session.",
   "guides-reputation":
     "Persistent faction rep from parsed rewards plus this session's gains. Progress bars use wiki contractor tier thresholds (estimates).",
   "catalog-ships":
@@ -2199,7 +2199,7 @@ function formatArchiveSize(bytes) {
 function buildHistoryArchives() {
   const tab = tabById("history");
   if (logArchiveLoading) {
-    return `<div class="overview-prose"><p>Scanning logbackups since 4.8…</p></div>`;
+    return `<div class="overview-prose"><p>Scanning logbackups since 4.8 (incl. 4.9)…</p></div>`;
   }
   if (logArchiveError) {
     return `<div class="overview-prose"><p class="entry-warn">Could not scan log archives: ${escapeHtml(logArchiveError)}</p></div>`;
@@ -3996,7 +3996,7 @@ function buildPatchNotesPanel(data) {
     .join("");
 
   const meta = data.meta?.fetchedAt
-    ? `<p class="guides-meta muted small">Game patches from RSI (Alpha 4.8.x) and star-citizen.wiki · cached ${escapeHtml(fmtDateTime(data.meta.fetchedAt))}${data.meta.stale ? " (stale)" : ""} · <button type="button" class="link" id="patchNotesRefreshBtn">Refresh patch notes</button></p>`
+    ? `<p class="guides-meta muted small">Game patches from RSI (Alpha 4.9 / 4.8.x) and star-citizen.wiki · cached ${escapeHtml(fmtDateTime(data.meta.fetchedAt))}${data.meta.stale ? " (stale)" : ""} · <button type="button" class="link" id="patchNotesRefreshBtn">Refresh patch notes</button></p>`
     : `<p class="guides-meta muted small"><button type="button" class="link" id="patchNotesRefreshBtn">Refresh patch notes</button></p>`;
 
   const appSection = localCards

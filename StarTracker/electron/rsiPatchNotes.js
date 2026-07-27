@@ -1,5 +1,7 @@
 const { BrowserWindow } = require("electron");
 
+const RSI_ALPHA_49_URL =
+  "https://robertsspaceindustries.com/en/comm-link/Patch-Notes/21245-Star-Citizen-Alpha-49";
 const RSI_ALPHA_48_URL =
   "https://robertsspaceindustries.com/en/comm-link/Patch-Notes/21168-Star-Citizen-Alpha-48";
 
@@ -32,7 +34,7 @@ async function expandRsiPatchSections(win) {
  * RSI patch pages are client-rendered; this only works inside Electron.
  */
 async function fetchRsiPlainText(
-  url = RSI_ALPHA_48_URL,
+  url = RSI_ALPHA_49_URL,
   { timeoutMs = 15000, settleMs = 1200 } = {}
 ) {
   if (!BrowserWindow) {
@@ -61,8 +63,9 @@ async function fetchRsiPlainText(
       'document.body?.innerText || ""'
     );
     if (
-      /Star Citizen Alpha 4\.8(?:\.\d+)? LIVE/i.test(text) ||
-      /Build Information/i.test(text)
+      /Star Citizen Alpha 4\.\d+(?:\.\d+)? LIVE/i.test(text) ||
+      /Build Information/i.test(text) ||
+      /Build Update:/i.test(text)
     ) {
       break;
     }
@@ -85,6 +88,7 @@ function closeRsiPatchWindow() {
 }
 
 module.exports = {
+  RSI_ALPHA_49_URL,
   RSI_ALPHA_48_URL,
   fetchRsiPlainText,
   closeRsiPatchWindow,

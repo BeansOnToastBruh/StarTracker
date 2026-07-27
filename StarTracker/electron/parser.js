@@ -12,6 +12,9 @@ const PATTERNS = {
     /\[Notice\].*CActor::Kill: '(?<victim>[^']+)' \[\d+\] in zone '(?<zone>[^']+)' killed by '(?<killer>[^']+)' \[\d+\] using '(?<weapon>[^']+)'(?: \[Class [^\]]+\])? with damage type '(?<damageType>[^']+)'/,
   quantum:
     /\[Notice\].*Transitioning from zone (?<fromZone>[\w_-]+) in (?<fromSystem>[\w_-]+) to zone (?<toZone>[\w_-]+) in (?<toSystem>[\w_-]+)/,
+  /** Alpha 4.9+ — old zone-transition QT lines are gone; arrival notices remain. */
+  quantumArrived:
+    /\[Notice\].*<Quantum Drive Arrived - Arrived at Final Destination>.*?\| (?:NOT AUTH \| )?(?<shipKey>[A-Za-z0-9_]+)\[(?<entityId>\d+)\]\|CSCItemNavigation::OnQuantumDriveArrived/,
   contractGen: /contract: (?<id>[\w_-]+)/,
   notification:
     /\[Notice\] <SHUDEvent_OnNotification> Added notification "(?<text>[^"]+)" \[\d+\].*MissionId: \[(?<missionId>[^\]]+)\]/,
@@ -113,14 +116,37 @@ function beautifyName(name) {
   return name.replace(/_/g, " ");
 }
 
-/** HUD "New Objective:" / "Objective Complete:" body (no prefix). */
+/** HUD "New Objective:" / "Objective Complete:" / "Objective Withdrawn:" body (no prefix). */
 function parseObjectiveTitle(text) {
   const cleaned = text
     .replace(/^New Objective:\s*/i, "")
     .replace(/^Objective Complete:\s*/i, "")
+    .replace(/^Objective Withdrawn:\s*/i, "")
     .replace(/:\s*$/, "")
     .trim();
   return cleaned || null;
+}
+
+/** Ship class from entity keys like GAMA_Railen_738956821393 or ORIG_m80_739100912651. */
+function shipClassFromQtKey(shipKey) {
+  const key = String(shipKey || "");
+  const m = key.match(/^(.+)_(\d+)$/);
+  return m ? m[1] : key || null;
+}
+
+function formatShipClassLabel(shipClass) {
+  if (!shipClass) return null;
+  const spaced = String(shipClass).replace(/_/g, " ");
+  try {
+    const labeled = labelForClassName(shipClass);
+    // Prefer enrichment only when it expands the class (never truncates model codes).
+    if (labeled && labeled !== shipClass && labeled.length > spaced.length) {
+      return labeled;
+    }
+  } catch {
+    /* enrichment optional */
+  }
+  return spaced;
 }
 
 function isPlayerEntity(name, playerNick) {
@@ -627,6 +653,7 @@ function parseHudContinuation(line, ctx) {
 
   if (/^Contract (Accepted|Complete|Failed|Abandoned):/i.test(text)) return null;
   if (/^Objective Complete:/i.test(text)) return null;
+  if (/^Objective Withdrawn:/i.test(text)) return null;
   if (/^New Objective:/i.test(text)) return null;
 
   if (/^You've Earned:/i.test(text) || /^You have earned:/i.test(text)) {
@@ -896,7 +923,24 @@ function parseLine(line, ctx = {}) {
       type: "travel",
       at,
       summary: `QT ${beautifyName(fromSystem)} → ${beautifyName(toSystem)}`,
-      detail: { fromSystem, toSystem, fromZone, toZone },
+      detail: { fromSystem, toSystem, fromZone, toZone, source: "zone_transition" },
+    };
+  }
+
+  m = body.match(PATTERNS.quantumArrived);
+  if (m?.groups) {
+    const shipClass = shipClassFromQtKey(m.groups.shipKey);
+    const shipLabel = formatShipClassLabel(shipClass) || shipClass || "Unknown ship";
+    return {
+      type: "travel",
+      at,
+      summary: `QT arrived (${shipLabel})`,
+      detail: {
+        shipClass,
+        shipLabel,
+        entityId: m.groups.entityId || null,
+        source: "quantum_arrived",
+      },
     };
   }
 
@@ -1088,6 +1132,20 @@ function parseLine(line, ctx = {}) {
             at,
             summary: `Objective done: ${title}`,
             detail: { missionId, title, action: "completed" },
+          });
+        }
+      }
+      return finish(out);
+    }
+    if (/^Objective Withdrawn:/i.test(text)) {
+      if (missionId && missionId !== ZERO_MISSION) {
+        const title = parseObjectiveTitle(text);
+        if (title) {
+          emit(out, {
+            type: "contract_objective",
+            at,
+            summary: `Objective withdrawn: ${title}`,
+            detail: { missionId, title, action: "withdrawn" },
           });
         }
       }

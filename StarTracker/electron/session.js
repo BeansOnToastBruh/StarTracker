@@ -108,12 +108,18 @@ function pushEvent(session, event) {
     applyMeta(session, event);
     return session;
   }
-  if (event.type === "travel" && event.detail?.fromSystem && event.detail?.toSystem) {
+  if (event.type === "travel") {
     const { estimateJumpKm } = require("./travelEstimate");
-    event.detail.estimatedKm = estimateJumpKm(
-      event.detail.fromSystem,
-      event.detail.toSystem
-    );
+    if (event.detail?.fromSystem && event.detail?.toSystem) {
+      event.detail.estimatedKm = estimateJumpKm(
+        event.detail.fromSystem,
+        event.detail.toSystem
+      );
+    } else if (event.detail?.estimatedKm == null) {
+      // Alpha 4.9+ QT arrival lines omit from/to systems; use same-system estimate.
+      event.detail = event.detail || {};
+      event.detail.estimatedKm = estimateJumpKm(null, null);
+    }
   }
   if (event.type === "spawn") {
     session.spawnCount += 1;
@@ -176,12 +182,17 @@ function importEvents(session, events) {
       applyMeta(session, event);
       continue;
     }
-    if (event.type === "travel" && event.detail?.fromSystem && event.detail?.toSystem) {
+    if (event.type === "travel") {
       const { estimateJumpKm } = require("./travelEstimate");
-      event.detail.estimatedKm = estimateJumpKm(
-        event.detail.fromSystem,
-        event.detail.toSystem
-      );
+      if (event.detail?.fromSystem && event.detail?.toSystem) {
+        event.detail.estimatedKm = estimateJumpKm(
+          event.detail.fromSystem,
+          event.detail.toSystem
+        );
+      } else if (event.detail?.estimatedKm == null) {
+        event.detail = event.detail || {};
+        event.detail.estimatedKm = estimateJumpKm(null, null);
+      }
     }
     if (event.type === "spawn") {
       session.spawnCount += 1;

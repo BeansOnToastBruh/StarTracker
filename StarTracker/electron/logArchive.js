@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { sumAwardedAuecInText } = require("./rewardFormat");
 
-/** Approximate LIVE build floor for Star Citizen 4.8.x */
+/** Approximate LIVE build floor for Star Citizen 4.8+ (includes 4.9 LIVE archives). */
 const PATCH_4_8_MIN_BUILD = 11550000;
 const PATCH_4_8_MIN_MS = Date.parse("2025-04-01T00:00:00Z");
 

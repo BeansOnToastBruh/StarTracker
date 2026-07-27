@@ -1,5 +1,26 @@
 [
   {
+    "id": "startracker-1.0.29",
+    "version": "1.0.29",
+    "title": "StarTracker 1.0.29",
+    "date": "2026-07-27",
+    "startrackerNotes": [
+      "Alpha 4.9 Frontier Tensions support: RSI patch notes page 21245 plus existing 4.8.x notes.",
+      "Restore quantum travel tracking for 4.9 (Quantum Drive Arrived notices; old zone-transition QT lines are gone).",
+      "Track Objective Withdrawn HUD lines alongside New / Complete objectives.",
+      "Game loops: Recco Battaglia Support the Miners and Wikelo Emporium entries."
+    ]
+  },
+  {
+    "id": "startracker-1.0.28",
+    "version": "1.0.28",
+    "title": "StarTracker 1.0.28",
+    "date": "2026-06-28",
+    "startrackerNotes": [
+      "New Wikelo Emporium tab group: trade-in items and rewards from star-citizen.wiki, with category filters and expandable haul lists."
+    ]
+  },
+  {
     "id": "startracker-1.0.12",
     "version": "1.0.12",
     "title": "StarTracker 1.0.12",

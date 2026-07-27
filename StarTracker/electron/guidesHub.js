@@ -9,17 +9,27 @@ const {
   wikiCommLinkUrl,
 } = require("./patchNotesFormat");
 
-const RSI_ALPHA_48_URL =
-  "https://robertsspaceindustries.com/en/comm-link/Patch-Notes/21168-Star-Citizen-Alpha-48";
+const RSI_STACKED_PATCH_PAGES = [
+  {
+    wikiId: 21245,
+    versionRe: /^4\.9(?:\.\d+)?$/,
+    majorVersion: "4.9",
+    url: "https://robertsspaceindustries.com/en/comm-link/Patch-Notes/21245-Star-Citizen-Alpha-49",
+  },
+  {
+    wikiId: 21168,
+    versionRe: /^4\.8(?:\.\d+)?$/,
+    majorVersion: "4.8",
+    url: "https://robertsspaceindustries.com/en/comm-link/Patch-Notes/21168-Star-Citizen-Alpha-48",
+  },
+];
 
 const UEX_BASE = "https://api.uexcorp.space/2.0";
 const WIKI_COMM_LINKS = "https://api.star-citizen.wiki/api/comm-links";
 
 const COMMODITIES_TTL_MS = 24 * 60 * 60 * 1000;
 const PATCH_NOTES_TTL_MS = 6 * 60 * 60 * 1000;
-const PATCH_NOTES_CACHE_FILE = "patch-notes-cache-v2.json";
-const WIKI_ALPHA_48_ID = 21168;
-const ALPHA_48_VERSION_RE = /^4\.8(?:\.\d+)?$/;
+const PATCH_NOTES_CACHE_FILE = "patch-notes-cache-v3.json";
 
 let cacheDir = null;
 let seedDir = null;
@@ -348,31 +358,32 @@ async function fetchPatchNoteDetail(wikiId) {
   };
 }
 
-async function fetchRsiAlpha48PlainText() {
-  if (!rsiPlainTextFetcher) return "";
+async function fetchRsiStackedPlainText(page) {
+  if (!rsiPlainTextFetcher || !page?.url) return "";
   try {
-    return await rsiPlainTextFetcher(RSI_ALPHA_48_URL);
+    return await rsiPlainTextFetcher(page.url);
   } catch {
     return "";
   }
 }
 
-function buildAlpha48PatchEntries(wikiDetail, rsiText) {
+function buildStackedPatchEntries(page, wikiDetail, rsiText) {
   const splits = splitPatchDocument(rsiText);
   if (!splits.length) return [];
 
   const wikiBody = wikiDetail?.bodyText || "";
   const wikiParsed = wikiDetail?.parsed || parsePatchNotesText(wikiBody);
-  const rsiUrl = wikiDetail?.rsiUrl || RSI_ALPHA_48_URL;
-  const wikiUrl = wikiDetail?.wikiUrl || wikiCommLinkUrl(WIKI_ALPHA_48_ID);
+  const rsiUrl = wikiDetail?.rsiUrl || page.url;
+  const wikiUrl = wikiDetail?.wikiUrl || wikiCommLinkUrl(page.wikiId);
 
   const patches = splits
     .map((split) => {
       const version = split.version || parsePatchVersion(split.headline);
-      if (!version || !ALPHA_48_VERSION_RE.test(version)) return null;
+      if (!version || !page.versionRe.test(version)) return null;
 
       const useWikiBody =
-        version === "4.8" && wikiBody.length > (split.text?.length || 0) + 500;
+        version === page.majorVersion &&
+        wikiBody.length > (split.text?.length || 0) + 500;
       const parsed = useWikiBody ? wikiParsed : split.parsed;
       const intro = parsed?.intro?.length ? parsed.intro : split.parsed?.intro || [];
       const sections = parsed?.sections?.length
@@ -380,8 +391,8 @@ function buildAlpha48PatchEntries(wikiDetail, rsiText) {
         : split.parsed?.sections || [];
 
       return sanitizePatchNoteEntry({
-        id: `rsi-21168-v${version.replace(/\./g, "-")}`,
-        wikiId: WIKI_ALPHA_48_ID,
+        id: `rsi-${page.wikiId}-v${version.replace(/\./g, "-")}`,
+        wikiId: page.wikiId,
         title: `Star Citizen Alpha ${version}`,
         version,
         date: wikiDetail?.date || null,
@@ -403,21 +414,21 @@ function buildAlpha48PatchEntries(wikiDetail, rsiText) {
   return patches;
 }
 
-function stripAlpha48WikiDuplicates(remote, alpha48Patches) {
-  if (!alpha48Patches?.length) return remote;
-  const versions = new Set(alpha48Patches.map((p) => p.version));
+function stripStackedWikiDuplicates(remote, stackedPatches) {
+  if (!stackedPatches?.length) return remote;
+  const versions = new Set(stackedPatches.map((p) => p.version).filter(Boolean));
+  const wikiIds = new Set(stackedPatches.map((p) => p.wikiId).filter(Boolean));
   return remote.filter((row) => {
-    if (!row?.version || !ALPHA_48_VERSION_RE.test(row.version)) return true;
-    if (versions.has(row.version)) return false;
-    if (row.wikiId === WIKI_ALPHA_48_ID) return false;
-    return !isPatchNotesBody(row.bodyText || "");
+    if (row?.wikiId && wikiIds.has(row.wikiId) && versions.has(row.version)) return false;
+    if (row?.version && versions.has(row.version)) return false;
+    return true;
   });
 }
 
 async function fetchPatchNotesRemote() {
   const json = await fetchJson(`${WIKI_COMM_LINKS}?limit=120`);
   const candidates = (json.data || []).filter(isGamePatchCommLink).slice(0, 12);
-  let wikiAlpha48Detail = null;
+  const wikiDetailsById = new Map();
   const remote = [];
   for (const row of candidates) {
     let detail = {
@@ -438,9 +449,7 @@ async function fetchPatchNotesRemote() {
       detail.wikiUrl = wikiCommLinkUrl(row.id, row.api_public_url);
     }
 
-    if (Number(row.id) === WIKI_ALPHA_48_ID) {
-      wikiAlpha48Detail = detail;
-    }
+    wikiDetailsById.set(Number(row.id), detail);
 
     if (!isPatchNotesBody(detail.bodyText)) continue;
 
@@ -464,11 +473,30 @@ async function fetchPatchNotesRemote() {
     if (sanitized) remote.push(sanitized);
   }
 
-  const rsiText = await fetchRsiAlpha48PlainText();
-  const alpha48Patches = buildAlpha48PatchEntries(wikiAlpha48Detail, rsiText);
-  let merged = stripAlpha48WikiDuplicates(remote, alpha48Patches);
-  if (alpha48Patches.length) {
-    merged = [...alpha48Patches, ...merged];
+  // Also try wiki detail for known RSI stacked pages even if they weren't in the list.
+  for (const page of RSI_STACKED_PATCH_PAGES) {
+    if (wikiDetailsById.has(page.wikiId)) continue;
+    try {
+      wikiDetailsById.set(page.wikiId, await fetchPatchNoteDetail(page.wikiId));
+    } catch {
+      /* RSI fetch below may still succeed */
+    }
+  }
+
+  const stackedPatches = [];
+  for (const page of RSI_STACKED_PATCH_PAGES) {
+    const rsiText = await fetchRsiStackedPlainText(page);
+    const pagePatches = buildStackedPatchEntries(
+      page,
+      wikiDetailsById.get(page.wikiId) || null,
+      rsiText
+    );
+    stackedPatches.push(...pagePatches);
+  }
+
+  let merged = stripStackedWikiDuplicates(remote, stackedPatches);
+  if (stackedPatches.length) {
+    merged = [...stackedPatches, ...merged];
   }
 
   merged.sort((a, b) => {

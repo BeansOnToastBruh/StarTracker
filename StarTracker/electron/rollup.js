@@ -362,13 +362,28 @@ function buildRollup(session) {
         break;
       case "travel": {
         const km = estimateJumpKm(e.detail?.fromSystem, e.detail?.toSystem);
+        const shipLabel = e.detail?.shipLabel || beautifyName(e.detail?.shipClass);
+        const from =
+          e.detail?.fromSystem != null
+            ? `${beautifyName(e.detail.fromSystem)} (${beautifyName(e.detail.fromZone)})`
+            : shipLabel
+              ? `In ${shipLabel}`
+              : "Unknown";
+        const to =
+          e.detail?.toSystem != null
+            ? `${beautifyName(e.detail.toSystem)} (${beautifyName(e.detail.toZone)})`
+            : e.detail?.source === "quantum_arrived"
+              ? "QT final destination"
+              : "Unknown";
         quantumJumps.push({
           at: e.at,
-          from: `${beautifyName(e.detail?.fromSystem)} (${beautifyName(e.detail?.fromZone)})`,
-          to: `${beautifyName(e.detail?.toSystem)} (${beautifyName(e.detail?.toZone)})`,
-          fromSystem: e.detail?.fromSystem,
-          toSystem: e.detail?.toSystem,
-          estimatedKm: km,
+          from,
+          to,
+          fromSystem: e.detail?.fromSystem || null,
+          toSystem: e.detail?.toSystem || null,
+          shipClass: e.detail?.shipClass || null,
+          source: e.detail?.source || null,
+          estimatedKm: e.detail?.estimatedKm ?? km,
         });
         break;
       }

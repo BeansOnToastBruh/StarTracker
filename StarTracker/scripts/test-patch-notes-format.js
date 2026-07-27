@@ -83,7 +83,8 @@ Fixed an issue where hovering over equipment slots did not highlight items.`;
   assert.strictEqual(splits[0].dateHuman, "June 17th, 2026");
   assert.ok(isPatchNotesBody(sample), "wiki-style patch body");
   assert.ok(!isPatchNotesBody("DEFENDERS NEEDED\nALPHA 4.8.1\nMore ship battle contracts"), "marketing body rejected");
-  assert.ok(comparePatchVersions("4.8.2", "4.8.1") < 0, "newer patch sorts first");
+  assert.ok(comparePatchVersions("4.9.0", "4.8.2") < 0, "4.9 sorts before 4.8");
+  assert.ok(comparePatchVersions("4.9", "4.8.2") < 0, "4.9 major sorts before 4.8.2");
 
   console.log("test-patch-notes-format: OK");
 }
