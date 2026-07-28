@@ -5,7 +5,10 @@ function missionHasConfirmedAuec(session, missionId) {
   if (!missionId || !session?.events) return false;
   for (const e of session.events) {
     if (e.type !== "reward" || e.detail?.missionId !== missionId) continue;
-    if (e.detail?.auec != null && !e.detail?.auecEstimated) return true;
+    if (e.detail?.auec == null || e.detail?.auecEstimated) continue;
+    // Accept-title brackets are provisional; wiki estimates / Awarded lines may still apply.
+    if (e.detail?.auecFromAcceptTitle) continue;
+    return true;
   }
   return false;
 }

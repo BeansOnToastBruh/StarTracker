@@ -23,6 +23,14 @@ contextBridge.exposeInMainWorld("debrief", {
     ipcRenderer.on("update-download-progress", handler);
     return () => ipcRenderer.removeListener("update-download-progress", handler);
   },
+  starStringsStatus: (opts) => ipcRenderer.invoke("star-strings-status", opts || {}),
+  starStringsInstall: () => ipcRenderer.invoke("star-strings-install"),
+  starStringsUninstall: () => ipcRenderer.invoke("star-strings-uninstall"),
+  onStarStringsProgress: (cb) => {
+    const handler = (_, data) => cb(data);
+    ipcRenderer.on("star-strings-progress", handler);
+    return () => ipcRenderer.removeListener("star-strings-progress", handler);
+  },
   listLogArchives: () => ipcRenderer.invoke("list-log-archives"),
   parseLogArchive: (id) => ipcRenderer.invoke("parse-log-archive", id),
   onState: (cb) => {

@@ -261,6 +261,13 @@ const GUIDE_TABS = [
     hint: "Popular Star Citizen companion sites with links to in-app StarTracker tabs where we cover similar features.",
     empty: "External tools list not loaded.",
   },
+  {
+    id: "guides-star-strings",
+    group: "guides",
+    label: "Star Strings",
+    hint: "One-click install for MrKraken's Star Strings — in-game contract [BP] tags, blueprint pools, and cleaner titles.",
+    empty: "Set your Game.log path in the footer, then install Star Strings here.",
+  },
 ];
 
 const WIKIelo_TABS = [
@@ -344,6 +351,7 @@ const INTEL_TAB_META = {
   "guides-crafting": "production",
   "guides-reputation": "progress",
   "guides-external-tools": "reference",
+  "guides-star-strings": "reference",
   "guides-fleet": "combat",
   "guides-loadout": "combat",
 };
@@ -473,6 +481,7 @@ const TAB_ICONS = {
   "guides-loops": "↻",
   "guides-reputation": "★",
   "guides-external-tools": "⊞",
+  "guides-star-strings": "☰",
   "guides-fleet": "🚀",
   "guides-loadout": "🔧",
   "wikelo-all": "◈",
@@ -497,6 +506,7 @@ const EMPTY_TIPS = {
   "guides-loadout": "Try gladius, cutlass-black, or hurricane as a starting slug.",
   "guides-refinery": "Start with Quantanium or Bexalite to compare refine vs raw sell value.",
   "guides-crafting": "Try ADP Core or search your armor piece to see mission sources and quality curves.",
+  "guides-star-strings": "Install Star Strings to show blueprint pools and [BP] tags on contracts in-game.",
   "wikelo-favor": "Search carinite or kopion to find common favor turn-ins.",
   loadout: "Change gear or respawn in-game to capture a loadout snapshot.",
 };
@@ -597,6 +607,13 @@ let tradeRoutesLastPayload = null;
 let smugglerRoutesLastPayload = null;
 let wikeloMeta = null;
 let wikeloRefreshBusy = false;
+/** Star Strings installer panel state */
+let starStringsUiState = {
+  busy: false,
+  progress: null,
+  message: null,
+  status: null,
+};
 let wikeloTradesLastPayload = null;
 let craftingDetailCache = null;
 let craftingSearchLastRows = null;
@@ -1122,6 +1139,7 @@ const GUIDE_TAB_BANNER = {
   "guides-loadout": { label: "Ship Builder", tag: "BUILDER" },
   "guides-patch-notes": { label: "Patch Notes", tag: "PATCH" },
   "guides-external-tools": { label: "Credits To", tag: "TOOLS" },
+  "guides-star-strings": { label: "Star Strings", tag: "STRINGS" },
   "guides-reputation": { label: "Reputation", tag: "STANDING" },
 };
 
@@ -4714,6 +4732,145 @@ function renderSmugglerRouteRows(routes) {
   </table></div>`;
 }
 
+function buildStarStringsPanel(status, opts = {}) {
+  const busy = !!opts.busy;
+  const progress = opts.progress || null;
+  const message = opts.message || status?.error || null;
+  const liveOk = !!status?.liveDirExists;
+  const installed = !!(status?.filesPresent || status?.installedViaApp);
+  const updateAvailable = !!status?.updateAvailable;
+  const langOk = !!status?.languageOk;
+
+  const statusLabel = !liveOk
+    ? "LIVE folder not found"
+    : updateAvailable
+      ? "Update available"
+      : installed
+        ? "Installed"
+        : "Not installed";
+  const statusClass = !liveOk
+    ? "warn"
+    : updateAvailable
+      ? "update"
+      : installed
+        ? "ok"
+        : "idle";
+
+  const liveLine = status?.liveDir
+    ? `<p class="muted small"><strong>LIVE folder:</strong> <code class="star-strings-path">${escapeHtml(status.liveDir)}</code></p>`
+    : `<p class="muted small">Set your Game.log path in the footer so StarTracker can find <code>StarCitizen/LIVE</code>.</p>`;
+
+  const installedBits = [];
+  if (status?.installed?.name) installedBits.push(escapeHtml(status.installed.name));
+  if (status?.installed?.installedAt) {
+    installedBits.push(`installed ${escapeHtml(fmtDateTime(status.installed.installedAt))}`);
+  }
+  if (status?.fileMtime && !status?.installed?.name) {
+    installedBits.push(`global.ini · ${escapeHtml(fmtDateTime(status.fileMtime))}`);
+  }
+  const installedLine = installedBits.length
+    ? `<p class="muted small"><strong>Current pack:</strong> ${installedBits.join(" · ")}</p>`
+    : "";
+
+  const remoteLine = status?.remote?.name
+    ? `<p class="muted small"><strong>Latest release:</strong> ${escapeHtml(status.remote.name)}${
+        status.remote.publishedAt ? ` · ${escapeHtml(fmtDateTime(status.remote.publishedAt))}` : ""
+      }</p>`
+    : "";
+
+  const cfgLine = liveOk
+    ? `<p class="muted small"><strong>user.cfg language:</strong> ${
+        langOk ? "g_language = english ✓" : "will add g_language = english on install"
+      }</p>`
+    : "";
+
+  let progressHtml = "";
+  if (busy && progress) {
+    const pct = progress.percent != null ? `${progress.percent}%` : "";
+    const phase = progress.phase ? escapeHtml(String(progress.phase).replace(/_/g, " ")) : "working";
+    progressHtml = `<p class="star-strings-progress muted small">Status: ${phase}${pct ? ` · ${pct}` : ""}</p>
+      <div class="star-strings-progress-bar" role="progressbar" aria-valuenow="${escapeAttr(String(progress.percent || 0))}" aria-valuemin="0" aria-valuemax="100">
+        <span style="width:${Math.max(0, Math.min(100, Number(progress.percent) || 0))}%"></span>
+      </div>`;
+  }
+
+  const msgHtml = message
+    ? `<p class="star-strings-message ${status?.ok === false ? "warn" : ""}">${escapeHtml(message)}</p>`
+    : "";
+
+  const installLabel = updateAvailable
+    ? "Update Star Strings"
+    : installed
+      ? "Reinstall Star Strings"
+      : "Install Star Strings";
+
+  const actions = `<div class="star-strings-actions">
+    <button type="button" class="btn" data-star-strings-install${busy || !liveOk ? " disabled" : ""}>${escapeHtml(installLabel)}</button>
+    <button type="button" class="btn btn-ghost" data-star-strings-check${busy ? " disabled" : ""}>Check for updates</button>
+    <button type="button" class="btn btn-ghost" data-star-strings-uninstall${busy || !installed ? " disabled" : ""}>Uninstall / restore</button>
+    <button type="button" class="btn btn-ghost" data-guide-external="${escapeAttr(status?.projectUrl || "https://github.com/MrKraken/StarStrings")}">Open MrKraken/StarStrings</button>
+  </div>`;
+
+  return `<div class="hub-intro hub-intro-accent"><strong>Star Strings</strong> by <button type="button" class="link" data-guide-external="https://github.com/MrKraken/StarStrings">MrKraken</button> adds blueprint pools, <code>[BP]</code> tags, and clearer contract titles in-game. StarTracker installs the official release into your LIVE folder — we do not rehost the pack.</div>
+  <section class="guide-section star-strings-panel">
+    <h2 class="guide-section-title">Install status</h2>
+    <p><span class="star-strings-badge star-strings-badge-${statusClass}">${escapeHtml(statusLabel)}</span></p>
+    ${liveLine}
+    ${installedLine}
+    ${remoteLine}
+    ${cfgLine}
+    ${progressHtml}
+    ${msgHtml}
+    ${actions}
+  </section>
+  <section class="guide-section">
+    <h2 class="guide-section-title">Before you install</h2>
+    <ul class="star-strings-notes">
+      <li>Unofficial community localization. Use at your own discretion (same as installing the zip by hand).</li>
+      <li>Update after every Star Citizen patch — stale files cause blank or missing in-game text.</li>
+      <li>LIVE only. Avoid PTU builds; new strings appear every wave.</li>
+      <li>Your existing <code>user.cfg</code> is kept. We only ensure <code>g_language = english</code> is set.</li>
+      <li>Previous <code>global.ini</code> is backed up so Uninstall can restore it.</li>
+    </ul>
+  </section>`;
+}
+
+async function loadStarStringsTab(tabId, options = {}) {
+  if (options.busy != null) starStringsUiState.busy = !!options.busy;
+  if ("progress" in options) starStringsUiState.progress = options.progress;
+  if ("message" in options) starStringsUiState.message = options.message;
+  if (options.status) starStringsUiState.status = options.status;
+
+  const shouldFetch = !!options.forceStatus || !starStringsUiState.status;
+  if (shouldFetch) {
+    setPanelHtml(tabId, `<p class="muted small">Checking Star Strings…</p>`);
+    try {
+      const status = await window.debrief.starStringsStatus({
+        checkRemote: !!options.checkRemote,
+      });
+      starStringsUiState.status = status;
+      if (status?.error && !starStringsUiState.message) {
+        starStringsUiState.message = status.error;
+      }
+    } catch (e) {
+      setPanelHtml(
+        tabId,
+        `<p class="muted">Star Strings error: ${escapeHtml(e.message || String(e))}</p>`
+      );
+      return;
+    }
+  }
+
+  setPanelHtml(
+    tabId,
+    buildStarStringsPanel(starStringsUiState.status, {
+      busy: starStringsUiState.busy,
+      progress: starStringsUiState.progress,
+      message: starStringsUiState.message,
+    })
+  );
+}
+
 function buildSmugglerRoutesPanel(data) {
   const routes = data.routes || [];
   if (!routes.length) return `<p class="muted">No smuggler routes loaded.</p>`;
@@ -5423,6 +5580,11 @@ async function loadGuideTab(tabId, options = {}) {
     return;
   }
 
+  if (tabId === "guides-star-strings") {
+    await loadStarStringsTab(tabId, { forceStatus: true, checkRemote: true });
+    return;
+  }
+
   if (tabId === "guides-fleet") {
     await loadFleetCompareTab(tabId, options);
     return;
@@ -5503,6 +5665,104 @@ function initGuidesUi() {
           "guides-patch-notes",
           `<p class="muted">Refresh failed: ${escapeHtml(err.message || String(err))}</p>`
         );
+      }
+      return;
+    }
+
+    if (e.target.closest("[data-star-strings-check]")) {
+      await loadStarStringsTab("guides-star-strings", {
+        forceStatus: true,
+        checkRemote: true,
+        message: null,
+      });
+      return;
+    }
+
+    if (e.target.closest("[data-star-strings-install]")) {
+      if (starStringsUiState.busy) return;
+      starStringsUiState.busy = true;
+      starStringsUiState.message = null;
+      starStringsUiState.progress = { phase: "starting", percent: 0 };
+      await loadStarStringsTab("guides-star-strings", {
+        busy: true,
+        progress: starStringsUiState.progress,
+        message: null,
+      });
+      try {
+        const result = await window.debrief.starStringsInstall();
+        starStringsUiState.busy = false;
+        starStringsUiState.progress = null;
+        if (result?.ok) {
+          starStringsUiState.status = result.status || null;
+          starStringsUiState.message = result.message || "Installed.";
+          await loadStarStringsTab("guides-star-strings", {
+            busy: false,
+            progress: null,
+            forceStatus: !result.status,
+            checkRemote: true,
+            message: starStringsUiState.message,
+            status: result.status || undefined,
+          });
+        } else {
+          starStringsUiState.message = result?.error || "Install failed.";
+          await loadStarStringsTab("guides-star-strings", {
+            busy: false,
+            progress: null,
+            forceStatus: true,
+            checkRemote: false,
+            message: starStringsUiState.message,
+          });
+        }
+      } catch (err) {
+        starStringsUiState.busy = false;
+        starStringsUiState.progress = null;
+        starStringsUiState.message = err.message || String(err);
+        await loadStarStringsTab("guides-star-strings", {
+          busy: false,
+          progress: null,
+          forceStatus: true,
+          message: starStringsUiState.message,
+        });
+      }
+      return;
+    }
+
+    if (e.target.closest("[data-star-strings-uninstall]")) {
+      if (starStringsUiState.busy) return;
+      const ok = window.confirm(
+        "Remove Star Strings from your LIVE folder and restore the previous global.ini backup if one exists?"
+      );
+      if (!ok) return;
+      starStringsUiState.busy = true;
+      starStringsUiState.message = null;
+      await loadStarStringsTab("guides-star-strings", {
+        busy: true,
+        message: null,
+      });
+      try {
+        const result = await window.debrief.starStringsUninstall();
+        starStringsUiState.busy = false;
+        if (result?.ok) {
+          starStringsUiState.status = result.status || null;
+          starStringsUiState.message = result.message || "Uninstalled.";
+        } else {
+          starStringsUiState.message = result?.error || "Uninstall failed.";
+        }
+        await loadStarStringsTab("guides-star-strings", {
+          busy: false,
+          forceStatus: true,
+          checkRemote: true,
+          message: starStringsUiState.message,
+          status: result?.status || undefined,
+        });
+      } catch (err) {
+        starStringsUiState.busy = false;
+        starStringsUiState.message = err.message || String(err);
+        await loadStarStringsTab("guides-star-strings", {
+          busy: false,
+          forceStatus: true,
+          message: starStringsUiState.message,
+        });
       }
       return;
     }
@@ -6232,6 +6492,38 @@ function initUpdateUi() {
     if (status && progress?.percent != null) {
       status.textContent = `Downloading update… ${progress.percent}%`;
     }
+  });
+
+  window.debrief.onStarStringsProgress?.((progress) => {
+    if (!starStringsUiState.busy) return;
+    starStringsUiState.progress = progress;
+    if (activeTab !== "guides-star-strings") return;
+
+    const panel = document.querySelector("#panel-guides-star-strings");
+    const bar = panel?.querySelector(".star-strings-progress-bar > span");
+    const label = panel?.querySelector(".star-strings-progress");
+    const phase = progress?.phase
+      ? String(progress.phase).replace(/_/g, " ")
+      : "working";
+    const pct = progress?.percent != null ? `${progress.percent}%` : "";
+    if (bar && progress?.percent != null) {
+      bar.style.width = `${Math.max(0, Math.min(100, Number(progress.percent) || 0))}%`;
+      bar.parentElement?.setAttribute(
+        "aria-valuenow",
+        String(Math.max(0, Math.min(100, Number(progress.percent) || 0)))
+      );
+      if (label) label.textContent = `Status: ${phase}${pct ? ` · ${pct}` : ""}`;
+      return;
+    }
+
+    // Throttle full re-renders when the progress chrome is not yet on screen.
+    const now = Date.now();
+    if (now - (starStringsUiState._lastProgressRenderAt || 0) < 250) return;
+    starStringsUiState._lastProgressRenderAt = now;
+    loadStarStringsTab("guides-star-strings", {
+      busy: true,
+      progress,
+    });
   });
 
   window.debrief.onUpdateStatus(applyUpdateStatus);

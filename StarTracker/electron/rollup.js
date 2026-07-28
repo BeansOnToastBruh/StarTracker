@@ -167,10 +167,24 @@ function computeOpenCommodityLots(trades) {
   return lots.filter((lot) => lot.scuRemaining > 0);
 }
 
+function contractHasConfirmedAuec(contract) {
+  return (contract.rewards || []).some(
+    (r) =>
+      r.auec != null &&
+      !r.auecEstimated &&
+      !r.auecFromAcceptTitle &&
+      r.auecConfirmed !== false
+  );
+}
+
 function linkRewardsToContracts(contracts, rewards) {
+  const ORPHAN_LINK_MS = 45_000;
+  const ZERO = "00000000-0000-0000-0000-000000000000";
   for (const r of rewards) {
     let linked = false;
-    if (r.missionId && r.missionId !== "00000000-0000-0000-0000-000000000000") {
+    const hasMissionId = !!(r.missionId && r.missionId !== ZERO);
+
+    if (hasMissionId) {
       for (const c of contracts) {
         if (c.missionId === r.missionId) {
           c.rewards.push(r);
@@ -178,15 +192,32 @@ function linkRewardsToContracts(contracts, rewards) {
           break;
         }
       }
+      // Soft-primed payouts can carry a MissionId without a HUD contract event.
+      if (!linked) {
+        contracts.push({
+          title: r.contractTitle || "(Completed contract)",
+          missionId: r.missionId,
+          acceptedAt: null,
+          completedAt: r.at || null,
+          failedAt: null,
+          abandonedAt: null,
+          abandonReason: null,
+          rewards: [r],
+        });
+        linked = true;
+      }
     }
-    if (!linked) {
+
+    // Proximity fallback only for unattributed confirmed payouts (not wiki estimates).
+    if (!linked && !hasMissionId && !r.auecEstimated && r.at) {
       const t = new Date(r.at).getTime();
       let best = null;
       let bestDt = Infinity;
       for (const c of contracts) {
         if (!c.completedAt) continue;
+        if (contractHasConfirmedAuec(c)) continue;
         const dt = t - new Date(c.completedAt).getTime();
-        if (dt >= -2_000 && dt < 180_000 && dt < bestDt) {
+        if (dt >= -2_000 && dt < ORPHAN_LINK_MS && dt < bestDt) {
           best = c;
           bestDt = dt;
         }

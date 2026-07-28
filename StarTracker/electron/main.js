@@ -22,6 +22,7 @@ const { listLogArchives, quickScanAwardedAuec } = require("./logArchive");
 const { parseLogFileToSession } = require("./logImporter");
 const { checkForUpdates } = require("./updateChecker");
 const { downloadAndInstallUpdate } = require("./updateInstaller");
+const starStringsInstaller = require("./starStringsInstaller");
 const gameData = require("./gameDataResolver");
 const gameDatabase = require("./gameDatabase");
 const guidesHub = require("./guidesHub");
@@ -82,6 +83,7 @@ let pastSessions = [];
 let watching = false;
 let autoTrack = true;
 let gameInUniverse = false;
+let starStringsInstallBusy = false;
 
 const DEFAULT_UPDATE_REPO = "BeansOnToastBruh/StarTracker";
 
@@ -94,6 +96,7 @@ function defaultConfig() {
     updateRepo: DEFAULT_UPDATE_REPO,
     favoriteTabs: [],
     shipBuilderFavorites: [],
+    starStrings: null,
   };
 }
 
@@ -701,9 +704,106 @@ ipcMain.handle("download-and-install-update", async (event, payload) => {
 });
 
 ipcMain.handle("open-update-url", (_, url) => {
-  if (typeof url !== "string" || !/^https?:\/\//i.test(url)) return false;
-  shell.openExternal(url);
-  return true;
+  if (typeof url === "string" && /^https?:\/\//i.test(url)) {
+    shell.openExternal(url);
+    return true;
+  }
+  return false;
+});
+
+function resolveLogPathForStarStrings() {
+  const cfg = loadConfig();
+  const info = getLogPathInfo(cfg);
+  const live = watcherTargetPath();
+  if (live && fs.existsSync(live)) return live;
+  if (info.resolved && fs.existsSync(info.resolved)) return info.resolved;
+  if (info.autoDetected && fs.existsSync(info.autoDetected)) return info.autoDetected;
+  return live || info.resolved || info.autoDetected || null;
+}
+
+function starStringsBackupRoot() {
+  return path.join(app.getPath("userData"), "star-strings-backup");
+}
+
+function starStringsTempRoot() {
+  return path.join(app.getPath("temp"), "startracker-star-strings");
+}
+
+ipcMain.handle("star-strings-status", async (_, opts) => {
+  const cfg = loadConfig();
+  const logPath = resolveLogPathForStarStrings();
+  let remote = null;
+  if (opts?.checkRemote) {
+    try {
+      remote = await starStringsInstaller.fetchLatestRelease();
+    } catch (e) {
+      return {
+        ...starStringsInstaller.getStatus({
+          logPath,
+          starStringsState: cfg.starStrings || null,
+        }),
+        ok: false,
+        error: e.message || String(e),
+      };
+    }
+  }
+  return starStringsInstaller.getStatus({
+    logPath,
+    starStringsState: cfg.starStrings || null,
+    remote,
+    checkRemote: !!opts?.checkRemote,
+  });
+});
+
+ipcMain.handle("star-strings-install", async (event) => {
+  if (starStringsInstallBusy) {
+    return { ok: false, error: "Star Strings install already in progress." };
+  }
+  starStringsInstallBusy = true;
+  const cfg = loadConfig();
+  const logPath = resolveLogPathForStarStrings();
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const sendProgress = (progress) => {
+    if (win && !win.isDestroyed()) {
+      win.webContents.send("star-strings-progress", progress);
+    }
+  };
+  try {
+    const result = await starStringsInstaller.installStarStrings({
+      logPath,
+      starStringsState: cfg.starStrings || null,
+      backupRoot: starStringsBackupRoot(),
+      tempRoot: starStringsTempRoot(),
+      onProgress: sendProgress,
+    });
+    cfg.starStrings = result.starStrings;
+    saveConfig(cfg);
+    return result;
+  } catch (e) {
+    return { ok: false, error: e.message || String(e) };
+  } finally {
+    starStringsInstallBusy = false;
+  }
+});
+
+ipcMain.handle("star-strings-uninstall", async () => {
+  if (starStringsInstallBusy) {
+    return { ok: false, error: "Wait for the current Star Strings install to finish." };
+  }
+  const cfg = loadConfig();
+  const logPath = resolveLogPathForStarStrings();
+  try {
+    const result = await starStringsInstaller.uninstallStarStrings({
+      logPath,
+      starStringsState: cfg.starStrings || null,
+      backupRoot: cfg.starStrings?.backupRoot || starStringsBackupRoot(),
+    });
+    cfg.starStrings = null;
+    saveConfig(cfg);
+    return result;
+  } catch (e) {
+    return { ok: false, error: e.message || String(e) };
+  }
 });
 
 function resolvePathForLogArchives() {

@@ -141,6 +141,92 @@ const completeReward = completeEvents.find((e) => e.type === "reward");
 assert(!!completeReward, "Complete emits reward with accept-time aUEC");
 assert(completeReward.detail.auec === 25000, "Accept-time aUEC merged on complete");
 assert(completeReward.detail.rep === 50, "Complete-time rep still parsed");
+assert(
+  completeReward.detail.auecFromAcceptTitle === true,
+  "Accept-merged aUEC flagged as auecFromAcceptTitle"
+);
+assert(
+  completeReward.detail.auecConfirmed === false,
+  "Accept-merged aUEC is not treated as confirmed Awarded"
+);
+
+// --- MissionId-first: HUD MissionId wins over a different pending complete ---
+
+const M1 = "11111111-1111-1111-1111-111111111111";
+const M2 = "22222222-2222-2222-2222-222222222222";
+const linkCtx = makeCtx();
+parseNotificationLine(
+  "Contract Complete: Earlier bounty <EM4>[10 Rep]</EM4>:",
+  M1,
+  linkCtx
+);
+const midAwarded = parseNotificationLine("Awarded 99000 aUEC", M2, linkCtx);
+const midEv = midAwarded.find((e) => e.type === "reward");
+assert(!!midEv, "Awarded with MissionId emits reward");
+assert(
+  midEv.detail.missionId === M2,
+  "Awarded keeps HUD MissionId (does not FIFO-steal earlier complete)"
+);
+assert(midEv.detail.linkSource === "mission_id", "Awarded linkSource is mission_id");
+
+// --- Soft MissionEnded Complete primes payout when Awarded has zero MissionId ---
+
+const ZERO = "00000000-0000-0000-0000-000000000000";
+const softCtx2 = makeCtx();
+parseLine(
+  `<2026-06-08T12:00:00.000Z> [Notice] <MissionEnded> Received MissionEnded push message for: mission_id ${M1} - mission_state MISSION_STATE_COMPLETED [Team_GameServices][Missions]`,
+  softCtx2
+);
+const softAwarded2 = parseLine(
+  `<2026-06-08T12:00:00.500Z> [Notice] <SHUDEvent_OnNotification> Added notification "Awarded 42000 aUEC" [1] to queue. MissionId: [${ZERO}], ObjectiveId: []`,
+  softCtx2
+);
+const softEvents = Array.isArray(softAwarded2) ? softAwarded2 : softAwarded2 ? [softAwarded2] : [];
+const softEv = softEvents.find((e) => e.type === "reward");
+assert(!!softEv, "Soft-primed Awarded emits reward");
+assert(softEv.detail.missionId === M1, "Zero-MissionId Awarded links via MissionEnded pending");
+assert(
+  softEv.detail.linkSource === "pending_complete",
+  "Soft-primed Awarded uses pending_complete linkSource"
+);
+
+  // Soft EndMission Complete also primes pending (real LIVE format)
+  const softEndCtx = makeCtx();
+  parseLine(
+    `<2026-06-08T12:00:00.000Z> [Notice] <EndMission> Ending mission for player. MissionId[${M1}] Player[TestPilot] PlayerId[1] CompletionType[Complete] Reason[Mission Ended] [Team_MissionFeatures][Missions]`,
+    softEndCtx
+  );
+  const softEndAwarded = parseLine(
+    `<2026-06-08T12:00:00.400Z> [Notice] <SHUDEvent_OnNotification> Added notification "Awarded 15000 aUEC" [1] to queue. MissionId: [${ZERO}], ObjectiveId: []`,
+    softEndCtx
+  );
+  const softEndEvents = Array.isArray(softEndAwarded)
+    ? softEndAwarded
+    : softEndAwarded
+      ? [softEndAwarded]
+      : [];
+  const softEndEv = softEndEvents.find((e) => e.type === "reward");
+  assert(!!softEndEv, "EndMission Complete soft-prime emits Awarded reward");
+  assert(
+    softEndEv.detail.missionId === M1,
+    "EndMission Complete primes zero-MissionId Awarded"
+  );
+
+// --- You've Earned shares the same MissionId-first linker ---
+
+const earnedCtx = makeCtx();
+parseNotificationLine("Contract Complete: Cargo run <EM4>[5 Rep]</EM4>:", M1, earnedCtx);
+const earnedZero = parseLine(
+  `<2026-06-08T12:00:00.200Z> [Notice] <SHUDEvent_OnNotification> Added notification "You've Earned: 8000 aUEC" [1] to queue. MissionId: [${ZERO}], ObjectiveId: []`,
+  earnedCtx
+);
+const earnedEvents = Array.isArray(earnedZero) ? earnedZero : earnedZero ? [earnedZero] : [];
+const earnedEv = earnedEvents.find((e) => e.type === "reward");
+assert(!!earnedEv, "You've Earned with zero MissionId emits");
+assert(
+  earnedEv.detail.missionId === M1,
+  "You've Earned links to pending Contract Complete MissionId"
+);
 
 // --- modern build 11952564: no aUEC strings in log (Deep space hit session) ---
 

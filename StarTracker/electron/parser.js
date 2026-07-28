@@ -187,40 +187,153 @@ function isHudTextSeen(ctx, text) {
   return ctx.seenHudTexts?.has(hudTextKey(text));
 }
 
-function queueCompletedContract(ctx, missionId, title, at) {
-  if (!ctx.completedContractQueue) ctx.completedContractQueue = [];
-  if (!missionId || missionId === ZERO_MISSION) return;
-  ctx.completedContractQueue.push({ missionId, title, at });
-  if (ctx.completedContractQueue.length > 48) {
-    ctx.completedContractQueue.shift();
+const PENDING_PAYOUT_TTL_MS = 60_000;
+
+function isValidMissionId(id) {
+  return !!id && id !== ZERO_MISSION;
+}
+
+function prunePendingPayouts(ctx, at) {
+  if (!ctx.pendingPayoutByMission?.size || !at) return;
+  const t = new Date(at).getTime();
+  if (!Number.isFinite(t)) return;
+  for (const [id, entry] of ctx.pendingPayoutByMission) {
+    const entryAt = entry?.at ? new Date(entry.at).getTime() : NaN;
+    if (!Number.isFinite(entryAt) || t - entryAt > PENDING_PAYOUT_TTL_MS * 2) {
+      ctx.pendingPayoutByMission.delete(id);
+    }
   }
 }
 
-function popLinkedContract(ctx) {
-  if (ctx.completedContractQueue?.length) {
-    return ctx.completedContractQueue.shift();
+/**
+ * Record a completed mission for upcoming payout HUD lines.
+ * Soft completes (MissionEnded / EndMission) only prime the pending map.
+ */
+function noteContractCompleted(ctx, missionId, title, at, { soft = false } = {}) {
+  if (!isValidMissionId(missionId)) return;
+  if (!ctx.pendingPayoutByMission) ctx.pendingPayoutByMission = new Map();
+  prunePendingPayouts(ctx, at);
+  const prev = ctx.pendingPayoutByMission.get(missionId);
+  const nextTitle = title || prev?.title || null;
+  ctx.pendingPayoutByMission.set(missionId, {
+    missionId,
+    title: nextTitle,
+    at: at || prev?.at || null,
+    soft: soft ? !prev || prev.soft : false,
+    claimed: prev?.claimed || false,
+  });
+  if (!ctx.completedContractQueue) ctx.completedContractQueue = [];
+  if (!ctx.completedContractQueue.some((e) => e.missionId === missionId)) {
+    ctx.completedContractQueue.push({ missionId, title: nextTitle, at });
+    if (ctx.completedContractQueue.length > 48) ctx.completedContractQueue.shift();
   }
-  if (ctx.lastCompletedMissionId && ctx.lastCompletedMissionId !== ZERO_MISSION) {
+  ctx.lastCompletedMissionId = missionId;
+  if (nextTitle) ctx.lastCompletedContractTitle = nextTitle;
+  ctx.lastCompletedAt = at || ctx.lastCompletedAt;
+}
+
+/**
+ * MissionId-first payout attribution. Shared by Awarded aUEC and You've Earned.
+ */
+function resolvePayoutMissionLink(ctx, missionId, at) {
+  prunePendingPayouts(ctx, at);
+
+  if (isValidMissionId(missionId)) {
+    const pending = ctx.pendingPayoutByMission?.get(missionId);
+    if (pending) pending.claimed = true;
+    const titleFromLast =
+      ctx.lastCompletedMissionId === missionId
+        ? ctx.lastCompletedContractTitle || null
+        : null;
     return {
-      missionId: ctx.lastCompletedMissionId,
-      title: ctx.lastCompletedContractTitle || null,
-      at: ctx.lastCompletedAt || null,
-      linkedFromRecentContract: true,
+      missionId,
+      title: pending?.title || titleFromLast,
+      at: pending?.at || at || null,
+      linkedFromRecentContract: !!pending || ctx.lastCompletedMissionId === missionId,
+      linkSource: "mission_id",
     };
   }
-  return null;
+
+  const pendingMap = ctx.pendingPayoutByMission;
+  if (pendingMap?.size && at) {
+    const t = new Date(at).getTime();
+    let best = null;
+    let bestDt = Infinity;
+    for (const entry of pendingMap.values()) {
+      if (entry.claimed || !entry.at) continue;
+      const dt = t - new Date(entry.at).getTime();
+      if (dt < -2_000 || dt > PENDING_PAYOUT_TTL_MS) continue;
+      if (dt < bestDt) {
+        best = entry;
+        bestDt = dt;
+      }
+    }
+    if (best) {
+      best.claimed = true;
+      return {
+        missionId: best.missionId,
+        title: best.title,
+        at: best.at,
+        linkedFromRecentContract: true,
+        linkSource: "pending_complete",
+      };
+    }
+  }
+
+  if (
+    isValidMissionId(ctx.lastCompletedMissionId) &&
+    ctx.lastCompletedAt &&
+    at
+  ) {
+    const dt = new Date(at).getTime() - new Date(ctx.lastCompletedAt).getTime();
+    if (dt >= -2_000 && dt <= PENDING_PAYOUT_TTL_MS) {
+      return {
+        missionId: ctx.lastCompletedMissionId,
+        title: ctx.lastCompletedContractTitle || null,
+        at: ctx.lastCompletedAt,
+        linkedFromRecentContract: true,
+        linkSource: "last_complete",
+      };
+    }
+  }
+
+  return {
+    missionId: null,
+    title: null,
+    at: null,
+    linkedFromRecentContract: false,
+    linkSource: null,
+  };
 }
 
-function buildAwardedAuecReward(text, missionId, ctx) {
+function queueCompletedContract(ctx, missionId, title, at) {
+  noteContractCompleted(ctx, missionId, title, at, { soft: false });
+}
+
+function popLinkedContract(ctx, at = null) {
+  const linked = resolvePayoutMissionLink(ctx, null, at || ctx.lastCompletedAt);
+  if (!linked.missionId) return null;
+  return {
+    missionId: linked.missionId,
+    title: linked.title,
+    at: linked.at,
+    linkedFromRecentContract: linked.linkedFromRecentContract,
+    linkSource: linked.linkSource,
+  };
+}
+
+function buildAwardedAuecReward(text, missionId, ctx, at = null) {
   const auec = parseAwardedAuec(text);
   if (auec == null) return null;
-  const linked = popLinkedContract(ctx);
+  const linked = resolvePayoutMissionLink(ctx, missionId, at);
   const detail = enrichRewardDetail(
     {
-      missionId: linked?.missionId || missionId || null,
+      missionId: linked.missionId || (isValidMissionId(missionId) ? missionId : null),
       raw: text,
       kind: "auec",
       auec,
+      auecConfirmed: true,
+      auecEstimated: false,
       rep: null,
       faction: null,
       itemCount: null,
@@ -228,8 +341,9 @@ function buildAwardedAuecReward(text, missionId, ctx) {
       itemQuantity: null,
       blueprintName: null,
       deliveryNote: null,
-      contractTitle: linked?.title || null,
-      linkedFromRecentContract: !!linked,
+      contractTitle: linked.title || null,
+      linkedFromRecentContract: linked.linkedFromRecentContract,
+      linkSource: linked.linkSource || (isValidMissionId(missionId) ? "mission_id" : null),
     },
     text
   );
@@ -605,21 +719,23 @@ function appendCommerceEvents(body, at, ctx, out) {
   }
 }
 
-function parseEarnedBody(text, missionId, ctx) {
+function parseEarnedBody(text, missionId, ctx, at = null) {
   let inner = text
     .replace(/^You(?:'ve| have) [Ee]arned:\s*/i, "")
     .replace(/:\s*$/, "")
     .trim();
 
-  const detail = enrichRewardDetail(parseRewardDetail(inner, missionId), inner);
-
-  if (
-    (!detail.missionId || detail.missionId === ZERO_MISSION) &&
-    ctx?.lastCompletedMissionId &&
-    ctx.lastCompletedMissionId !== ZERO_MISSION
-  ) {
-    detail.missionId = ctx.lastCompletedMissionId;
-    detail.linkedFromRecentContract = true;
+  const linked = resolvePayoutMissionLink(ctx, missionId, at);
+  const resolvedId =
+    linked.missionId || (isValidMissionId(missionId) ? missionId : null);
+  const detail = enrichRewardDetail(parseRewardDetail(inner, resolvedId), inner);
+  detail.missionId = resolvedId;
+  if (linked.title) detail.contractTitle = linked.title;
+  if (linked.linkedFromRecentContract) detail.linkedFromRecentContract = true;
+  if (linked.linkSource) detail.linkSource = linked.linkSource;
+  if (detail.auec != null) {
+    detail.auecConfirmed = true;
+    detail.auecEstimated = false;
   }
 
   return detail;
@@ -663,7 +779,7 @@ function parseHudContinuation(line, ctx) {
   if (/^New Objective:/i.test(text)) return null;
 
   if (/^You've Earned:/i.test(text) || /^You have earned:/i.test(text)) {
-    const detail = parseEarnedBody(text, null, ctx);
+    const detail = parseEarnedBody(text, null, ctx, at);
     return {
       type: "reward",
       at,
@@ -672,7 +788,7 @@ function parseHudContinuation(line, ctx) {
     };
   }
 
-  const awarded = buildAwardedAuecReward(text, null, ctx);
+  const awarded = buildAwardedAuecReward(text, null, ctx, at);
   if (awarded) {
     awarded.at = at;
     if (awarded.detail) {
@@ -915,33 +1031,55 @@ function parseLine(line, ctx = {}) {
   const endMissionM = body.match(
     /<EndMission>\s*Ending mission for player\.\s*MissionId\[(?<missionId>[a-f0-9-]+)\].*?CompletionType\[(?<completion>[^\]]+)\](?:\s*Reason\[(?<reason>[^\]]+)\])?/i
   );
-  if (endMissionM?.groups && /^Abandon$/i.test(endMissionM.groups.completion)) {
-    return {
-      type: "contract",
-      at,
-      summary: "Abandoned contract",
-      detail: {
-        action: "abandoned",
-        missionId: endMissionM.groups.missionId,
-        reason: endMissionM.groups.reason?.trim() || null,
-      },
-    };
+  if (endMissionM?.groups) {
+    const completion = endMissionM.groups.completion || "";
+    if (/^Abandon$/i.test(completion)) {
+      return finish(
+        emit(out, {
+          type: "contract",
+          at,
+          summary: "Abandoned contract",
+          detail: {
+            action: "abandoned",
+            missionId: endMissionM.groups.missionId,
+            reason: endMissionM.groups.reason?.trim() || null,
+          },
+        })
+      );
+    }
+    if (/^Complete$/i.test(completion)) {
+      noteContractCompleted(ctx, endMissionM.groups.missionId, null, at, {
+        soft: true,
+      });
+      return finish(out);
+    }
   }
 
   const missionEndedM = body.match(
-    /<MissionEnded>.*mission_id (?<missionId>[a-f0-9-]+).*mission_state (?<state>MISSION_STATE_\w+)/i
+    /<MissionEnded>.*?mission_id\s+(?<missionId>[a-f0-9-]+).*?mission_state\s+(?<state>MISSION_STATE_\w+)/i
   );
-  if (missionEndedM?.groups && /ABANDON/i.test(missionEndedM.groups.state)) {
-    return {
-      type: "contract",
-      at,
-      summary: "Abandoned contract (mission ended)",
-      detail: {
-        action: "abandoned",
-        missionId: missionEndedM.groups.missionId,
-        reason: missionEndedM.groups.state,
-      },
-    };
+  if (missionEndedM?.groups) {
+    const state = missionEndedM.groups.state || "";
+    if (/ABANDON/i.test(state)) {
+      return finish(
+        emit(out, {
+          type: "contract",
+          at,
+          summary: "Abandoned contract (mission ended)",
+          detail: {
+            action: "abandoned",
+            missionId: missionEndedM.groups.missionId,
+            reason: state,
+          },
+        })
+      );
+    }
+    if (/COMPLETED/i.test(state)) {
+      noteContractCompleted(ctx, missionEndedM.groups.missionId, null, at, {
+        soft: true,
+      });
+      return finish(out);
+    }
   }
 
   if (PATTERNS.channelDisconnected.test(body)) {
@@ -1067,18 +1205,19 @@ function parseLine(line, ctx = {}) {
     if (/^Contract Complete:/i.test(text)) {
       const rawTitle = text.replace(/^Contract Complete:\s*/i, "").trim();
       const title = stripHudMarkup(rawTitle);
-      if (missionId && missionId !== ZERO_MISSION) {
+      if (isValidMissionId(missionId)) {
         emit(out, tryBountyKill(ctx, missionId, at, title, beautifyName));
         queueCompletedContract(ctx, missionId, title, at);
       }
-      ctx.lastCompletedMissionId = missionId;
-      ctx.lastCompletedContractTitle = title;
-      ctx.lastCompletedAt = at;
       const wikiMeta = ctx.missionWikiByMissionId?.get(missionId);
       const payout = parseContractPayoutFromTitle(rawTitle);
+      let auecFromAcceptTitle = false;
       if (missionId && ctx.contractPayoutByMission?.has(missionId)) {
         const expected = ctx.contractPayoutByMission.get(missionId);
-        if (payout.auec == null && expected.auec != null) payout.auec = expected.auec;
+        if (payout.auec == null && expected.auec != null) {
+          payout.auec = expected.auec;
+          auecFromAcceptTitle = true;
+        }
         if (payout.rep == null && expected.rep != null) payout.rep = expected.rep;
         if (!payout.faction && expected.faction) payout.faction = expected.faction;
         finalizeRewardKind(payout);
@@ -1099,11 +1238,13 @@ function parseLine(line, ctx = {}) {
       });
       if (payout.rep != null || payout.auec != null) {
         const rewardDetail = {
-          missionId:
-            missionId && missionId !== ZERO_MISSION ? missionId : null,
+          missionId: isValidMissionId(missionId) ? missionId : null,
           raw: rawTitle,
           kind: payout.kind,
           auec: payout.auec,
+          auecFromAcceptTitle,
+          auecConfirmed: payout.auec != null && !auecFromAcceptTitle,
+          auecEstimated: false,
           rep: payout.rep,
           faction: payout.faction,
           itemCount: null,
@@ -1146,7 +1287,7 @@ function parseLine(line, ctx = {}) {
       );
     }
     if (/^You've Earned:/i.test(text) || /^You have earned:/i.test(text)) {
-      const detail = parseEarnedBody(text, missionId, ctx);
+      const detail = parseEarnedBody(text, missionId, ctx, at);
       return finish(
         emit(out, {
           type: "reward",
@@ -1156,7 +1297,7 @@ function parseLine(line, ctx = {}) {
         })
       );
     }
-    const awarded = buildAwardedAuecReward(text, missionId, ctx);
+    const awarded = buildAwardedAuecReward(text, missionId, ctx, at);
     if (awarded) {
       awarded.at = at;
       if (awarded.detail) {
