@@ -76,6 +76,39 @@ const slots = collectWeaponGunPorts(ports);
 assert.strictEqual(slots.length, 1);
 assert.strictEqual(slots[0].stockClassName, "TEST_Gun");
 
+// Ship builder empty-favorites filter should not wipe the hull list when mode is "all"
+function filterShipBuilderRowsLikeUi(rows, mode, favSlugs, query = "") {
+  const filter = String(query || "").trim().toLowerCase();
+  return (rows || []).filter((r) => {
+    if (mode === "favorites" && !favSlugs.has(r.slug)) return false;
+    if (!filter) return true;
+    const hay = `${r.name || ""} ${r.slug || ""}`.toLowerCase();
+    return hay.includes(filter);
+  });
+}
+const sampleHulls = [
+  { slug: "aegs-gladius", name: "Gladius" },
+  { slug: "drak-cutlass-black", name: "Cutlass Black" },
+];
+assert.strictEqual(
+  filterShipBuilderRowsLikeUi(sampleHulls, "favorites", new Set(), "").length,
+  0,
+  "favorites mode with zero stars is empty"
+);
+assert.strictEqual(
+  filterShipBuilderRowsLikeUi(sampleHulls, "all", new Set(), "").length,
+  2,
+  "all mode shows ships with zero favorites"
+);
+const effectiveMode = "favorites";
+const autoMode =
+  effectiveMode === "favorites" && true /* no favorites */ ? "all" : effectiveMode;
+assert.strictEqual(
+  filterShipBuilderRowsLikeUi(sampleHulls, autoMode, new Set(), "").length,
+  2,
+  "auto-fallback to all restores the hull list"
+);
+
 const weaponProfile = formatWikiItem({
   vehicle_weapon: {
     damage: { burst: 500, alpha_total: 40 },

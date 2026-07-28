@@ -10,26 +10,28 @@
   "none_rifle_multi_01_mag": {
     "type": "item",
     "name": "Killshot Rifle Magazine (45 Cap)",
+    "displayName": "Killshot Rifle Magazine (45 Cap)",
     "className": "none_rifle_multi_01_mag",
     "source": "seed"
   },
   "none_smg_energy_01_mag": {
     "type": "item",
-    "name": "P8-SC SMG Magazine (100 Cap)",
+    "name": "Ripper SMG Battery (60 cap)",
+    "displayName": "Ripper SMG Battery (60 cap)",
     "className": "none_smg_energy_01_mag",
     "source": "seed"
   },
   "ksar_rifle_energy_01_mag": {
     "type": "item",
-    "name": "Karna Rifle Magazine (45 Cap)",
+    "name": "Karna Rifle Battery (35 cap)",
+    "displayName": "Karna Rifle Battery (35 cap)",
     "className": "ksar_rifle_energy_01_mag",
     "source": "seed"
   },
   "grin_tractor_01": {
-    "type": "vehicle",
-    "name": "Greycat Industrial PT",
-    "displayName": "PT",
-    "manufacturer": "Greycat Industrial",
+    "type": "item",
+    "name": "MaxLift Tractor Beam",
+    "displayName": "MaxLift Tractor Beam",
     "className": "grin_tractor_01",
     "source": "seed"
   },
@@ -47,22 +49,6 @@
     "displayName": "Prowler Utility",
     "manufacturer": "Esperia",
     "className": "ESPR_Prowler_Utility",
-    "source": "seed"
-  },
-  "GAMA_Railen": {
-    "type": "vehicle",
-    "name": "Gatac Railen",
-    "displayName": "Railen",
-    "manufacturer": "Gatac Manufacture",
-    "className": "GAMA_Railen",
-    "source": "seed"
-  },
-  "GAMA_Tyilui": {
-    "type": "vehicle",
-    "name": "Gatac Tyilui",
-    "displayName": "Tyilui",
-    "manufacturer": "Gatac Manufacture",
-    "className": "GAMA_Tyilui",
     "source": "seed"
   }
 }

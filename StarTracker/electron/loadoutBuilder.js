@@ -4,6 +4,7 @@ const WIKI_BASE = "https://api.star-citizen.wiki/api";
 const FETCH_GAP_MS = 350;
 
 const blueprintCache = new Map();
+const blueprintInflight = new Map();
 const BLUEPRINT_CACHE_VERSION = 2;
 const slotOptionsCache = new Map();
 
@@ -213,50 +214,60 @@ async function getShipBlueprint(combatIntel, slug) {
   const key = `${BLUEPRINT_CACHE_VERSION}:${String(slug || "").trim()}`;
   if (!key || key === `${BLUEPRINT_CACHE_VERSION}:`) return { ok: false, error: "missing ship slug" };
   if (blueprintCache.has(key)) return blueprintCache.get(key);
+  if (blueprintInflight.has(key)) return blueprintInflight.get(key);
 
-  const slugPath = String(slug || "").trim();
-  let json = null;
+  const work = (async () => {
+    const slugPath = String(slug || "").trim();
+    let json = null;
+    try {
+      json = await fetchJson(
+        `${WIKI_BASE}/vehicles/${encodeURIComponent(slugPath)}?include=ports,components`
+      );
+    } catch (err) {
+      return { ok: false, error: err.message || String(err) };
+    }
+
+    const data = json?.data;
+    if (!data) return { ok: false, error: "ship not found" };
+
+    const weaponSlots = collectWeaponGunPorts(data.ports);
+    const componentSlots = collectComponentPorts(data.ports);
+    const stockComponents = (data.components || []).map((c) => ({
+      type: c.type,
+      name: c.name,
+      size: c.component_size || c.size || null,
+      quantity: c.quantity ?? 1,
+    }));
+
+    const stockSummary = await simulateWeaponSlots(combatIntel, weaponSlots, {});
+    const slotOptions = await loadSlotOptionsForBlueprint({ weaponSlots, componentSlots });
+    const payload = {
+      ok: true,
+      ship: {
+        name: data.name || data.game_name,
+        slug: data.slug,
+        className: data.class_name,
+        manufacturer: data.manufacturer?.name || null,
+      },
+      weaponSlots,
+      componentSlots,
+      slotOptions,
+      stockComponents,
+      stockSummary,
+      hullProfile: formatVehicle(data),
+      limitations:
+        "Stock weapons are read from wiki port data. Swap guns below to compare simplified total DPS. For full heat and power sims use ERkul (linked under Advanced tools).",
+    };
+    blueprintCache.set(key, payload);
+    return payload;
+  })();
+
+  blueprintInflight.set(key, work);
   try {
-    json = await fetchJson(
-      `${WIKI_BASE}/vehicles/${encodeURIComponent(slugPath)}?include=ports,components`
-    );
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
+    return await work;
+  } finally {
+    blueprintInflight.delete(key);
   }
-
-  const data = json?.data;
-  if (!data) return { ok: false, error: "ship not found" };
-
-  const weaponSlots = collectWeaponGunPorts(data.ports);
-  const componentSlots = collectComponentPorts(data.ports);
-  const stockComponents = (data.components || []).map((c) => ({
-    type: c.type,
-    name: c.name,
-    size: c.component_size || c.size || null,
-    quantity: c.quantity ?? 1,
-  }));
-
-  const stockSummary = await simulateWeaponSlots(combatIntel, weaponSlots, {});
-  const slotOptions = await loadSlotOptionsForBlueprint({ weaponSlots, componentSlots });
-  const payload = {
-    ok: true,
-    ship: {
-      name: data.name || data.game_name,
-      slug: data.slug,
-      className: data.class_name,
-      manufacturer: data.manufacturer?.name || null,
-    },
-    weaponSlots,
-    componentSlots,
-    slotOptions,
-    stockComponents,
-    stockSummary,
-    hullProfile: formatVehicle(data),
-    limitations:
-      "Stock weapons are read from wiki port data. Swap guns below to compare simplified total DPS. For full heat and power sims use ERkul (linked under Advanced tools).",
-  };
-  blueprintCache.set(key, payload);
-  return payload;
 }
 
 async function searchShipWeapons(options = {}) {

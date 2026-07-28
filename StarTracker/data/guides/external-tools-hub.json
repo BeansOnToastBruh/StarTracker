@@ -1,12 +1,12 @@
 {
-  "updated": "2026-06-21",
+  "updated": "2026-07-28",
   "dataSources": [
     {
       "id": "wiki-scunpacked",
       "name": "Star Citizen Wiki API (SCUnpacked)",
       "url": "https://api.star-citizen.wiki",
       "description": "Primary in-game datamine: ships, items, blueprints, locations, and starmap data extracted from game files (same lineage as SCUnpacked).",
-      "powers": ["Catalog", "Ship builder", "Fleet compare", "Crafting", "Combat stats", "Patch notes", "Starmap lookups"],
+      "powers": ["Catalog", "Ship builder", "Fleet compare", "Crafting", "Combat stats", "Patch notes", "Starmap lookups", "Wikelo trades"],
       "integrated": true
     },
     {
@@ -15,6 +15,14 @@
       "url": "https://uexcorp.space/",
       "description": "Live terminal commodity prices, stock SCU, and shop listings.",
       "powers": ["Market prices", "Trade routes", "Smuggler routes", "Refinery calculator"],
+      "integrated": true
+    },
+    {
+      "id": "star-strings",
+      "name": "Star Strings (MrKraken)",
+      "url": "https://github.com/MrKraken/StarStrings",
+      "description": "Community localization pack that adds blueprint pools, [BP] tags, and clearer contract titles in-game. Install from the Star Strings Intel tab.",
+      "powers": ["In-game contract text QoL", "StarTracker one-click install"],
       "integrated": true
     },
     {
@@ -255,6 +263,16 @@
       "description": "3D cargo grid viewer and container optimizer for haulers.",
       "tags": ["cargo", "grid"],
       "inAppTab": null
+    },
+    {
+      "id": "star-strings",
+      "name": "Star Strings",
+      "url": "https://github.com/MrKraken/StarStrings",
+      "category": "session",
+      "description": "MrKraken's community localization pack — blueprint pools and [BP] tags on contracts in-game.",
+      "tags": ["localization", "contracts", "blueprints"],
+      "inAppTab": "guides-star-strings",
+      "inAppNote": "Use the Star Strings Intel tab for one-click install, update, and uninstall into your LIVE folder."
     },
     {
       "id": "star-citi-sync",

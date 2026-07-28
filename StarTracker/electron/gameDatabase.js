@@ -426,6 +426,7 @@ async function refreshCatalog(options = {}) {
 function isStale() {
   const c = getCatalog();
   if (!c.meta?.syncedAt) return true;
+  if (Number(c.meta.version) !== Number(SYNC_VERSION)) return true;
   const ageMs = Date.now() - new Date(c.meta.syncedAt).getTime();
   return ageMs > 7 * 24 * 60 * 60 * 1000;
 }

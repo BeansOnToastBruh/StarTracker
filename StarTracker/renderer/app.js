@@ -497,13 +497,13 @@ const QUICK_NAV_EMPTY_HINT =
 
 let favoriteTabIds = [];
 let shipBuilderFavorites = [];
-let shipBuilderPickMode = "favorites";
+let shipBuilderPickMode = "all";
 
 const EMPTY_TIPS = {
   missions: "Accept a contract in-game and StarTracker will pick it up from Game.log.",
   rewards: "Complete missions with aUEC payouts. Awarded popups in the log are the most reliable source.",
   "guides-fleet": "Tap Refresh index to pull the latest ship list from the wiki.",
-  "guides-loadout": "Try gladius, cutlass-black, or hurricane as a starting slug.",
+  "guides-loadout": "Try aegs-gladius, drak-cutlass-black, or anvl-hurricane as a starting slug.",
   "guides-refinery": "Start with Quantanium or Bexalite to compare refine vs raw sell value.",
   "guides-crafting": "Try ADP Core or search your armor piece to see mission sources and quality curves.",
   "guides-star-strings": "Install Star Strings to show blueprint pools and [BP] tags on contracts in-game.",
@@ -3318,12 +3318,12 @@ function renderLoadoutSlotSelect(portId, componentType, sizeMax, assigned, stock
 }
 
 const LOADOUT_QUICK_SHIPS = [
-  { slug: "gladius", label: "Gladius" },
-  { slug: "cutlass-black", label: "Cutlass Black" },
-  { slug: "hurricane", label: "Hurricane" },
-  { slug: "prospector", label: "Prospector" },
-  { slug: "caterpillar", label: "Caterpillar" },
-  { slug: "c2-hercules", label: "C2 Hercules" },
+  { slug: "aegs-gladius", label: "Gladius" },
+  { slug: "drak-cutlass-black", label: "Cutlass Black" },
+  { slug: "anvl-hurricane", label: "Hurricane" },
+  { slug: "misc-prospector", label: "Prospector" },
+  { slug: "drak-caterpillar", label: "Caterpillar" },
+  { slug: "crus-starlifter-c2", label: "C2 Hercules" },
 ];
 
 function loadoutDeltaHtml(current, baseline, label) {
@@ -3367,7 +3367,7 @@ function shipBuilderEmptyMessage(state, fleetEmpty, remoteSource) {
     return `No ships match “${escapeHtml(q)}”.${remoteHint}`;
   }
   return shipBuilderPickMode === "favorites"
-    ? "No favorites match your filter."
+    ? "No favorite hulls yet. Switch to <strong>All ships</strong> and tap ☆ on a hull to pin it here."
     : "No ships match. Clear your filter or refresh the ship index.";
 }
 
@@ -3421,21 +3421,25 @@ async function buildShipBuilderInlineHtml(slug) {
     loadoutBuilderState.stockBaseline = null;
     loadoutBuilderBlueprint = null;
   }
-  const [blueprint, sim] = await Promise.all([
+  // One simulate call also builds the blueprint (shared cache) — avoid a parallel duplicate fetch.
+  const sim = await window.debrief.loadoutSimulate({
+    shipSlug: slug,
+    slotAssignments: loadoutBuilderState.slotAssignments,
+  });
+  const blueprint =
     loadoutBuilderBlueprint?.ok && loadoutBuilderState.shipSlug === slug
-      ? Promise.resolve(loadoutBuilderBlueprint)
-      : window.debrief.loadoutGetBlueprint(slug),
-    window.debrief.loadoutSimulate({
-      shipSlug: slug,
-      slotAssignments: loadoutBuilderState.slotAssignments,
-    }),
-  ]);
+      ? loadoutBuilderBlueprint
+      : await window.debrief.loadoutGetBlueprint(slug);
   if (blueprint?.ok) loadoutBuilderBlueprint = blueprint;
-  if (!loadoutBuilderState.stockBaseline && sim.summary) {
+  if (!loadoutBuilderState.stockBaseline && sim?.summary) {
     loadoutBuilderState.stockBaseline = {
       totalDps: sim.summary.totalDps,
       totalAlpha: sim.summary.totalAlpha,
     };
+  }
+  if (!sim?.ok) {
+    if (blueprint?.ok) return renderLoadoutBuilderBody(blueprint, blueprint.stockSummary);
+    return `<p class="muted">${escapeHtml(sim?.error || blueprint?.error || "Could not load ship.")}</p>`;
   }
   let html = renderLoadoutBuilderBody(blueprint, sim.summary);
   if (sim.hullProfile) {
@@ -3450,6 +3454,10 @@ async function buildShipBuilderInlineHtml(slug) {
 
 async function renderLoadoutBuilderShell() {
   await loadShipBuilderFavorites();
+  // Favorites-only with zero stars looks like a broken empty panel — fall back to all ships.
+  if (shipBuilderPickMode === "favorites" && !shipBuilderFavorites.length) {
+    shipBuilderPickMode = "all";
+  }
   const tabId = "guides-loadout";
   const state = guideQueryByTab[tabId] || { query: "" };
   guideQueryByTab[tabId] = state;
@@ -3465,7 +3473,7 @@ async function renderLoadoutBuilderShell() {
             `<button type="button" class="ship-builder-fav-chip${s.slug === loadoutBuilderState.shipSlug ? " is-active" : ""}" data-ship-fav-load="${escapeAttr(s.slug)}" title="${escapeAttr(s.name)}"><span aria-hidden="true">★</span> ${escapeHtml(s.name || s.slug)}</button>`
         )
         .join("")
-    : `<p class="ship-builder-favorites-empty muted small">No favorite hulls yet. Switch to <strong>All ships</strong> and tap ☆ on any ship to pin it here — like Jump to, but for ship builder.</p>`;
+    : `<p class="ship-builder-favorites-empty muted small">No favorite hulls yet. Stay on <strong>All ships</strong> and tap ☆ on any ship to pin it here — like Jump to, but for ship builder.</p>`;
 
   const tableHtml = renderShipBuilderRows(displayRows, emptyMsg);
   shipBuilderLastPayload = { rows: displayRows, emptyMessage: emptyMsg };
@@ -3682,7 +3690,16 @@ async function loadLoadoutBuilderTab(tabId) {
   const preserveHtml = preserveKey ? inlineExpand.html : null;
   const preserveLoading = preserveKey ? inlineExpand.loading : false;
 
-  setPanelHtml(tabId, await renderLoadoutBuilderShell());
+  setPanelHtml(tabId, `<p class="muted small">Loading ship index…</p>`);
+  try {
+    setPanelHtml(tabId, await renderLoadoutBuilderShell());
+  } catch (e) {
+    setPanelHtml(
+      tabId,
+      `<p class="muted">Ship builder error: ${escapeHtml(e.message || String(e))}. Try <strong>Refresh ship index</strong>.</p>`
+    );
+    return;
+  }
 
   if (preserveKey) {
     const state = guideQueryByTab["guides-loadout"] || {};
