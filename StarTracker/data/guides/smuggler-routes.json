@@ -9,7 +9,7 @@
     "sellTerminalName": "Devlin Scrap and Salvage",
     "buyLocations": ["The Golden Riviera"],
     "sellLocations": ["Devlin Scrap and Salvage"],
-    "notes": "High spread illegal refined loop. Buy at Golden Riviera (Pyro), sell at Devlin — verify live stock before hauling."
+    "notes": "High spread illegal refined loop. Buy at Golden Riviera (Pyro), sell at Devlin. Verify live stock in your shard before hauling."
   },
   {
     "id": "illegal-refined-devlin-golden",

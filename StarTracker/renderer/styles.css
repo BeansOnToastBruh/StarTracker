@@ -5036,6 +5036,49 @@ html[data-theme="light"] .star-strings-progress-bar {
 }
 
 /* Executive Hangar timer */
+.exec-hangar-verdict {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+  text-align: center;
+}
+.exec-hangar-verdict-headline {
+  display: block;
+  font-size: 1.65rem;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  margin-bottom: 0.35rem;
+}
+.exec-hangar-verdict-detail {
+  margin: 0;
+  font-size: 0.92rem;
+  opacity: 0.92;
+}
+.exec-hangar-verdict.is-open {
+  border-color: rgba(111, 191, 122, 0.55);
+  background: rgba(47, 120, 70, 0.22);
+}
+.exec-hangar-verdict.is-open .exec-hangar-verdict-headline { color: #8ee09a; }
+.exec-hangar-verdict.is-closed {
+  border-color: rgba(224, 106, 94, 0.55);
+  background: rgba(120, 40, 35, 0.25);
+}
+.exec-hangar-verdict.is-closed .exec-hangar-verdict-headline { color: #f0a098; }
+.exec-hangar-verdict.is-death {
+  border-color: rgba(224, 163, 94, 0.6);
+  background: rgba(120, 80, 30, 0.28);
+}
+.exec-hangar-verdict.is-death .exec-hangar-verdict-headline { color: #f0c878; }
+.exec-hangar-verdict.is-unknown .exec-hangar-verdict-headline { color: var(--text-muted, #aab); }
+.smuggle-stock-block {
+  line-height: 1.35;
+}
+.smuggle-stock-shard {
+  margin-top: 0.15rem;
+  font-style: italic;
+}
 .exec-hangar-status-card {
   margin: 0.85rem 0 1rem;
   padding: 1rem 1.1rem 1.15rem;

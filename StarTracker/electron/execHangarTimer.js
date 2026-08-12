@@ -157,7 +157,7 @@ function phaseFor(lights, online) {
     return {
       id: "open",
       label: "OPEN",
-      detail: "Insert compboards — hangar access window",
+      detail: "Insert compboards. Hangar access window.",
       canInsert: true,
     };
   }
@@ -165,7 +165,7 @@ function phaseFor(lights, online) {
     return {
       id: "reset",
       label: "RESET",
-      detail: "Blackout / death zone — evacuate before doors close",
+      detail: "Blackout / death zone. Evacuate before doors close.",
       canInsert: false,
     };
   }
@@ -173,7 +173,7 @@ function phaseFor(lights, online) {
     return {
       id: "charging",
       label: "CHARGING",
-      detail: "Hangar closed — red lights turning green",
+      detail: "Hangar closed. Red lights turning green.",
       canInsert: false,
     };
   }

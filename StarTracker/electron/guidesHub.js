@@ -617,7 +617,7 @@ async function getSmugglerRoutes() {
       illegalCommodityCount: illegalRows.length,
     },
     disclaimer:
-      "Stock shows UEX last and recent min buy SCU. Profit uses the lower value when min is below last. Refresh before hauling — community data can lag in-game.",
+      "Stock is per-shard, not global. UEX shows community snapshots of buy SCU. Confirm at the terminal before hauling. Profit uses the lower of last/min when they differ.",
   };
 }
 

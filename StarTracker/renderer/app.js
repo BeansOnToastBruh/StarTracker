@@ -3,8 +3,6 @@ const $ = (id) => document.getElementById(id);
 const THEME_KEY = "sc-debrief-theme";
 /** Shown when a stat or timestamp is missing (not an em dash). */
 const EMPTY_DISPLAY = "n/a";
-/** Common smuggle haul size when UEX stock is tight (e.g. hides at Golden Riviera). */
-const SMUGGLE_HAUL_BLOCK_SCU = 4;
 
 function sanitizeDisplayText(s) {
   if (s == null) return "";
@@ -239,7 +237,7 @@ const GUIDE_TABS = [
     id: "guides-exec-hangar",
     group: "guides",
     label: "Exec hangar",
-    hint: "PYAM Executive Hangar live cooldown — five status lights and countdown synced to the global cycle.",
+    hint: "PYAM Executive Hangar live cooldown. Five status lights and countdown synced to the global cycle.",
     empty: "Hangar timer config not loaded yet.",
   },
   {
@@ -4802,7 +4800,7 @@ function renderSmugglerRouteRows(routes) {
         tr?.name || route.commodities?.[0]?.name || route.commodityHints?.[0] || EMPTY_DISPLAY;
       const stockCell = tr?.buyTerminal
         ? fmtTerminalBuyStock(tr.buyTerminal)
-        : `<span class="muted">—</span><div class="muted small">no matching terminals</div>`;
+        : `<span class="muted">${EMPTY_DISPLAY}</span><div class="muted small">no matching terminals</div>`;
       const buyCell = tr?.buyTerminal
         ? `${displayText(tr.buyTerminal.terminal)}<div class="muted small">${fmtPurchaseCostPerScu(tr.buyTerminal.sellToYouPrice)}</div>`
         : displayText(route.buyTerminalName || route.buyLocations?.[0] || EMPTY_DISPLAY);
@@ -4828,7 +4826,7 @@ function renderSmugglerRouteRows(routes) {
     })
     .join("");
   return `<div class="catalog-table-wrap"><table class="catalog-table smuggler-routes-table">
-    <thead><tr><th></th><th>Route</th><th>Commodity</th><th>Risk</th><th>Terminal stock</th><th>Buy</th><th>Sell</th><th>Est. profit</th></tr></thead>
+    <thead><tr><th></th><th>Route</th><th>Commodity</th><th>Risk</th><th>UEX stock (shard)</th><th>Buy</th><th>Sell</th><th>Est. profit</th></tr></thead>
     <tbody>${body}</tbody>
   </table></div>`;
 }
@@ -4979,9 +4977,9 @@ function buildSmugglerRoutesPanel(data) {
     ? `<p class="guides-meta muted small">${displayText(data.disclaimer)}</p>`
     : "";
   const stockMeta = data.meta?.stockFetchedAt
-    ? `<p class="guides-meta muted small">UEX buy stock (last + min SCU) · ${escapeHtml(fmtDateTime(data.meta.stockFetchedAt))} · <button type="button" class="link" id="smugglerRefreshStockBtn">Refresh stock</button></p>`
+    ? `<p class="guides-meta muted small">UEX stock snapshots (per-shard) · ${escapeHtml(fmtDateTime(data.meta.stockFetchedAt))} · <button type="button" class="link" id="smugglerRefreshStockBtn">Refresh stock</button></p>`
     : "";
-  const intro = `<div class="hub-intro hub-intro-accent"><strong>Curated smuggling loops.</strong> Stock shows exact UEX <em>last</em> and <em>min</em> buy SCU. ${SMUGGLE_HAUL_BLOCK_SCU} SCU haul flags warn when recent min is below your buy size.</div>`;
+  const intro = `<div class="hub-intro hub-intro-accent"><strong>Curated smuggling loops.</strong> Terminal stock is <strong>per-shard</strong>, not global. UEX is what other players reported. Always confirm at the terminal before you buy.</div>`;
   const tableHtml = renderSmugglerRouteRows(routes);
   smugglerRoutesLastPayload = { tableHtml, routes };
   return `${intro}${stockMeta}${disclaimer}${tableHtml}`;
@@ -5004,6 +5002,37 @@ function formatExecCountdown(ms) {
   const s = total % 60;
   if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function execHangarAccessCopy(live) {
+  const phaseId = live.phase?.id || "unknown";
+  const timer = live.phaseEndsIn || "0:00";
+  if (phaseId === "open") {
+    return {
+      headline: "HANGAR OPEN",
+      detail: `You can insert compboards and enter now. Window closes in ${timer}.`,
+      verdictClass: "is-open",
+    };
+  }
+  if (phaseId === "charging") {
+    return {
+      headline: "HANGAR CLOSED",
+      detail: `Not enterable. Charging cycle. Opens in ${timer}.`,
+      verdictClass: "is-closed",
+    };
+  }
+  if (phaseId === "reset") {
+    return {
+      headline: "DEATH ZONE",
+      detail: `Hangar shutting down. Do not enter. Evacuate if inside. Resets in ${timer}.`,
+      verdictClass: "is-death",
+    };
+  }
+  return {
+    headline: "CHECK LIGHTS",
+    detail: live.phase?.detail || "Wait for the next light change.",
+    verdictClass: "is-unknown",
+  };
 }
 
 function computeExecHangarClientStatus(base, nowMs = Date.now()) {
@@ -5033,11 +5062,11 @@ function computeExecHangarClientStatus(base, nowMs = Date.now()) {
   const empty = lights.filter((c) => c === "empty").length;
   let phase;
   if (online && green > 0 && red === 0) {
-    phase = { id: "open", label: "OPEN", detail: "Insert compboards — hangar access window", canInsert: true };
+    phase = { id: "open", label: "OPEN", detail: "Insert compboards. Hangar access window.", canInsert: true };
   } else if (online && empty === 5) {
-    phase = { id: "reset", label: "RESET", detail: "Blackout / death zone — evacuate before doors close", canInsert: false };
+    phase = { id: "reset", label: "RESET", detail: "Blackout / death zone. Evacuate before doors close.", canInsert: false };
   } else if (!online && red > 0) {
-    phase = { id: "charging", label: "CHARGING", detail: "Hangar closed — red lights turning green", canInsert: false };
+    phase = { id: "charging", label: "CHARGING", detail: "Hangar closed. Red lights turning green.", canInsert: false };
   } else {
     phase = { id: "unknown", label: "UNKNOWN", detail: "Wait for next light change", canInsert: false };
   }
@@ -5049,10 +5078,9 @@ function computeExecHangarClientStatus(base, nowMs = Date.now()) {
   const nextBoundary = boundaries.find((b) => b > tic + 0.5) ?? base.cycleDurationMs;
   const msToLight = nextBoundary - tic;
   const msToPhase = online ? base.openDurationMs - tic : base.cycleDurationMs - tic;
-  return {
+  const clientLive = {
     ...base,
     online,
-    status: online ? "ONLINE" : "OFFLINE",
     phase,
     lights,
     greenCount: green,
@@ -5063,6 +5091,7 @@ function computeExecHangarClientStatus(base, nowMs = Date.now()) {
     nextLightIn: formatExecCountdown(msToLight),
     phaseEndsIn: formatExecCountdown(msToPhase),
   };
+  return { ...clientLive, access: execHangarAccessCopy(clientLive) };
 }
 
 function renderExecHangarLights(lights) {
@@ -5097,16 +5126,22 @@ function buildExecHangarPanel(status) {
     ? `<p class="muted small">Cycle calibrated from <button type="button" class="link" data-guide-external="${escapeAttr(live.attribution.url || "https://github.com/ArkanisCorporation/Exec-Hangar")}">${escapeHtml(live.attribution.name || "community timer")}</button>. ${escapeHtml(live.attribution.note || "")}</p>`
     : "";
   const refreshNote = status.refreshError
-    ? `<p class="muted small">Sync warning: ${escapeHtml(status.refreshError)} — using ${escapeHtml(live.source || "seed")} config.</p>`
+    ? `<p class="muted small">Sync warning: ${escapeHtml(status.refreshError)}. Using ${escapeHtml(live.source || "seed")} config.</p>`
     : "";
+  const access = live.access || execHangarAccessCopy(live);
+  const windowLabel = live.phase?.id === "open" ? "Closes in" : live.phase?.id === "charging" ? "Opens in" : "Phase ends in";
 
   return `<div class="exec-hangar-panel" data-exec-hangar-root>
-    <div class="hub-intro hub-intro-accent"><strong>PYAM Executive Hangar.</strong> Global cycle — five lights match the hangar EVA indicators. Compboards only while green with no reds.</div>
+    <div class="hub-intro hub-intro-accent"><strong>PYAM Executive Hangar.</strong> Global server cycle. Five lights match the hangar EVA room. Compboards only during the open window (green lights, no reds).</div>
     <div class="exec-hangar-status-card ${statusClass} ${phaseClass}">
+      <div class="exec-hangar-verdict ${access.verdictClass}" data-exec-verdict>
+        <strong class="exec-hangar-verdict-headline" data-exec-access-headline>${escapeHtml(access.headline)}</strong>
+        <p class="exec-hangar-verdict-detail" data-exec-access-detail>${escapeHtml(access.detail)}</p>
+      </div>
       <div class="exec-hangar-status-top">
         <div>
-          <span class="exec-hangar-status-label">${escapeHtml(live.status)}</span>
-          <strong class="exec-hangar-phase" data-exec-phase>${escapeHtml(live.phase?.label || "—")}</strong>
+          <span class="exec-hangar-status-label">Phase</span>
+          <strong class="exec-hangar-phase" data-exec-phase>${escapeHtml(live.phase?.label || EMPTY_DISPLAY)}</strong>
           <p class="muted small" data-exec-phase-detail>${escapeHtml(live.phase?.detail || "")}</p>
         </div>
         <div class="exec-hangar-countdowns">
@@ -5115,7 +5150,7 @@ function buildExecHangarPanel(status) {
             <strong class="exec-hangar-clock" data-exec-next-light>${escapeHtml(live.nextLightIn)}</strong>
           </div>
           <div>
-            <span class="refinery-result-label">${live.online ? "Window ends" : "Opens in"}</span>
+            <span class="refinery-result-label" data-exec-window-label>${escapeHtml(windowLabel)}</span>
             <strong class="exec-hangar-clock" data-exec-phase-end>${escapeHtml(live.phaseEndsIn)}</strong>
           </div>
         </div>
@@ -5124,7 +5159,7 @@ function buildExecHangarPanel(status) {
         ${renderExecHangarLights(live.lights)}
       </div>
       <p class="exec-hangar-insert ${live.phase?.canInsert ? "is-ready" : "is-blocked"}" data-exec-insert>
-        ${live.phase?.canInsert ? "Ready — insert all 7 compboards" : "Do not insert — wait for open window"}
+        ${live.phase?.canInsert ? "Compboards: insert all 7 now" : "Compboards: wait for OPEN window"}
       </p>
     </div>
     <div class="exec-hangar-toolbar">
@@ -5150,24 +5185,38 @@ function patchExecHangarLiveDom() {
   const root = document.querySelector("#panel-guides-exec-hangar [data-exec-hangar-root]");
   if (!root || !execHangarLastStatus?.ok) return;
   const live = computeExecHangarClientStatus(execHangarLastStatus);
+  const access = live.access || execHangarAccessCopy(live);
   const phaseEl = root.querySelector("[data-exec-phase]");
   const detailEl = root.querySelector("[data-exec-phase-detail]");
   const nextEl = root.querySelector("[data-exec-next-light]");
   const endEl = root.querySelector("[data-exec-phase-end]");
+  const windowLabelEl = root.querySelector("[data-exec-window-label]");
   const lightsEl = root.querySelector("[data-exec-lights]");
   const insertEl = root.querySelector("[data-exec-insert]");
+  const verdictEl = root.querySelector("[data-exec-verdict]");
+  const headlineEl = root.querySelector("[data-exec-access-headline]");
+  const accessDetailEl = root.querySelector("[data-exec-access-detail]");
   const card = root.querySelector(".exec-hangar-status-card");
-  if (phaseEl) phaseEl.textContent = live.phase?.label || "—";
+  if (phaseEl) phaseEl.textContent = live.phase?.label || EMPTY_DISPLAY;
   if (detailEl) detailEl.textContent = live.phase?.detail || "";
   if (nextEl) nextEl.textContent = live.nextLightIn;
   if (endEl) endEl.textContent = live.phaseEndsIn;
+  if (windowLabelEl) {
+    windowLabelEl.textContent =
+      live.phase?.id === "open" ? "Closes in" : live.phase?.id === "charging" ? "Opens in" : "Phase ends in";
+  }
   if (lightsEl) lightsEl.innerHTML = renderExecHangarLights(live.lights);
+  if (headlineEl) headlineEl.textContent = access.headline;
+  if (accessDetailEl) accessDetailEl.textContent = access.detail;
+  if (verdictEl) {
+    verdictEl.className = `exec-hangar-verdict ${access.verdictClass}`;
+  }
   if (insertEl) {
     insertEl.classList.toggle("is-ready", !!live.phase?.canInsert);
     insertEl.classList.toggle("is-blocked", !live.phase?.canInsert);
     insertEl.textContent = live.phase?.canInsert
-      ? "Ready — insert all 7 compboards"
-      : "Do not insert — wait for open window";
+      ? "Compboards: insert all 7 now"
+      : "Compboards: wait for OPEN window";
   }
   if (card) {
     card.classList.toggle("is-online", !!live.online);
@@ -5461,50 +5510,42 @@ function renderTradeRouteInlineDetail(detail) {
   </article>`;
 }
 
-function fmtTerminalBuyStock(terminal, haulBlock = SMUGGLE_HAUL_BLOCK_SCU) {
-  if (!terminal) return `<span class="muted">—</span>`;
+function fmtTerminalBuyStock(terminal) {
+  if (!terminal) return `<span class="muted">${EMPTY_DISPLAY}</span>`;
+
   const last = terminal.stockScuLast ?? terminal.stockScu;
   const min = terminal.stockScuMin;
-  const haul = terminal.haulStockScu ?? last;
   const updated = terminal.stockUpdatedAt;
 
-  if (last == null && min == null && (haul == null || haul <= 0)) {
+  if (last == null && min == null) {
     return `<span class="muted">0 / unknown</span><div class="muted small">no UEX buy stock</div>`;
   }
 
-  const lastLine =
-    last != null
-      ? `<strong class="smuggle-stock-live">${formatFleetCell(last)} SCU</strong> <span class="muted small">UEX last</span>`
-      : `<strong class="smuggle-stock-live">${formatFleetCell(haul)} SCU</strong> <span class="muted small">UEX haul cap</span>`;
-  const minLine =
-    min != null && min !== last
-      ? `<div class="muted small">${formatFleetCell(min)} SCU recent min</div>`
-      : "";
+  let reportedLine = "";
+  if (last != null && min != null && min !== last) {
+    reportedLine = `<div class="smuggle-stock-reported"><span class="muted small">UEX saw </span><strong>${formatFleetCell(min)}-${formatFleetCell(last)} SCU</strong></div>`;
+  } else if (last != null) {
+    reportedLine = `<div class="smuggle-stock-reported"><span class="muted small">UEX saw up to </span><strong>${formatFleetCell(last)} SCU</strong></div>`;
+  } else if (min != null) {
+    reportedLine = `<div class="smuggle-stock-reported"><span class="muted small">UEX saw at least </span><strong>${formatFleetCell(min)} SCU</strong></div>`;
+  }
 
-  let haulLine = "";
-  if (haulBlock > 0 && haul != null) {
-    const okHaul = haul >= haulBlock;
-    const lastOk = last != null && last >= haulBlock;
-    if (!okHaul) {
-      haulLine = `<div class="trade-stock-empty small"><strong>Below ${haulBlock} SCU haul</strong> — skip unless you confirm in-game</div>`;
-    } else if (lastOk && min != null && min < haulBlock) {
-      haulLine = `<div class="trade-stock-low small"><strong>${haulBlock} SCU haul risky</strong> — last ${formatFleetCell(last)}, min ${formatFleetCell(min)}</div>`;
-    } else {
-      haulLine = `<div class="trade-stock-ok small"><strong>${haulBlock} SCU haul OK</strong> · plan ${formatFleetCell(haul)} SCU</div>`;
-    }
+  let varianceLine = "";
+  if (last != null && min != null && min < last) {
+    varianceLine = `<div class="trade-stock-low small">Your shard may be lower. Check the terminal before you buy.</div>`;
   }
 
   const timeLine = updated
-    ? `<div class="muted small">UEX · ${escapeHtml(fmtDateTime(updated))}</div>`
-    : `<div class="muted small">at buy terminal</div>`;
+    ? `<div class="muted small">Reported ${escapeHtml(fmtDateTime(updated))}</div>`
+    : `<div class="muted small">community snapshot</div>`;
 
-  return `${lastLine}${minLine}${haulLine}${timeLine}`;
+  return `<div class="smuggle-stock-block">${reportedLine}<div class="muted small smuggle-stock-shard">Per-shard, not global</div>${varianceLine}${timeLine}</div>`;
 }
 
 function fmtTradeStock(stockScu, isTerminal, terminal = null) {
   if (terminal && isTerminal) return fmtTerminalBuyStock(terminal);
   if (!isTerminal || stockScu == null) {
-    return `<span class="muted small">—</span><div class="muted small">UEX avg</div>`;
+    return `<span class="muted small">${EMPTY_DISPLAY}</span><div class="muted small">UEX avg</div>`;
   }
   const v = Number(stockScu);
   const cls =
