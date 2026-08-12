@@ -3,6 +3,8 @@ const $ = (id) => document.getElementById(id);
 const THEME_KEY = "sc-debrief-theme";
 /** Shown when a stat or timestamp is missing (not an em dash). */
 const EMPTY_DISPLAY = "n/a";
+/** Common smuggle haul size when UEX stock is tight (e.g. hides at Golden Riviera). */
+const SMUGGLE_HAUL_BLOCK_SCU = 4;
 
 function sanitizeDisplayText(s) {
   if (s == null) return "";
@@ -4744,7 +4746,7 @@ function renderSmugglerRouteInlineDetail(route) {
         <strong>${displayText(topName)}</strong>
         <span>${displayText(buy.terminal || "Unknown terminal")}</span>
         <span class="muted small">${displayText(buy.location || buy.system || "")}</span>
-        <span>${fmtPurchaseCostPerScu(buy.sellToYouPrice)} · <strong>${formatFleetCell(buy.stockScu)} SCU in stock</strong>${buy.stockUpdatedAt ? ` <span class="muted small">(${escapeHtml(fmtDateTime(buy.stockUpdatedAt))})</span>` : ""}</span>
+        <div class="smuggle-buy-stock">${fmtPurchaseCostPerScu(buy.sellToYouPrice)} · ${fmtTerminalBuyStock(buy)}</div>
       </div>
       <div class="trade-route-detail-card">
         <span class="refinery-result-label">2 · Sell cargo here</span>
@@ -4798,14 +4800,9 @@ function renderSmugglerRouteRows(routes) {
       const tr = route.terminalRoute;
       const commodityName =
         tr?.name || route.commodities?.[0]?.name || route.commodityHints?.[0] || EMPTY_DISPLAY;
-      const stockScu = tr?.buyTerminal?.stockScu;
-      const stockUpdated = tr?.buyTerminal?.stockUpdatedAt;
-      const stockCell =
-        stockScu != null && stockScu > 0
-          ? `<strong class="smuggle-stock-live">${formatFleetCell(stockScu)} SCU</strong><div class="muted small">${stockUpdated ? `UEX · ${escapeHtml(fmtDateTime(stockUpdated))}` : "at buy terminal"}</div>`
-          : tr
-            ? `<span class="muted">0 / unknown</span><div class="muted small">no live buy stock</div>`
-            : `<span class="muted">—</span><div class="muted small">no matching terminals</div>`;
+      const stockCell = tr?.buyTerminal
+        ? fmtTerminalBuyStock(tr.buyTerminal)
+        : `<span class="muted">—</span><div class="muted small">no matching terminals</div>`;
       const buyCell = tr?.buyTerminal
         ? `${displayText(tr.buyTerminal.terminal)}<div class="muted small">${fmtPurchaseCostPerScu(tr.buyTerminal.sellToYouPrice)}</div>`
         : displayText(route.buyTerminalName || route.buyLocations?.[0] || EMPTY_DISPLAY);
@@ -4982,9 +4979,9 @@ function buildSmugglerRoutesPanel(data) {
     ? `<p class="guides-meta muted small">${displayText(data.disclaimer)}</p>`
     : "";
   const stockMeta = data.meta?.stockFetchedAt
-    ? `<p class="guides-meta muted small">Live UEX buy stock (last reported SCU) · ${escapeHtml(fmtDateTime(data.meta.stockFetchedAt))} · <button type="button" class="link" id="smugglerRefreshStockBtn">Refresh stock</button></p>`
+    ? `<p class="guides-meta muted small">UEX buy stock (last + min SCU) · ${escapeHtml(fmtDateTime(data.meta.stockFetchedAt))} · <button type="button" class="link" id="smugglerRefreshStockBtn">Refresh stock</button></p>`
     : "";
-  const intro = `<div class="hub-intro hub-intro-accent"><strong>Curated smuggling loops.</strong> Terminal stock is last-reported UEX buy SCU for the matched buy terminal — not a historical minimum. Rows without a match show — instead of inventing another terminal.</div>`;
+  const intro = `<div class="hub-intro hub-intro-accent"><strong>Curated smuggling loops.</strong> Stock shows exact UEX <em>last</em> and <em>min</em> buy SCU. ${SMUGGLE_HAUL_BLOCK_SCU} SCU haul flags warn when recent min is below your buy size.</div>`;
   const tableHtml = renderSmugglerRouteRows(routes);
   smugglerRoutesLastPayload = { tableHtml, routes };
   return `${intro}${stockMeta}${disclaimer}${tableHtml}`;
@@ -5464,7 +5461,48 @@ function renderTradeRouteInlineDetail(detail) {
   </article>`;
 }
 
-function fmtTradeStock(stockScu, isTerminal) {
+function fmtTerminalBuyStock(terminal, haulBlock = SMUGGLE_HAUL_BLOCK_SCU) {
+  if (!terminal) return `<span class="muted">—</span>`;
+  const last = terminal.stockScuLast ?? terminal.stockScu;
+  const min = terminal.stockScuMin;
+  const haul = terminal.haulStockScu ?? last;
+  const updated = terminal.stockUpdatedAt;
+
+  if (last == null && min == null && (haul == null || haul <= 0)) {
+    return `<span class="muted">0 / unknown</span><div class="muted small">no UEX buy stock</div>`;
+  }
+
+  const lastLine =
+    last != null
+      ? `<strong class="smuggle-stock-live">${formatFleetCell(last)} SCU</strong> <span class="muted small">UEX last</span>`
+      : `<strong class="smuggle-stock-live">${formatFleetCell(haul)} SCU</strong> <span class="muted small">UEX haul cap</span>`;
+  const minLine =
+    min != null && min !== last
+      ? `<div class="muted small">${formatFleetCell(min)} SCU recent min</div>`
+      : "";
+
+  let haulLine = "";
+  if (haulBlock > 0 && haul != null) {
+    const okHaul = haul >= haulBlock;
+    const lastOk = last != null && last >= haulBlock;
+    if (!okHaul) {
+      haulLine = `<div class="trade-stock-empty small"><strong>Below ${haulBlock} SCU haul</strong> — skip unless you confirm in-game</div>`;
+    } else if (lastOk && min != null && min < haulBlock) {
+      haulLine = `<div class="trade-stock-low small"><strong>${haulBlock} SCU haul risky</strong> — last ${formatFleetCell(last)}, min ${formatFleetCell(min)}</div>`;
+    } else {
+      haulLine = `<div class="trade-stock-ok small"><strong>${haulBlock} SCU haul OK</strong> · plan ${formatFleetCell(haul)} SCU</div>`;
+    }
+  }
+
+  const timeLine = updated
+    ? `<div class="muted small">UEX · ${escapeHtml(fmtDateTime(updated))}</div>`
+    : `<div class="muted small">at buy terminal</div>`;
+
+  return `${lastLine}${minLine}${haulLine}${timeLine}`;
+}
+
+function fmtTradeStock(stockScu, isTerminal, terminal = null) {
+  if (terminal && isTerminal) return fmtTerminalBuyStock(terminal);
   if (!isTerminal || stockScu == null) {
     return `<span class="muted small">—</span><div class="muted small">UEX avg</div>`;
   }
@@ -5537,7 +5575,7 @@ function renderTradeRouteRows(routes) {
         <td class="expand-chevron-cell"><span class="expand-chevron" aria-hidden="true">${expandChevron(host, key)}</span></td>
         <td class="trade-route-commodity">${displayText(r.name)}${illegal ? ` ${illegal}` : ""}<div class="muted small mono">${escapeHtml(r.code || "")}</div>${routeLane}</td>
         <td class="trade-route-buy">${displayText(buyLabel)}<div class="muted small mono">${fmtPurchaseCostPerScu(buyPrice > 0 ? buyPrice : null)}</div></td>
-        <td class="trade-route-stock">${fmtTradeStock(buy?.stockScu, isTerminal)}</td>
+        <td class="trade-route-stock">${fmtTradeStock(buy?.stockScu, isTerminal, buy)}</td>
         <td class="trade-route-sell">${displayText(sellLabel)}<div class="muted small mono">${fmtSalePayoutPerScu(sellPrice > 0 ? sellPrice : null)}</div></td>
         <td class="trade-route-demand">${fmtTradeDemand(sell?.demandScu, isTerminal)}</td>
         <td class="trade-route-scu">${fmtRouteHaulScu(r)}</td>

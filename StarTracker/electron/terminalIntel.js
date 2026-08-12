@@ -1,5 +1,5 @@
 const { getCommoditiesCache, shapeCommodityRow } = require("./guidesHub");
-const { terminalStockScu, terminalDemandScu } = require("./uexStock");
+const { terminalStockScu, terminalDemandScu, parseTerminalStock, parseTerminalDemand } = require("./uexStock");
 
 const UEX_BASE = "https://api.uexcorp.space/2.0";
 const terminalCache = new Map();
@@ -40,8 +40,8 @@ function terminalPlayerPrices(raw) {
 
 function shapeTerminalRow(raw) {
   const { sellToYou, buyFromYou } = terminalPlayerPrices(raw);
-  const stockToBuy = terminalStockScu(raw);
-  const demandToSell = terminalDemandScu(raw);
+  const stock = parseTerminalStock(raw);
+  const demand = parseTerminalDemand(raw);
   const modified =
     Number(raw.date_modified) > 0 ? new Date(Number(raw.date_modified) * 1000).toISOString() : null;
   return {
@@ -51,8 +51,15 @@ function shapeTerminalRow(raw) {
     system: raw.star_system_name || null,
     buyFromYouPrice: buyFromYou,
     sellToYouPrice: sellToYou,
-    stockScu: Math.round(stockToBuy * 10) / 10,
-    demandScu: Math.round(demandToSell * 10) / 10,
+    stockScu: stock.stockScu,
+    stockScuLast: stock.stockScuLast,
+    stockScuMin: stock.stockScuMin,
+    stockScuAvg: stock.stockScuAvg,
+    haulStockScu: stock.haulScu,
+    demandScu: demand.demandScu,
+    demandScuLast: demand.demandScuLast,
+    demandScuMin: demand.demandScuMin,
+    haulDemandScu: demand.haulDemandScu,
     statusBuy: raw.status_buy,
     statusSell: raw.status_sell,
     stockUpdatedAt: modified,
@@ -244,8 +251,18 @@ function routeFromTerminals(commodity, buyTerminal, sellTerminal, cargoScu) {
   if (!commodity || !buyTerminal || !sellTerminal) return null;
   const weight = Number(commodity.weightScu) > 0 ? Number(commodity.weightScu) : 1;
   const cargoCap = Math.max(Number(cargoScu) || 0, 0);
-  const stockCap = buyTerminal.stockScu > 0 ? buyTerminal.stockScu : cargoCap;
-  const demandCap = sellTerminal.demandScu > 0 ? sellTerminal.demandScu : cargoCap;
+  const stockCap =
+    buyTerminal.haulStockScu > 0
+      ? buyTerminal.haulStockScu
+      : buyTerminal.stockScu > 0
+        ? buyTerminal.stockScu
+        : cargoCap;
+  const demandCap =
+    sellTerminal.haulDemandScu > 0
+      ? sellTerminal.haulDemandScu
+      : sellTerminal.demandScu > 0
+        ? sellTerminal.demandScu
+        : cargoCap;
   const haulScu = Math.max(0, Math.min(cargoCap, stockCap, demandCap));
   const units = weight > 0 ? Math.floor(haulScu / weight) : haulScu;
   const hasTerminalPrices = buyTerminal.sellToYouPrice > 0 && sellTerminal.buyFromYouPrice > 0;

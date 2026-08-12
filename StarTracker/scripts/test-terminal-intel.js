@@ -128,7 +128,9 @@ function main() {
   });
   assert.strictEqual(golden.buyFromYouPrice, 0);
   assert.strictEqual(golden.sellToYouPrice, 281500);
-  assert.strictEqual(golden.stockScu, 4, "show live buy stock");
+  assert.strictEqual(golden.stockScu, 4, "exact UEX last buy stock");
+  assert.strictEqual(golden.stockScuMin, 3, "exact UEX min buy stock");
+  assert.strictEqual(golden.haulStockScu, 3, "haul math uses lower min when below last");
 
   const hinted = terminalIntel.pickTerminal(
     [

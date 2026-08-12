@@ -252,8 +252,8 @@ function compactTerminalPrice(row) {
     Number(row.price_sell_avg) ||
     Number(row.price_sell_avg_week) ||
     0;
-  const { terminalStockScu, terminalDemandScu } = require("./uexStock");
-  const stockScu = terminalStockScu(row);
+  const { parseTerminalStock, terminalDemandScu } = require("./uexStock");
+  const stock = parseTerminalStock(row);
   const demandScu = terminalDemandScu(row);
   return {
     terminal: row.terminal_name || null,
@@ -261,7 +261,10 @@ function compactTerminalPrice(row) {
     system: row.star_system_name || null,
     priceBuy: playerBuyPerScu,
     priceSell: playerSellPerScu,
-    stockScu: Math.round(stockScu * 10) / 10,
+    stockScu: stock.stockScu,
+    stockScuLast: stock.stockScuLast,
+    stockScuMin: stock.stockScuMin,
+    haulStockScu: stock.haulScu,
     demandScu: Math.round(demandScu * 10) / 10,
   };
 }
@@ -614,7 +617,7 @@ async function getSmugglerRoutes() {
       illegalCommodityCount: illegalRows.length,
     },
     disclaimer:
-      "Live stock is last-reported UEX buy SCU at the route's buy terminal. Profit uses that stock plus sell-terminal demand. Community data can lag in-game inventory.",
+      "Stock shows UEX last and recent min buy SCU. Profit uses the lower value when min is below last. Refresh before hauling — community data can lag in-game.",
   };
 }
 
