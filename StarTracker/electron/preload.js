@@ -73,6 +73,10 @@ contextBridge.exposeInMainWorld("debrief", {
   guidesGetCommodityDetail: (commodityId) =>
     ipcRenderer.invoke("guides-get-commodity-detail", commodityId),
   guidesGetSmugglerRoutes: () => ipcRenderer.invoke("guides-get-smuggler-routes"),
+  guidesGetExecHangar: () => ipcRenderer.invoke("guides-get-exec-hangar"),
+  guidesRefreshExecHangar: () => ipcRenderer.invoke("guides-refresh-exec-hangar"),
+  guidesSetExecHangarOffset: (offsetMs) =>
+    ipcRenderer.invoke("guides-set-exec-hangar-offset", offsetMs),
   guidesGetGameLoops: () => ipcRenderer.invoke("guides-get-game-loops"),
   guidesRefreshCommodities: () => ipcRenderer.invoke("guides-refresh-commodities"),
   guidesGetRefinery: () => ipcRenderer.invoke("guides-get-refinery"),
@@ -101,6 +105,7 @@ contextBridge.exposeInMainWorld("debrief", {
   fleetGetIndex: (options) => ipcRenderer.invoke("fleet-get-index", options),
   fleetSearchVehicles: (query) => ipcRenderer.invoke("fleet-search-vehicles", query),
   loadoutGetBlueprint: (slug) => ipcRenderer.invoke("loadout-get-blueprint", slug),
+  loadoutAwaitSlotOptions: (slug) => ipcRenderer.invoke("loadout-await-slot-options", slug),
   loadoutSearchWeapons: (options) =>
     ipcRenderer.invoke("loadout-search-weapons", options),
   loadoutSimulate: (options) => ipcRenderer.invoke("loadout-simulate", options),

@@ -42,6 +42,8 @@ function shapeTerminalRow(raw) {
   const { sellToYou, buyFromYou } = terminalPlayerPrices(raw);
   const stockToBuy = terminalStockScu(raw);
   const demandToSell = terminalDemandScu(raw);
+  const modified =
+    Number(raw.date_modified) > 0 ? new Date(Number(raw.date_modified) * 1000).toISOString() : null;
   return {
     terminal: raw.terminal_name || "Unknown terminal",
     terminalCode: raw.terminal_code || null,
@@ -53,6 +55,7 @@ function shapeTerminalRow(raw) {
     demandScu: Math.round(demandToSell * 10) / 10,
     statusBuy: raw.status_buy,
     statusSell: raw.status_sell,
+    stockUpdatedAt: modified,
   };
 }
 
@@ -68,37 +71,116 @@ async function fetchCommodityTerminals(commodityId) {
   return rows;
 }
 
-function terminalMatchesHint(terminal, hint) {
-  const h = String(hint || "")
+function normalizeHint(hint) {
+  return String(hint || "")
     .toLowerCase()
-    .replace(/[^\w\s]/g, " ");
-  if (!h.trim()) return false;
-  const hay = `${terminal.terminal || ""} ${terminal.location || ""} ${terminal.system || ""}`.toLowerCase();
-  const tokens = h.split(/\s+/).filter((w) => w.length > 2);
-  if (!tokens.length) return hay.includes(h.trim());
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function terminalMatchesHint(terminal, hint) {
+  const STOP = new Set([
+    "the",
+    "and",
+    "for",
+    "with",
+    "from",
+    "that",
+    "this",
+    "when",
+    "listed",
+    "check",
+    "varies",
+    "depending",
+    "patch",
+    "economy",
+    "select",
+    "goods",
+    "illegal",
+    "outposts",
+    "stations",
+    "buyers",
+    "any",
+    "commodity",
+    "marked",
+    "uex",
+    "typical",
+    "areas",
+    "major",
+    "ports",
+    "linked",
+    "terminals",
+  ]);
+  const h = normalizeHint(hint);
+  if (!h) return false;
+  const hay = normalizeHint(
+    `${terminal.terminal || ""} ${terminal.location || ""} ${terminal.system || ""}`
+  );
+  if (hay.includes(h) && h.length >= 4) return true;
+  const tokens = h.split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w));
+  if (!tokens.length) return false;
   const hits = tokens.filter((t) => hay.includes(t)).length;
   return hits >= Math.min(2, tokens.length) || (tokens.length === 1 && hits === 1);
 }
 
-function pickTerminal(terminals, hint, mode) {
-  if (!terminals?.length) return null;
-  const h = String(hint || "").trim();
-  if (h) {
-    const matched = terminals.filter((t) => terminalMatchesHint(t, h));
-    if (matched.length) {
-      if (mode === "buy") {
-        return matched.sort((a, b) => a.sellToYouPrice - b.sellToYouPrice)[0];
-      }
-      return matched.sort((a, b) => b.buyFromYouPrice - a.buyFromYouPrice)[0];
+function hintList(...sources) {
+  const out = [];
+  const seen = new Set();
+  for (const source of sources) {
+    const list = Array.isArray(source) ? source : [source];
+    for (const item of list) {
+      const s = String(item || "").trim();
+      if (!s) continue;
+      const key = s.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(s);
     }
   }
-  return mode === "buy" ? bestBuyTerminal(terminals) : bestSellTerminal(terminals);
+  return out;
+}
+
+function pickTerminal(terminals, hints, mode) {
+  if (!terminals?.length) return null;
+  const modeRows =
+    mode === "buy"
+      ? terminals.filter((t) => t.sellToYouPrice > 0)
+      : terminals.filter((t) => t.buyFromYouPrice > 0);
+  if (!modeRows.length) return null;
+
+  const list = hintList(hints);
+  if (list.length) {
+    for (const h of list) {
+      const matched = modeRows.filter((t) => terminalMatchesHint(t, h));
+      if (!matched.length) continue;
+      if (mode === "buy") {
+        // Prefer terminals that actually have reported stock, then cheapest.
+        return matched.sort((a, b) => {
+          const stockA = a.stockScu > 0 ? 1 : 0;
+          const stockB = b.stockScu > 0 ? 1 : 0;
+          if (stockB !== stockA) return stockB - stockA;
+          return a.sellToYouPrice - b.sellToYouPrice;
+        })[0];
+      }
+      return matched.sort((a, b) => {
+        const demandA = a.demandScu > 0 ? 1 : 0;
+        const demandB = b.demandScu > 0 ? 1 : 0;
+        if (demandB !== demandA) return demandB - demandA;
+        return b.buyFromYouPrice - a.buyFromYouPrice;
+      })[0];
+    }
+    // Hint was provided but nothing matched — do not invent another terminal.
+    return null;
+  }
+  return mode === "buy" ? bestBuyTerminal(modeRows) : bestSellTerminal(modeRows);
 }
 
 async function getSmugglerRouteLive(route, cargoScu = 128) {
   const cache = await getCommoditiesCache(false);
-  const buyHint = route.buyTerminalName || route.buyLocations?.[0] || "";
-  const sellHint = route.sellTerminalName || route.sellLocations?.[0] || "";
+  const buyHints = hintList(route.buyTerminalName, route.buyLocations);
+  const sellHints = hintList(route.sellTerminalName, route.sellLocations);
+  const requireHints = buyHints.length > 0 || sellHints.length > 0;
 
   const candidateIds = (route.commodities || [])
     .map((c) => Number(c.id))
@@ -113,22 +195,31 @@ async function getSmugglerRouteLive(route, cargoScu = 128) {
     if (!raw) continue;
     try {
       const terminals = await fetchCommodityTerminals(id);
-      const buyTerminal = pickTerminal(terminals, buyHint, "buy");
-      const sellTerminal = pickTerminal(terminals, sellHint, "sell");
+      const buyTerminal = pickTerminal(terminals, buyHints, "buy");
+      const sellTerminal = pickTerminal(terminals, sellHints, "sell");
       if (!buyTerminal || !sellTerminal) continue;
+      if (buyTerminal.terminal === sellTerminal.terminal) continue;
       const shaped = raw.spread != null ? raw : shapeCommodityRow(raw);
       const result = routeFromTerminals(shaped, buyTerminal, sellTerminal, cargoScu);
       if (!result) continue;
-      if (
-        !best ||
-        result.totalProfit > best.totalProfit ||
-        (result.totalProfit === best.totalProfit && result.spreadPerScu > best.spreadPerScu)
-      ) {
+      if (!result.commodityUnits || result.commodityUnits <= 0) continue;
+      // Prefer routes that use live buy stock when comparing equal profit.
+      const score = result.totalProfit + (buyTerminal.stockScu > 0 ? 0.01 : 0);
+      const bestScore = best
+        ? best.totalProfit + (best.buyTerminal?.stockScu > 0 ? 0.01 : 0)
+        : null;
+      if (!best || score > bestScore) {
         best = result;
       }
     } catch {
       /* try next commodity */
     }
+  }
+
+  if (!best && requireHints) {
+    // Explicit route terminals didn't resolve — leave live block empty rather than
+    // substituting unrelated UEX best-buy/best-sell terminals.
+    return null;
   }
   return best;
 }
@@ -274,4 +365,6 @@ module.exports = {
   routeFromTerminals,
   clearTerminalCache,
   terminalMatchesHint,
+  pickTerminal,
+  hintList,
 };

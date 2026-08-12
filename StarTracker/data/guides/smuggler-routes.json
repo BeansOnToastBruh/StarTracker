@@ -24,16 +24,16 @@
     "notes": "Same corridor as the narrow spread route with higher risk profile. Check commodity legality and scan risk near major ports."
   },
   {
-    "id": "grimhex-hollowfield",
-    "name": "Grim HEX admin → Hollow Field",
+    "id": "ashland-devlin-vice",
+    "name": "Ashland → Devlin (vice)",
     "risk": "Medium",
     "illegal": true,
-    "commodityHints": ["Altruciatoxin", "WiDoW", "SLAM", "E'tam", "Neon"],
-    "buyTerminalName": "Admin - Grim HEX",
-    "sellTerminalName": "Hollow Field",
-    "buyLocations": ["Admin - Grim HEX", "Grim HEX"],
-    "sellLocations": ["Hollow Field"],
-    "notes": "Classic vice loop from Grim HEX. Stock at admin terminal changes frequently — refresh before committing cargo."
+    "commodityHints": ["E'tam", "Neon", "Altruciatoxin", "WiDoW", "SLAM"],
+    "buyTerminalName": "Ashland",
+    "sellTerminalName": "Devlin Scrap and Salvage",
+    "buyLocations": ["Ashland"],
+    "sellLocations": ["Devlin Scrap and Salvage", "Devlin"],
+    "notes": "Current UEX listings often stock vice at Ashland with Devlin as a dump. Grim HEX admin is usually a sell terminal now, not a buy."
   },
   {
     "id": "magnus-ashland",
@@ -43,28 +43,32 @@
     "commodityHints": ["Any commodity marked Illegal in UEX"],
     "buyTerminalName": "Admin - Magnus Marketing",
     "sellTerminalName": "Ashland",
-    "buyLocations": ["Admin - Magnus Marketing"],
+    "buyLocations": ["Admin - Magnus Marketing", "Magnus Marketing"],
     "sellLocations": ["Ashland"],
-    "notes": "Large stock potential at Magnus admin. Match commodity to what the terminal actually sells in-game before hauling."
+    "notes": "Kept as a curated loop. If UEX has no Magnus buy listings, live stock stays empty instead of substituting another terminal."
   },
   {
     "id": "yela-vice-arcorp",
-    "name": "Yela vice to Area 18",
+    "name": "Yela / Stanton vice dump",
     "risk": "Medium",
     "illegal": true,
-    "commodityHints": ["Altruciatoxin", "WiDoW", "SLAM", "E'tam"],
-    "buyLocations": ["Yela (illegal outposts, drug labs)", "Grim HEX (select goods)"],
-    "sellLocations": ["Area 18 TDD", "New Babbage TDD (check legality)"],
-    "notes": "Classic Stanton vice loop. Prices shift with demand. Expect scans near major ports."
+    "commodityHints": ["Altruciatoxin", "WiDoW", "SLAM", "E'tam", "Neon"],
+    "buyTerminalName": "Ashland",
+    "sellTerminalName": "Devlin Scrap and Salvage",
+    "buyLocations": ["Ashland", "Yela"],
+    "sellLocations": ["Devlin Scrap and Salvage", "Devlin", "Reclamation and Disposal Orinth", "Orinth"],
+    "notes": "Stanton vice often buys at Ashland. Prefer Devlin when Area 18 TDD has no illegal sell listing on UEX."
   },
   {
     "id": "pyro-smuggling",
-    "name": "Pyro smuggling (general)",
+    "name": "Pyro smuggling (Golden Riviera corridor)",
     "risk": "Very high",
     "illegal": true,
-    "commodityHints": ["Varies by patch", "Check UEX for Pyro-linked terminals when listed"],
-    "buyLocations": ["Pyro outposts and stations"],
-    "sellLocations": ["Stanton TDDs or Pyro buyers depending on patch economy"],
-    "notes": "Pyro routes change frequently between patches. Refresh commodity prices before committing cargo."
+    "commodityHints": ["Any commodity marked Illegal in UEX"],
+    "buyTerminalName": "The Golden Riviera",
+    "sellTerminalName": "Devlin Scrap and Salvage",
+    "buyLocations": ["The Golden Riviera", "Pyro"],
+    "sellLocations": ["Devlin Scrap and Salvage", "Devlin"],
+    "notes": "Anchored to the Golden Riviera → Devlin corridor so live stock is real UEX buy SCU, not a guessed Pyro outpost."
   }
 ]

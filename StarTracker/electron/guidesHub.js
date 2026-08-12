@@ -614,7 +614,7 @@ async function getSmugglerRoutes() {
       illegalCommodityCount: illegalRows.length,
     },
     disclaimer:
-      "Spread is sell minus buy per SCU from UEX averages. Actual profit depends on terminal, travel, and risk. Refresh Commodities before hauling.",
+      "Live stock is last-reported UEX buy SCU at the route's buy terminal. Profit uses that stock plus sell-terminal demand. Community data can lag in-game inventory.",
   };
 }
 

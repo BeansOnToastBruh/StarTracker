@@ -5034,3 +5034,131 @@ html[data-theme="light"] .panel-theme-banner-combat .panel-theme-banner-tag {
 html[data-theme="light"] .star-strings-progress-bar {
   background: rgba(0, 0, 0, 0.08);
 }
+
+/* Executive Hangar timer */
+.exec-hangar-status-card {
+  margin: 0.85rem 0 1rem;
+  padding: 1rem 1.1rem 1.15rem;
+  border: 1px solid var(--hud-frame);
+  border-radius: 4px;
+  background: linear-gradient(160deg, rgba(18, 28, 42, 0.95), rgba(10, 14, 22, 0.98));
+  box-shadow: inset 0 1px 0 rgba(126, 184, 255, 0.06);
+}
+.exec-hangar-status-card.is-online {
+  border-color: rgba(88, 196, 120, 0.45);
+}
+.exec-hangar-status-card.is-offline,
+.exec-hangar-status-card.exec-phase-charging {
+  border-color: rgba(210, 78, 72, 0.5);
+}
+.exec-hangar-status-card.exec-phase-reset {
+  border-color: rgba(210, 140, 60, 0.55);
+}
+.exec-hangar-status-top {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  margin-bottom: 1rem;
+}
+.exec-hangar-status-label {
+  display: block;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-bottom: 0.2rem;
+}
+.exec-hangar-phase {
+  display: block;
+  font-size: 1.55rem;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+}
+.exec-phase-open .exec-hangar-phase { color: #6fbf7a; }
+.exec-phase-charging .exec-hangar-phase { color: #e06a5e; }
+.exec-phase-reset .exec-hangar-phase { color: #e0a35e; }
+.exec-hangar-countdowns {
+  display: flex;
+  gap: 1.25rem;
+}
+.exec-hangar-countdowns .refinery-result-label {
+  display: block;
+  margin-bottom: 0.15rem;
+}
+.exec-hangar-clock {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.35rem;
+  letter-spacing: 0.04em;
+}
+.exec-hangar-lights {
+  display: flex;
+  justify-content: center;
+  gap: 0.85rem;
+  padding: 0.85rem 0 0.5rem;
+}
+.exec-hangar-light {
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  background: #1a2030;
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.55);
+  transition: background 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
+}
+.exec-hangar-light.is-green {
+  background: radial-gradient(circle at 35% 30%, #b6f0c0, #2f9e4f 55%, #176b32);
+  border-color: rgba(120, 220, 140, 0.65);
+  box-shadow: 0 0 14px rgba(70, 200, 110, 0.55), inset 0 0 6px rgba(255, 255, 255, 0.25);
+}
+.exec-hangar-light.is-red {
+  background: radial-gradient(circle at 35% 30%, #ffb0a5, #d4453a 55%, #8a1f18);
+  border-color: rgba(230, 100, 90, 0.7);
+  box-shadow: 0 0 14px rgba(210, 60, 50, 0.55), inset 0 0 6px rgba(255, 255, 255, 0.2);
+}
+.exec-hangar-light.is-empty {
+  background: #141820;
+  border-color: rgba(255, 255, 255, 0.08);
+  opacity: 0.85;
+}
+.exec-hangar-insert {
+  margin: 0.75rem 0 0;
+  text-align: center;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.exec-hangar-insert.is-ready { color: #6fbf7a; }
+.exec-hangar-insert.is-blocked { color: #e06a5e; }
+.exec-hangar-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+  margin: 0.35rem 0 0.75rem;
+}
+.exec-phase-chip {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.exec-phase-chip.exec-phase-open {
+  color: #6fbf7a;
+  border-color: rgba(111, 191, 122, 0.4);
+}
+.exec-phase-chip.exec-phase-charging {
+  color: #e06a5e;
+  border-color: rgba(224, 106, 94, 0.4);
+}
+.exec-phase-chip.exec-phase-reset {
+  color: #e0a35e;
+  border-color: rgba(224, 163, 94, 0.4);
+}
+html[data-theme="light"] .exec-hangar-status-card {
+  background: linear-gradient(160deg, rgba(248, 250, 252, 0.98), rgba(232, 238, 246, 0.96));
+}
+html[data-theme="light"] .exec-hangar-light.is-empty {
+  background: #d8dee8;
+}

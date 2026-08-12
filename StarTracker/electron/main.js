@@ -26,6 +26,7 @@ const starStringsInstaller = require("./starStringsInstaller");
 const gameData = require("./gameDataResolver");
 const gameDatabase = require("./gameDatabase");
 const guidesHub = require("./guidesHub");
+const execHangarTimer = require("./execHangarTimer");
 const combatIntel = require("./combatIntel");
 const fleetCompare = require("./fleetCompare");
 const loadoutBuilder = require("./loadoutBuilder");
@@ -520,6 +521,10 @@ app.whenReady().then(async () => {
     seedDir: GUIDES_SEED_DIR(),
     rsiPlainTextFetcher: (url) => require("./rsiPatchNotes").fetchRsiPlainText(url),
   });
+  execHangarTimer.init({
+    cacheDir: GUIDES_CACHE_DIR(),
+    seedDir: GUIDES_SEED_DIR(),
+  });
   combatIntel.init({
     cacheDir: COMBAT_CACHE_DIR(),
     seedDir: COMBAT_SEED_DIR(),
@@ -940,6 +945,42 @@ ipcMain.handle("guides-get-smuggler-routes", async () => {
   };
 });
 
+ipcMain.handle("guides-get-exec-hangar", () => {
+  const status = execHangarTimer.getStatus();
+  return {
+    ...status,
+    upcoming: status.ok ? execHangarTimer.upcomingEvents(6) : [],
+  };
+});
+
+ipcMain.handle("guides-refresh-exec-hangar", async () => {
+  try {
+    await execHangarTimer.fetchRemoteConfig();
+  } catch (err) {
+    /* keep seed/cache; still return status */
+    const status = execHangarTimer.getStatus();
+    return {
+      ...status,
+      upcoming: status.ok ? execHangarTimer.upcomingEvents(6) : [],
+      refreshError: err.message || String(err),
+    };
+  }
+  const status = execHangarTimer.getStatus();
+  return {
+    ...status,
+    upcoming: status.ok ? execHangarTimer.upcomingEvents(6) : [],
+  };
+});
+
+ipcMain.handle("guides-set-exec-hangar-offset", (_, offsetMs) => {
+  execHangarTimer.setUserOffsetMs(offsetMs);
+  const status = execHangarTimer.getStatus();
+  return {
+    ...status,
+    upcoming: status.ok ? execHangarTimer.upcomingEvents(6) : [],
+  };
+});
+
 ipcMain.handle("guides-refresh-smuggler-routes", async () => {
   terminalIntel.clearTerminalCache();
   await guidesHub.refreshCommodities();
@@ -1076,7 +1117,11 @@ ipcMain.handle("fleet-search-vehicles", (_, query) =>
 );
 
 ipcMain.handle("loadout-get-blueprint", (_, slug) =>
-  loadoutBuilder.getShipBlueprint(combatIntel, slug)
+  loadoutBuilder.getShipBlueprint(combatIntel, slug, { waitForSlotOptions: false })
+);
+
+ipcMain.handle("loadout-await-slot-options", (_, slug) =>
+  loadoutBuilder.awaitShipSlotOptions(combatIntel, slug)
 );
 
 ipcMain.handle("loadout-search-weapons", (_, options) =>

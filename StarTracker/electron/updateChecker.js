@@ -212,12 +212,31 @@ async function fetchLatestPlatformRelease(owner, repo) {
   return null;
 }
 
+function normalizeReleaseTag(tag) {
+  return String(tag || "")
+    .trim()
+    .replace(/^v/i, "");
+}
+
 function releaseIsNewerBuild(release, buildMeta) {
   if (!buildMeta?.builtAt || !release?.published_at) return false;
+
+  // Builds stamped for this GitHub release tag are current — even when the
+  // release is published minutes after CI finishes (common false positive).
+  if (buildMeta.releaseTag && release.tag_name) {
+    const builtTag = normalizeReleaseTag(buildMeta.releaseTag);
+    const relTag = normalizeReleaseTag(release.tag_name);
+    if (builtTag && relTag && builtTag === relTag) return false;
+  }
+
   const built = new Date(buildMeta.builtAt).getTime();
   const published = new Date(release.published_at).getTime();
   if (!Number.isFinite(built) || !Number.isFinite(published)) return false;
-  return published > built + 60_000;
+
+  // Same semver without a release tag match: only flag if the release was
+  // republished well after this build (rebuild), not normal publish lag.
+  const REPUBLISH_WINDOW_MS = 6 * 60 * 60 * 1000;
+  return published > built + REPUBLISH_WINDOW_MS;
 }
 
 async function checkForUpdates(cfg) {

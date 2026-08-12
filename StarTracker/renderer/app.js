@@ -234,6 +234,13 @@ const GUIDE_TABS = [
     empty: "No smuggler routes loaded yet.",
   },
   {
+    id: "guides-exec-hangar",
+    group: "guides",
+    label: "Exec hangar",
+    hint: "PYAM Executive Hangar live cooldown — five status lights and countdown synced to the global cycle.",
+    empty: "Hangar timer config not loaded yet.",
+  },
+  {
     id: "guides-loops",
     group: "guides",
     label: "Game loops",
@@ -346,6 +353,7 @@ const INTEL_TAB_META = {
   "guides-commodities": "economy",
   "guides-trade-routes": "economy",
   "guides-smuggling": "economy",
+  "guides-exec-hangar": "economy",
   "guides-loops": "economy",
   "guides-refinery": "production",
   "guides-crafting": "production",
@@ -430,6 +438,8 @@ const TAB_DESCRIPTIONS = {
     "Blueprint recipes from the wiki datamine. Tune material quality (0 to 1000) and preview how output stats shift.",
   "guides-smuggling":
     "Curated smuggling routes with risk level, commodity hints, and location notes. Verify prices before hauling.",
+  "guides-exec-hangar":
+    "Live PYAM Executive Hangar cycle with five status lights and countdown. Insert compboards only while lights are green and none are red.",
   "guides-loops":
     "Short guides for common game loops with tips and links to related StarTracker tabs.",
   "guides-external-tools":
@@ -478,6 +488,7 @@ const TAB_ICONS = {
   "guides-refinery": "⚗",
   "guides-crafting": "▣",
   "guides-smuggling": "◐",
+  "guides-exec-hangar": "◉",
   "guides-loops": "↻",
   "guides-reputation": "★",
   "guides-external-tools": "⊞",
@@ -843,9 +854,13 @@ function patchPanelResults(panelSelector, tableHtml, pagerHtml = "") {
 }
 
 function patchShipBuilderTable(tableHtml) {
+  const scroll = document.querySelector("#panel-guides-loadout .ship-picker-table-scroll");
+  const top = scroll?.scrollTop ?? 0;
   const wrap = document.querySelector("#panel-guides-loadout .ship-picker-table-wrap");
   if (wrap) {
     wrap.outerHTML = tableHtml;
+    const next = document.querySelector("#panel-guides-loadout .ship-picker-table-scroll");
+    if (next) next.scrollTop = top;
   }
 }
 
@@ -854,6 +869,17 @@ function patchShipBuilderTableFromPayload() {
   patchShipBuilderTable(
     renderShipBuilderRows(shipBuilderLastPayload.rows, shipBuilderLastPayload.emptyMessage)
   );
+}
+
+function scrollShipBuilderExpandIntoView(slug) {
+  const row =
+    document.querySelector(
+      `#panel-guides-loadout tr[data-ship-builder-key="${CSS.escape(String(slug))}"]`
+    ) ||
+    document.querySelector(
+      `#panel-guides-loadout tr[data-inline-detail-for="${CSS.escape(String(slug))}"]`
+    );
+  row?.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
 async function toggleInlineExpand(host, key, meta = {}) {
@@ -938,6 +964,11 @@ async function toggleInlineExpand(host, key, meta = {}) {
       inlineExpand.html = html;
       inlineExpand.loading = false;
       await refreshInlineExpandHost(host);
+      if (host === INLINE_HOST.SHIP_BUILDER) {
+        scrollShipBuilderExpandIntoView(key);
+        // Fill equipment dropdowns without blocking the first paint.
+        finishShipBuilderSlotOptions(String(key));
+      }
     }
   } catch (e) {
     if (inlineExpand.host === host && String(inlineExpand.key) === String(key)) {
@@ -1132,6 +1163,7 @@ const GUIDE_TAB_BANNER = {
   "guides-commodities": { label: "Market Prices", tag: "MARKET" },
   "guides-trade-routes": { label: "Trade Routes", tag: "ROUTES" },
   "guides-smuggling": { label: "Smuggler Routes", tag: "SMUGGLE" },
+  "guides-exec-hangar": { label: "Exec Hangar", tag: "PYAM" },
   "guides-loops": { label: "Game Loops", tag: "LOOPS" },
   "guides-refinery": { label: "Production Bay", tag: "REFINERY" },
   "guides-crafting": { label: "Crafting Workshop", tag: "WORKSHOP" },
@@ -1473,6 +1505,9 @@ function resolveTabId(id) {
 function setActiveTab(id) {
   id = resolveTabId(id);
   if (!TABS.some((t) => t.id === id)) return;
+  if (activeTab === "guides-exec-hangar" && id !== "guides-exec-hangar") {
+    stopExecHangarTick();
+  }
   activeTab = id;
   if (id === "history" && !archiveViewSession) {
     refreshLogArchiveList();
@@ -3421,15 +3456,16 @@ async function buildShipBuilderInlineHtml(slug) {
     loadoutBuilderState.stockBaseline = null;
     loadoutBuilderBlueprint = null;
   }
-  // One simulate call also builds the blueprint (shared cache) — avoid a parallel duplicate fetch.
+
+  // Fast path: stock DPS + hull. Equipment catalogs fill in afterward.
   const sim = await window.debrief.loadoutSimulate({
     shipSlug: slug,
     slotAssignments: loadoutBuilderState.slotAssignments,
   });
-  const blueprint =
-    loadoutBuilderBlueprint?.ok && loadoutBuilderState.shipSlug === slug
-      ? loadoutBuilderBlueprint
-      : await window.debrief.loadoutGetBlueprint(slug);
+  let blueprint = sim?.blueprint || null;
+  if (!blueprint?.ok) {
+    blueprint = await window.debrief.loadoutGetBlueprint(slug);
+  }
   if (blueprint?.ok) loadoutBuilderBlueprint = blueprint;
   if (!loadoutBuilderState.stockBaseline && sim?.summary) {
     loadoutBuilderState.stockBaseline = {
@@ -3437,19 +3473,56 @@ async function buildShipBuilderInlineHtml(slug) {
       totalAlpha: sim.summary.totalAlpha,
     };
   }
-  if (!sim?.ok) {
-    if (blueprint?.ok) return renderLoadoutBuilderBody(blueprint, blueprint.stockSummary);
+  if (!sim?.ok && !blueprint?.ok) {
     return `<p class="muted">${escapeHtml(sim?.error || blueprint?.error || "Could not load ship.")}</p>`;
   }
-  let html = renderLoadoutBuilderBody(blueprint, sim.summary);
-  if (sim.hullProfile) {
-    const hullHtml = renderCombatPerformanceSections(sim.hullProfile);
+
+  const summary = sim?.ok ? sim.summary : blueprint.stockSummary;
+  let html = renderLoadoutBuilderBody(blueprint, summary);
+  if (blueprint?.slotOptionsPending) {
+    html =
+      `<p class="muted small ship-builder-options-pending">Loading weapon and component options…</p>` +
+      html;
+  }
+  const hull = sim?.hullProfile || blueprint?.hullProfile;
+  if (hull) {
+    const hullHtml = renderCombatPerformanceSections(hull);
     html = html.replace(
       '<div id="loadoutHullProfile"></div>',
       `<div id="loadoutHullProfile">${hullHtml}</div>`
     );
   }
   return html;
+}
+
+async function finishShipBuilderSlotOptions(slug) {
+  if (!slug || !window.debrief.loadoutAwaitSlotOptions) return;
+  try {
+    const full = await window.debrief.loadoutAwaitSlotOptions(slug);
+    if (!full?.ok) return;
+    if (inlineExpand.host !== INLINE_HOST.SHIP_BUILDER) return;
+    if (String(inlineExpand.key) !== String(slug)) return;
+    loadoutBuilderBlueprint = full;
+    const sim = await window.debrief.loadoutSimulate({
+      shipSlug: slug,
+      slotAssignments: loadoutBuilderState.slotAssignments,
+    });
+    let html = renderLoadoutBuilderBody(full, sim?.summary || full.stockSummary);
+    const hull = sim?.hullProfile || full.hullProfile;
+    if (hull) {
+      const hullHtml = renderCombatPerformanceSections(hull);
+      html = html.replace(
+        '<div id="loadoutHullProfile"></div>',
+        `<div id="loadoutHullProfile">${hullHtml}</div>`
+      );
+    }
+    inlineExpand.html = html;
+    inlineExpand.loading = false;
+    await refreshInlineExpandHost(INLINE_HOST.SHIP_BUILDER);
+    scrollShipBuilderExpandIntoView(slug);
+  } catch {
+    /* keep first-paint UI */
+  }
 }
 
 async function renderLoadoutBuilderShell() {
@@ -3684,15 +3757,27 @@ async function loadFleetCompareTab(tabId, options = {}) {
   }
 }
 
-async function loadLoadoutBuilderTab(tabId) {
+async function loadLoadoutBuilderTab(tabId, options = {}) {
+  const soft = !!options.soft;
   const preserveKey =
     inlineExpand.host === INLINE_HOST.SHIP_BUILDER ? inlineExpand.key : null;
   const preserveHtml = preserveKey ? inlineExpand.html : null;
   const preserveLoading = preserveKey ? inlineExpand.loading : false;
 
-  setPanelHtml(tabId, `<p class="muted small">Loading ship index…</p>`);
+  if (!soft) {
+    setPanelHtml(tabId, `<p class="muted small">Loading ship index…</p>`);
+  }
   try {
-    setPanelHtml(tabId, await renderLoadoutBuilderShell());
+    const shell = await renderLoadoutBuilderShell();
+    if (soft) {
+      const scroll = document.querySelector(`#panel-${tabId} .ship-picker-table-scroll`);
+      const top = scroll?.scrollTop ?? 0;
+      setPanelHtml(tabId, shell);
+      const next = document.querySelector(`#panel-${tabId} .ship-picker-table-scroll`);
+      if (next) next.scrollTop = top;
+    } else {
+      setPanelHtml(tabId, shell);
+    }
   } catch (e) {
     setPanelHtml(
       tabId,
@@ -3703,7 +3788,6 @@ async function loadLoadoutBuilderTab(tabId) {
 
   if (preserveKey) {
     const state = guideQueryByTab["guides-loadout"] || {};
-    const fleet = await getLoadoutFleetIndex();
     const favSlugs = new Set(shipBuilderFavorites.map((s) => s.slug));
     const resolved = await resolveShipBuilderRows(state, favSlugs);
     const stillVisible = resolved.rows.some((r) => r.slug === preserveKey);
@@ -4660,7 +4744,7 @@ function renderSmugglerRouteInlineDetail(route) {
         <strong>${displayText(topName)}</strong>
         <span>${displayText(buy.terminal || "Unknown terminal")}</span>
         <span class="muted small">${displayText(buy.location || buy.system || "")}</span>
-        <span>${fmtPurchaseCostPerScu(buy.sellToYouPrice)} · <strong>${formatFleetCell(buy.stockScu)} SCU in stock</strong></span>
+        <span>${fmtPurchaseCostPerScu(buy.sellToYouPrice)} · <strong>${formatFleetCell(buy.stockScu)} SCU in stock</strong>${buy.stockUpdatedAt ? ` <span class="muted small">(${escapeHtml(fmtDateTime(buy.stockUpdatedAt))})</span>` : ""}</span>
       </div>
       <div class="trade-route-detail-card">
         <span class="refinery-result-label">2 · Sell cargo here</span>
@@ -4715,10 +4799,13 @@ function renderSmugglerRouteRows(routes) {
       const commodityName =
         tr?.name || route.commodities?.[0]?.name || route.commodityHints?.[0] || EMPTY_DISPLAY;
       const stockScu = tr?.buyTerminal?.stockScu;
+      const stockUpdated = tr?.buyTerminal?.stockUpdatedAt;
       const stockCell =
         stockScu != null && stockScu > 0
-          ? `<strong class="smuggle-stock-live">${formatFleetCell(stockScu)} SCU</strong><div class="muted small">at buy terminal</div>`
-          : `<span class="muted">—</span><div class="muted small">refresh for stock</div>`;
+          ? `<strong class="smuggle-stock-live">${formatFleetCell(stockScu)} SCU</strong><div class="muted small">${stockUpdated ? `UEX · ${escapeHtml(fmtDateTime(stockUpdated))}` : "at buy terminal"}</div>`
+          : tr
+            ? `<span class="muted">0 / unknown</span><div class="muted small">no live buy stock</div>`
+            : `<span class="muted">—</span><div class="muted small">no matching terminals</div>`;
       const buyCell = tr?.buyTerminal
         ? `${displayText(tr.buyTerminal.terminal)}<div class="muted small">${fmtPurchaseCostPerScu(tr.buyTerminal.sellToYouPrice)}</div>`
         : displayText(route.buyTerminalName || route.buyLocations?.[0] || EMPTY_DISPLAY);
@@ -4895,12 +4982,226 @@ function buildSmugglerRoutesPanel(data) {
     ? `<p class="guides-meta muted small">${displayText(data.disclaimer)}</p>`
     : "";
   const stockMeta = data.meta?.stockFetchedAt
-    ? `<p class="guides-meta muted small">Live UEX stock · ${escapeHtml(fmtDateTime(data.meta.stockFetchedAt))} · <button type="button" class="link" id="smugglerRefreshStockBtn">Refresh stock</button></p>`
+    ? `<p class="guides-meta muted small">Live UEX buy stock (last reported SCU) · ${escapeHtml(fmtDateTime(data.meta.stockFetchedAt))} · <button type="button" class="link" id="smugglerRefreshStockBtn">Refresh stock</button></p>`
     : "";
-  const intro = `<div class="hub-intro hub-intro-accent"><strong>Curated smuggling loops.</strong> Stock column shows live UEX buy-terminal SCU. Expand a row for full terminal breakdown.</div>`;
+  const intro = `<div class="hub-intro hub-intro-accent"><strong>Curated smuggling loops.</strong> Terminal stock is last-reported UEX buy SCU for the matched buy terminal — not a historical minimum. Rows without a match show — instead of inventing another terminal.</div>`;
   const tableHtml = renderSmugglerRouteRows(routes);
   smugglerRoutesLastPayload = { tableHtml, routes };
   return `${intro}${stockMeta}${disclaimer}${tableHtml}`;
+}
+
+let execHangarTickTimer = null;
+let execHangarLastStatus = null;
+
+function stopExecHangarTick() {
+  if (execHangarTickTimer) {
+    clearInterval(execHangarTickTimer);
+    execHangarTickTimer = null;
+  }
+}
+
+function formatExecCountdown(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function computeExecHangarClientStatus(base, nowMs = Date.now()) {
+  if (!base?.ok) return base;
+  const elapsed = nowMs - new Date(base.at).getTime();
+  const tic =
+    (((base.timeInCycleMs + elapsed) % base.cycleDurationMs) + base.cycleDurationMs) %
+    base.cycleDurationMs;
+  const online = tic < base.openDurationMs;
+  // Recompute light pattern client-side from time-in-cycle.
+  const GREEN_STEP = 12 * 60 * 1000;
+  const RED_STEP = 24 * 60 * 1000;
+  let lights;
+  if (tic < base.openDurationMs) {
+    if (tic >= GREEN_STEP * 5) lights = ["empty", "empty", "empty", "empty", "empty"];
+    else {
+      const greenCount = Math.max(0, 5 - Math.floor(tic / GREEN_STEP));
+      lights = Array.from({ length: 5 }, (_, i) => (i < greenCount ? "green" : "empty"));
+    }
+  } else {
+    const offlineMs = tic - base.openDurationMs;
+    const greened = Math.min(4, Math.floor(offlineMs / RED_STEP));
+    lights = Array.from({ length: 5 }, (_, i) => (i < greened ? "green" : "red"));
+  }
+  const green = lights.filter((c) => c === "green").length;
+  const red = lights.filter((c) => c === "red").length;
+  const empty = lights.filter((c) => c === "empty").length;
+  let phase;
+  if (online && green > 0 && red === 0) {
+    phase = { id: "open", label: "OPEN", detail: "Insert compboards — hangar access window", canInsert: true };
+  } else if (online && empty === 5) {
+    phase = { id: "reset", label: "RESET", detail: "Blackout / death zone — evacuate before doors close", canInsert: false };
+  } else if (!online && red > 0) {
+    phase = { id: "charging", label: "CHARGING", detail: "Hangar closed — red lights turning green", canInsert: false };
+  } else {
+    phase = { id: "unknown", label: "UNKNOWN", detail: "Wait for next light change", canInsert: false };
+  }
+  const boundaries = [];
+  for (let i = 1; i <= 5; i += 1) boundaries.push(i * GREEN_STEP);
+  boundaries.push(base.openDurationMs);
+  for (let i = 1; i <= 5; i += 1) boundaries.push(base.openDurationMs + i * RED_STEP);
+  boundaries.push(base.cycleDurationMs);
+  const nextBoundary = boundaries.find((b) => b > tic + 0.5) ?? base.cycleDurationMs;
+  const msToLight = nextBoundary - tic;
+  const msToPhase = online ? base.openDurationMs - tic : base.cycleDurationMs - tic;
+  return {
+    ...base,
+    online,
+    status: online ? "ONLINE" : "OFFLINE",
+    phase,
+    lights,
+    greenCount: green,
+    redCount: red,
+    timeInCycleMs: tic,
+    msToNextLight: msToLight,
+    msToPhaseChange: msToPhase,
+    nextLightIn: formatExecCountdown(msToLight),
+    phaseEndsIn: formatExecCountdown(msToPhase),
+  };
+}
+
+function renderExecHangarLights(lights) {
+  return (lights || [])
+    .map((color, i) => {
+      const cls =
+        color === "green" ? "is-green" : color === "red" ? "is-red" : "is-empty";
+      return `<span class="exec-hangar-light ${cls}" title="Light ${i + 1}: ${color}" aria-label="Light ${i + 1} ${color}"></span>`;
+    })
+    .join("");
+}
+
+function buildExecHangarPanel(status) {
+  if (!status?.ok) {
+    return `<p class="muted">${escapeHtml(status?.error || "Hangar timer unavailable.")}</p>
+      <p class="muted small"><button type="button" class="link" id="execHangarRefreshBtn">Sync timer config</button></p>`;
+  }
+  const live = computeExecHangarClientStatus(status);
+  const phaseClass = `exec-phase-${live.phase?.id || "unknown"}`;
+  const statusClass = live.online ? "is-online" : "is-offline";
+  const upcoming = (status.upcoming || [])
+    .map(
+      (e) => `<tr>
+        <td>${escapeHtml(e.label || e.status)}</td>
+        <td>${escapeHtml(fmtDateTime(e.at))}</td>
+        <td><span class="exec-phase-chip exec-phase-${escapeAttr(e.phase?.id || "")}">${escapeHtml(e.phase?.label || e.status)}</span></td>
+      </tr>`
+    )
+    .join("");
+  const offsetMin = Math.round((live.offsetMs || 0) / 60000);
+  const attr = live.attribution
+    ? `<p class="muted small">Cycle calibrated from <button type="button" class="link" data-guide-external="${escapeAttr(live.attribution.url || "https://github.com/ArkanisCorporation/Exec-Hangar")}">${escapeHtml(live.attribution.name || "community timer")}</button>. ${escapeHtml(live.attribution.note || "")}</p>`
+    : "";
+  const refreshNote = status.refreshError
+    ? `<p class="muted small">Sync warning: ${escapeHtml(status.refreshError)} — using ${escapeHtml(live.source || "seed")} config.</p>`
+    : "";
+
+  return `<div class="exec-hangar-panel" data-exec-hangar-root>
+    <div class="hub-intro hub-intro-accent"><strong>PYAM Executive Hangar.</strong> Global cycle — five lights match the hangar EVA indicators. Compboards only while green with no reds.</div>
+    <div class="exec-hangar-status-card ${statusClass} ${phaseClass}">
+      <div class="exec-hangar-status-top">
+        <div>
+          <span class="exec-hangar-status-label">${escapeHtml(live.status)}</span>
+          <strong class="exec-hangar-phase" data-exec-phase>${escapeHtml(live.phase?.label || "—")}</strong>
+          <p class="muted small" data-exec-phase-detail>${escapeHtml(live.phase?.detail || "")}</p>
+        </div>
+        <div class="exec-hangar-countdowns">
+          <div>
+            <span class="refinery-result-label">Next light</span>
+            <strong class="exec-hangar-clock" data-exec-next-light>${escapeHtml(live.nextLightIn)}</strong>
+          </div>
+          <div>
+            <span class="refinery-result-label">${live.online ? "Window ends" : "Opens in"}</span>
+            <strong class="exec-hangar-clock" data-exec-phase-end>${escapeHtml(live.phaseEndsIn)}</strong>
+          </div>
+        </div>
+      </div>
+      <div class="exec-hangar-lights" data-exec-lights aria-label="Hangar status lights">
+        ${renderExecHangarLights(live.lights)}
+      </div>
+      <p class="exec-hangar-insert ${live.phase?.canInsert ? "is-ready" : "is-blocked"}" data-exec-insert>
+        ${live.phase?.canInsert ? "Ready — insert all 7 compboards" : "Do not insert — wait for open window"}
+      </p>
+    </div>
+    <div class="exec-hangar-toolbar">
+      <button type="button" class="btn btn-sm" id="execHangarRefreshBtn">Sync cycle</button>
+      <button type="button" class="btn btn-sm btn-ghost" id="execHangarOffsetMinus" title="Nudge −1 min">−1m</button>
+      <button type="button" class="btn btn-sm btn-ghost" id="execHangarOffsetPlus" title="Nudge +1 min">+1m</button>
+      <button type="button" class="btn btn-sm btn-ghost" id="execHangarOffsetReset" title="Clear nudge">Reset nudge</button>
+      <span class="muted small">Offset: <strong data-exec-offset>${offsetMin}m</strong></span>
+    </div>
+    ${refreshNote}
+    <p class="guides-meta muted small">${escapeHtml(live.versionInfo || "Community hangar cycle")}${live.fetchedAt ? ` · synced ${escapeHtml(fmtDateTime(live.fetchedAt))}` : ` · ${escapeHtml(live.source || "seed")}`}</p>
+    ${upcoming ? `<h3 class="guide-section-title">Upcoming phase changes</h3>
+      <div class="catalog-table-wrap"><table class="catalog-table">
+        <thead><tr><th>Event</th><th>Local time</th><th>Phase</th></tr></thead>
+        <tbody>${upcoming}</tbody>
+      </table></div>` : ""}
+    ${attr}
+    <p class="muted small">Keep Windows time sync on for accuracy. After a major patch, use <strong>Sync cycle</strong>. If in-game lights disagree, nudge ±1 minute.</p>
+  </div>`;
+}
+
+function patchExecHangarLiveDom() {
+  const root = document.querySelector("#panel-guides-exec-hangar [data-exec-hangar-root]");
+  if (!root || !execHangarLastStatus?.ok) return;
+  const live = computeExecHangarClientStatus(execHangarLastStatus);
+  const phaseEl = root.querySelector("[data-exec-phase]");
+  const detailEl = root.querySelector("[data-exec-phase-detail]");
+  const nextEl = root.querySelector("[data-exec-next-light]");
+  const endEl = root.querySelector("[data-exec-phase-end]");
+  const lightsEl = root.querySelector("[data-exec-lights]");
+  const insertEl = root.querySelector("[data-exec-insert]");
+  const card = root.querySelector(".exec-hangar-status-card");
+  if (phaseEl) phaseEl.textContent = live.phase?.label || "—";
+  if (detailEl) detailEl.textContent = live.phase?.detail || "";
+  if (nextEl) nextEl.textContent = live.nextLightIn;
+  if (endEl) endEl.textContent = live.phaseEndsIn;
+  if (lightsEl) lightsEl.innerHTML = renderExecHangarLights(live.lights);
+  if (insertEl) {
+    insertEl.classList.toggle("is-ready", !!live.phase?.canInsert);
+    insertEl.classList.toggle("is-blocked", !live.phase?.canInsert);
+    insertEl.textContent = live.phase?.canInsert
+      ? "Ready — insert all 7 compboards"
+      : "Do not insert — wait for open window";
+  }
+  if (card) {
+    card.classList.toggle("is-online", !!live.online);
+    card.classList.toggle("is-offline", !live.online);
+    card.className = card.className
+      .replace(/exec-phase-\w+/g, "")
+      .trim();
+    card.classList.add(`exec-phase-${live.phase?.id || "unknown"}`);
+  }
+}
+
+function startExecHangarTick() {
+  stopExecHangarTick();
+  patchExecHangarLiveDom();
+  execHangarTickTimer = setInterval(patchExecHangarLiveDom, 1000);
+}
+
+async function loadExecHangarTab(tabId) {
+  stopExecHangarTick();
+  setPanelHtml(tabId, `<p class="muted small">Loading hangar timer…</p>`);
+  try {
+    const status = await window.debrief.guidesGetExecHangar();
+    execHangarLastStatus = status;
+    setPanelHtml(tabId, buildExecHangarPanel(status));
+    startExecHangarTick();
+  } catch (e) {
+    setPanelHtml(
+      tabId,
+      `<p class="muted">Hangar timer error: ${escapeHtml(e.message || String(e))}</p>`
+    );
+  }
 }
 
 function summarizeWikeloInputs(inputs) {
@@ -5494,6 +5795,11 @@ async function loadGuideTab(tabId, options = {}) {
     return;
   }
 
+  if (tabId === "guides-exec-hangar") {
+    await loadExecHangarTab(tabId);
+    return;
+  }
+
   if (tabId === "guides-loops") {
     setPanelHtml(tabId, `<p class="muted small">Loading game loops…</p>`);
     try {
@@ -6017,6 +6323,43 @@ function initGuidesUi() {
       return;
     }
 
+    if (e.target.closest("#execHangarRefreshBtn")) {
+      setPanelHtml("guides-exec-hangar", `<p class="muted small">Syncing hangar cycle…</p>`);
+      stopExecHangarTick();
+      try {
+        const status = await window.debrief.guidesRefreshExecHangar();
+        execHangarLastStatus = status;
+        setPanelHtml("guides-exec-hangar", buildExecHangarPanel(status));
+        startExecHangarTick();
+      } catch (err) {
+        setPanelHtml(
+          "guides-exec-hangar",
+          `<p class="muted">Sync failed: ${escapeHtml(err.message || String(err))}</p>`
+        );
+      }
+      return;
+    }
+
+    if (e.target.closest("#execHangarOffsetMinus") || e.target.closest("#execHangarOffsetPlus") || e.target.closest("#execHangarOffsetReset")) {
+      const cur = execHangarLastStatus?.offsetMs || 0;
+      let next = cur;
+      if (e.target.closest("#execHangarOffsetMinus")) next = cur - 60000;
+      if (e.target.closest("#execHangarOffsetPlus")) next = cur + 60000;
+      if (e.target.closest("#execHangarOffsetReset")) next = 0;
+      try {
+        const status = await window.debrief.guidesSetExecHangarOffset(next);
+        execHangarLastStatus = status;
+        setPanelHtml("guides-exec-hangar", buildExecHangarPanel(status));
+        startExecHangarTick();
+      } catch (err) {
+        setPanelHtml(
+          "guides-exec-hangar",
+          `<p class="muted">Offset failed: ${escapeHtml(err.message || String(err))}</p>`
+        );
+      }
+      return;
+    }
+
     if (e.target.id === "loadoutResetStockBtn" || e.target.closest("#loadoutResetStockBtn")) {
       loadoutBuilderState.slotAssignments = {};
       loadoutBuilderState.stockBaseline = null;
@@ -6037,7 +6380,7 @@ function initGuidesUi() {
         shipFavToggle.dataset.shipName,
         shipFavToggle.dataset.shipMfg
       );
-      if (activeTab === "guides-loadout") await loadLoadoutBuilderTab("guides-loadout");
+      if (activeTab === "guides-loadout") await loadLoadoutBuilderTab("guides-loadout", { soft: true });
       return;
     }
 

@@ -79,6 +79,7 @@ function main() {
     star_system_name: "Stanton",
     price_buy: 2600,
     price_sell: 3400,
+    scu_sell: 80,
     scu_sell_stock: 12.5,
     scu_buy_avg: 40,
     scu_buy: 40,
@@ -87,35 +88,64 @@ function main() {
   assert.strictEqual(shaped.sellToYouPrice, 2600, "price_buy is player purchase cost per SCU");
   assert.strictEqual(shaped.buyFromYouPrice, 3400, "price_sell is player sale payout per SCU");
   assert.strictEqual(shaped.stockScu, 40);
-  assert.strictEqual(shaped.demandScu, 12.5);
+  assert.strictEqual(shaped.demandScu, 80, "prefer live demand scu_sell over inventory stock");
 
-  const conservative = terminalIntel.shapeTerminalRow({
+  const liveStock = terminalIntel.shapeTerminalRow({
     terminal_name: "Golden",
     price_buy: 100,
-    scu_buy: 3,
+    scu_buy: 138,
+    scu_buy_min: 12,
+    scu_buy_avg: 105,
+  });
+  assert.strictEqual(liveStock.stockScu, 138, "live stock uses last-reported scu_buy, not historical min");
+
+  const avgFallback = terminalIntel.shapeTerminalRow({
+    terminal_name: "Avg only",
+    price_buy: 100,
+    scu_buy: 0,
+    scu_buy_avg: 40,
     scu_buy_min: 1,
   });
-  assert.strictEqual(conservative.stockScu, 1, "use lower reported stock when min < current");
+  assert.strictEqual(avgFallback.stockScu, 40, "fall back to avg when last stock missing");
 
   const devlin = terminalIntel.shapeTerminalRow({
     terminal_name: "Devlin Scrap and Salvage",
     price_buy: 0,
     price_sell: 870000,
+    scu_sell: 140,
     scu_sell_stock: 4,
   });
   assert.strictEqual(devlin.sellToYouPrice, 0);
   assert.strictEqual(devlin.buyFromYouPrice, 870000);
+  assert.strictEqual(devlin.demandScu, 140, "sell demand uses scu_sell");
 
   const golden = terminalIntel.shapeTerminalRow({
     terminal_name: "The Golden Riviera",
     price_buy: 281500,
     price_sell: 0,
-    scu_buy: 3,
-    scu_buy_min: 1,
+    scu_buy: 4,
+    scu_buy_min: 3,
   });
   assert.strictEqual(golden.buyFromYouPrice, 0);
   assert.strictEqual(golden.sellToYouPrice, 281500);
-  assert.strictEqual(golden.stockScu, 1);
+  assert.strictEqual(golden.stockScu, 4, "show live buy stock");
+
+  const hinted = terminalIntel.pickTerminal(
+    [
+      sampleTerminal({ terminal: "Wrong Place", sellToYouPrice: 100, stockScu: 999 }),
+      sampleTerminal({ terminal: "The Golden Riviera", sellToYouPrice: 200, stockScu: 4 }),
+    ],
+    "The Golden Riviera",
+    "buy"
+  );
+  assert.strictEqual(hinted.terminal, "The Golden Riviera");
+
+  const noMatch = terminalIntel.pickTerminal(
+    [sampleTerminal({ terminal: "Wrong Place", sellToYouPrice: 100, stockScu: 999 })],
+    "Admin - Magnus Marketing",
+    "buy"
+  );
+  assert.strictEqual(noMatch, null, "do not invent a terminal when the route hint misses");
 
   console.log("test-terminal-intel: OK");
 }

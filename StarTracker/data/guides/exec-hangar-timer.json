@@ -1,0 +1,14 @@
+{
+  "versionInfo": "Seeded from Arkanis Exec-Hangar config · Patch 4.9.0-LIVE · Server 12269732",
+  "attribution": {
+    "name": "ArkanisCorporation / Exec-Hangar",
+    "url": "https://github.com/ArkanisCorporation/Exec-Hangar",
+    "note": "Community-calibrated global hangar cycle. Not affiliated with CIG."
+  },
+  "serverStartTimes": {
+    "initialOpenTime": "2026-07-22T23:37:42.439000Z",
+    "openDurationMs": 3900093,
+    "closeDurationMs": 7200173
+  },
+  "remoteConfigUrl": "https://raw.githubusercontent.com/ArkanisCorporation/Exec-Hangar/main/config.json"
+}

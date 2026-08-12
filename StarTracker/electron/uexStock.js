@@ -1,31 +1,30 @@
-/** UEX buy-side stock is SCU volume at the terminal (player purchase inventory). */
+/** UEX buy-side stock is SCU volume available to purchase (last reported). */
 function terminalStockScu(raw) {
   const current = Number(raw.scu_buy);
-  const min = Number(raw.scu_buy_min);
   const avg = Number(raw.scu_buy_avg);
+  const min = Number(raw.scu_buy_min);
   const max = Number(raw.scu_buy_max);
-  if (current > 0) {
-    if (min > 0 && min < current) return min;
-    return current;
-  }
-  if (min > 0) return min;
+  // Prefer last-reported live stock. Min/avg are historical, not "live".
+  if (current > 0) return current;
   if (avg > 0) return avg;
+  if (min > 0) return min;
   if (max > 0) return max;
   return 0;
 }
 
-/** UEX sell-side demand is SCU volume the terminal will buy from the player. */
+/**
+ * UEX sell-side demand: how much SCU the terminal will buy from the player.
+ * scu_sell is forecasted demand; scu_sell_stock is reported inventory (fallback only).
+ */
 function terminalDemandScu(raw) {
-  const stock = Number(raw.scu_sell_stock);
   const current = Number(raw.scu_sell);
   const avg = Number(raw.scu_sell_avg);
   const min = Number(raw.scu_sell_min);
-  if (stock > 0) return stock;
-  if (current > 0) {
-    if (min > 0 && min < current) return min;
-    return current;
-  }
+  const stock = Number(raw.scu_sell_stock);
+  if (current > 0) return current;
   if (avg > 0) return avg;
+  if (min > 0) return min;
+  if (stock > 0) return stock;
   return 0;
 }
 

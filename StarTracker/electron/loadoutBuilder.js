@@ -1,11 +1,13 @@
 const { formatVehicle, formatWikiItem, combatHeadline } = require("./combatIntelFormat");
 
 const WIKI_BASE = "https://api.star-citizen.wiki/api";
-const FETCH_GAP_MS = 350;
+/** Soft gap between wiki pages in a single paged fetch (keep low — we parallelize slot catalogs). */
+const FETCH_GAP_MS = 40;
 
 const blueprintCache = new Map();
 const blueprintInflight = new Map();
-const BLUEPRINT_CACHE_VERSION = 2;
+const slotOptionsInflight = new Map();
+const BLUEPRINT_CACHE_VERSION = 3;
 const slotOptionsCache = new Map();
 
 const WIKI_ITEM_TYPES = {
@@ -90,40 +92,50 @@ async function fetchSlotOptions(componentType, sizeMax) {
 
   const cacheKey = slotOptionsKey(componentType, size);
   if (slotOptionsCache.has(cacheKey)) return slotOptionsCache.get(cacheKey);
+  if (slotOptionsInflight.has(cacheKey)) return slotOptionsInflight.get(cacheKey);
 
-  const rows = [];
-  let page = 1;
-  let lastPage = 1;
-  while (page <= lastPage && rows.length < 100) {
-    const json = await fetchJson(
-      `${WIKI_BASE}/items?filter[type]=${encodeURIComponent(wikiType)}&filter[size]=${size}&per_page=50&page=${page}`
-    );
-    lastPage = json.meta?.last_page || 1;
-    for (const item of json.data || []) {
-      const preview = formatWikiItem(item);
-      const { dps } = weaponDpsFromProfile(preview);
-      rows.push({
-        name: item.name || item.game_name,
-        slug: item.slug,
-        className: item.class_name,
-        size: item.size ?? null,
-        dps,
-        headline: preview ? combatHeadline(preview) : null,
-      });
+  const work = (async () => {
+    const rows = [];
+    let page = 1;
+    let lastPage = 1;
+    while (page <= lastPage && rows.length < 80) {
+      const json = await fetchJson(
+        `${WIKI_BASE}/items?filter[type]=${encodeURIComponent(wikiType)}&filter[size]=${size}&per_page=50&page=${page}`
+      );
+      lastPage = json.meta?.last_page || 1;
+      for (const item of json.data || []) {
+        const preview = formatWikiItem(item);
+        const { dps } = weaponDpsFromProfile(preview);
+        rows.push({
+          name: item.name || item.game_name,
+          slug: item.slug,
+          className: item.class_name,
+          size: item.size ?? null,
+          dps,
+          headline: preview ? combatHeadline(preview) : null,
+        });
+      }
+      page += 1;
+      if (page <= lastPage) await sleep(FETCH_GAP_MS);
     }
-    page += 1;
-    if (page <= lastPage) await sleep(FETCH_GAP_MS);
-  }
 
-  if (componentType === "WeaponGun") {
-    rows.sort((a, b) => (b.dps ?? -1) - (a.dps ?? -1));
-  } else {
-    rows.sort((a, b) => String(a.name).localeCompare(String(b.name)));
-  }
+    if (componentType === "WeaponGun") {
+      rows.sort((a, b) => (b.dps ?? -1) - (a.dps ?? -1));
+    } else {
+      rows.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    }
 
-  const payload = { rows };
-  slotOptionsCache.set(cacheKey, payload);
-  return payload;
+    const payload = { rows };
+    slotOptionsCache.set(cacheKey, payload);
+    return payload;
+  })();
+
+  slotOptionsInflight.set(cacheKey, work);
+  try {
+    return await work;
+  } finally {
+    slotOptionsInflight.delete(cacheKey);
+  }
 }
 
 async function loadSlotOptionsForBlueprint(blueprint) {
@@ -135,11 +147,13 @@ async function loadSlotOptionsForBlueprint(blueprint) {
   for (const slot of blueprint.componentSlots || []) {
     if (slot.sizeMax != null) keys.add(slotOptionsKey(slot.componentType, slot.sizeMax));
   }
-  for (const key of keys) {
-    const [componentType, sizeStr] = key.split(":");
-    slotOptions[key] = await fetchSlotOptions(componentType, Number(sizeStr));
-    await sleep(FETCH_GAP_MS);
-  }
+  // Fetch every size/type catalog in parallel (shared cache/inflight dedupes overlaps).
+  await Promise.all(
+    [...keys].map(async (key) => {
+      const [componentType, sizeStr] = key.split(":");
+      slotOptions[key] = await fetchSlotOptions(componentType, Number(sizeStr));
+    })
+  );
   return slotOptions;
 }
 
@@ -165,56 +179,98 @@ async function resolveItemProfile(combatIntel, identifier) {
 }
 
 async function simulateWeaponSlots(combatIntel, slots, assignments = {}) {
+  const weapons = await Promise.all(
+    (slots || []).map(async (slot) => {
+      const assigned = assignments[slot.portId] || slot.stockClassName || slot.stockSlug;
+      let profile = null;
+      let name = slot.stockName || assigned;
+      if (assigned) {
+        const item = await resolveItemProfile(combatIntel, assigned);
+        if (item) {
+          profile = item.profile;
+          name = item.name || name;
+        }
+      }
+      const { dps, alpha } = weaponDpsFromProfile(profile);
+      return {
+        portId: slot.portId,
+        label: slot.label,
+        name,
+        className: assigned,
+        dps,
+        alpha,
+        headline: profile ? combatHeadline(profile) : null,
+        sizeMax: slot.sizeMax,
+        stockClassName: slot.stockClassName || null,
+        stockName: slot.stockName || null,
+      };
+    })
+  );
+
   let totalDps = 0;
   let totalAlpha = 0;
   let dpsCount = 0;
-  const weapons = [];
-
-  for (const slot of slots) {
-    const assigned = assignments[slot.portId] || slot.stockClassName || slot.stockSlug;
-    let profile = null;
-    let name = slot.stockName || assigned;
-    if (assigned) {
-      const item = await resolveItemProfile(combatIntel, assigned);
-      if (item) {
-        profile = item.profile;
-        name = item.name || name;
-      }
-      await sleep(FETCH_GAP_MS);
-    }
-    const { dps, alpha } = weaponDpsFromProfile(profile);
-    if (dps != null) {
-      totalDps += dps;
+  for (const w of weapons) {
+    if (w.dps != null) {
+      totalDps += w.dps;
       dpsCount += 1;
     }
-    if (alpha != null) totalAlpha += alpha;
-    weapons.push({
-      portId: slot.portId,
-      label: slot.label,
-      name,
-      className: assigned,
-      dps,
-      alpha,
-      headline: profile ? combatHeadline(profile) : null,
-      sizeMax: slot.sizeMax,
-    });
+    if (w.alpha != null) totalAlpha += w.alpha;
   }
 
   return {
     weapons,
     totalDps: dpsCount ? Math.round(totalDps * 10) / 10 : null,
     totalAlpha: dpsCount ? Math.round(totalAlpha * 10) / 10 : null,
-    weaponCount: slots.length,
+    weaponCount: weapons.length,
     note:
       "Simplified loadout math: weapon DPS values are summed from wiki datamine stats. Power, heat, and capacitor interactions are not simulated.",
   };
 }
 
-async function getShipBlueprint(combatIntel, slug) {
+function startSlotOptionsLoad(payload) {
+  if (!payload?.ok || payload._slotOptionsPromise) return payload._slotOptionsPromise;
+  payload.slotOptionsPending = true;
+  payload._slotOptionsPromise = loadSlotOptionsForBlueprint(payload)
+    .then((slotOptions) => {
+      payload.slotOptions = slotOptions;
+      payload.slotOptionsPending = false;
+      return payload;
+    })
+    .catch((err) => {
+      payload.slotOptionsPending = false;
+      payload.slotOptionsError = err.message || String(err);
+      return payload;
+    });
+  return payload._slotOptionsPromise;
+}
+
+/** Strip non-cloneable fields before IPC (Promises break structured clone). */
+function toIpcBlueprint(payload) {
+  if (!payload || typeof payload !== "object") return payload;
+  const { _slotOptionsPromise, ...rest } = payload;
+  return rest;
+}
+
+async function getShipBlueprint(combatIntel, slug, options = {}) {
+  const waitForSlotOptions = options.waitForSlotOptions === true;
   const key = `${BLUEPRINT_CACHE_VERSION}:${String(slug || "").trim()}`;
   if (!key || key === `${BLUEPRINT_CACHE_VERSION}:`) return { ok: false, error: "missing ship slug" };
-  if (blueprintCache.has(key)) return blueprintCache.get(key);
-  if (blueprintInflight.has(key)) return blueprintInflight.get(key);
+
+  const cached = blueprintCache.get(key);
+  if (cached?.ok) {
+    if (waitForSlotOptions && cached.slotOptionsPending && cached._slotOptionsPromise) {
+      await cached._slotOptionsPromise;
+    }
+    return toIpcBlueprint(cached);
+  }
+  if (blueprintInflight.has(key)) {
+    const pending = await blueprintInflight.get(key);
+    if (pending?.ok && waitForSlotOptions && pending.slotOptionsPending && pending._slotOptionsPromise) {
+      await pending._slotOptionsPromise;
+    }
+    return toIpcBlueprint(pending);
+  }
 
   const work = (async () => {
     const slugPath = String(slug || "").trim();
@@ -239,8 +295,8 @@ async function getShipBlueprint(combatIntel, slug) {
       quantity: c.quantity ?? 1,
     }));
 
+    // Fast path: stock DPS + hull only. Equipment catalogs load in the background.
     const stockSummary = await simulateWeaponSlots(combatIntel, weaponSlots, {});
-    const slotOptions = await loadSlotOptionsForBlueprint({ weaponSlots, componentSlots });
     const payload = {
       ok: true,
       ship: {
@@ -251,7 +307,8 @@ async function getShipBlueprint(combatIntel, slug) {
       },
       weaponSlots,
       componentSlots,
-      slotOptions,
+      slotOptions: {},
+      slotOptionsPending: true,
       stockComponents,
       stockSummary,
       hullProfile: formatVehicle(data),
@@ -259,12 +316,17 @@ async function getShipBlueprint(combatIntel, slug) {
         "Stock weapons are read from wiki port data. Swap guns below to compare simplified total DPS. For full heat and power sims use ERkul (linked under Advanced tools).",
     };
     blueprintCache.set(key, payload);
+    startSlotOptionsLoad(payload);
     return payload;
   })();
 
   blueprintInflight.set(key, work);
   try {
-    return await work;
+    const payload = await work;
+    if (payload?.ok && waitForSlotOptions && payload.slotOptionsPending && payload._slotOptionsPromise) {
+      await payload._slotOptionsPromise;
+    }
+    return toIpcBlueprint(payload);
   } finally {
     blueprintInflight.delete(key);
   }
@@ -303,20 +365,34 @@ async function simulateLoadout(combatIntel, options = {}) {
   const slug = String(options.shipSlug || options.slug || "").trim();
   if (!slug) return { ok: false, error: "missing ship slug" };
 
-  const blueprint = await getShipBlueprint(combatIntel, slug);
+  // First paint: don't block on equipment catalogs.
+  const blueprint = await getShipBlueprint(combatIntel, slug, { waitForSlotOptions: false });
   if (!blueprint.ok) return blueprint;
 
-  const assignments = options.slotAssignments && typeof options.slotAssignments === "object"
-    ? options.slotAssignments
-    : {};
+  const assignments =
+    options.slotAssignments && typeof options.slotAssignments === "object"
+      ? options.slotAssignments
+      : {};
 
-  const summary = await simulateWeaponSlots(combatIntel, blueprint.weaponSlots, assignments);
+  const hasCustom =
+    Object.keys(assignments).length > 0 &&
+    Object.values(assignments).some((v) => v && String(v).trim());
+  const summary = hasCustom
+    ? await simulateWeaponSlots(combatIntel, blueprint.weaponSlots, assignments)
+    : blueprint.stockSummary;
+
   return {
     ok: true,
     ship: blueprint.ship,
     summary,
     hullProfile: blueprint.hullProfile,
+    blueprint: toIpcBlueprint(blueprint),
+    slotOptionsPending: !!blueprint.slotOptionsPending,
   };
+}
+
+async function awaitShipSlotOptions(combatIntel, slug) {
+  return getShipBlueprint(combatIntel, slug, { waitForSlotOptions: true });
 }
 
 module.exports = {
@@ -325,6 +401,7 @@ module.exports = {
   weaponDpsFromProfile,
   fetchSlotOptions,
   getShipBlueprint,
+  awaitShipSlotOptions,
   searchShipWeapons,
   simulateLoadout,
 };

@@ -57,10 +57,27 @@ assert(
 );
 assert(
   releaseIsNewerBuild(
-    { published_at: "2026-05-30T12:00:00Z" },
+    { tag_name: "v1.0.3", published_at: "2026-05-30T18:00:00Z" },
     { builtAt: "2026-05-29T12:00:00Z" }
   ),
-  "newer GitHub release detected for same version"
+  "republished same-version release detected when publish lags build by >6h"
+);
+assert(
+  !releaseIsNewerBuild(
+    { tag_name: "v1.0.32", published_at: "2026-07-28T08:51:32Z" },
+    {
+      builtAt: "2026-07-28T08:45:00Z",
+      releaseTag: "v1.0.32",
+    }
+  ),
+  "matching releaseTag never flags update on same version"
+);
+assert(
+  !releaseIsNewerBuild(
+    { tag_name: "v1.0.32", published_at: "2026-07-28T08:51:32Z" },
+    { builtAt: "2026-07-28T08:45:00Z" }
+  ),
+  "normal publish lag after build not flagged"
 );
 assert(
   !releaseIsNewerBuild(
