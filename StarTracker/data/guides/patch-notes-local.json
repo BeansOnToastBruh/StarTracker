@@ -1,6 +1,16 @@
 [
   {
-    "id": "startracker-1.0.30",
+    "id": "startracker-1.0.36",
+    "version": "1.0.36",
+    "title": "StarTracker 1.0.36",
+    "date": "2026-08-30",
+    "startrackerNotes": [
+      "Alpha 4.10 Siege of Orison support: RSI patch notes page 21293 plus existing 4.9 / 4.8.x notes.",
+      "Refreshed bundled catalog seed (ships, items, terminals) for 4.10 LIVE.",
+      "Exec hangar timer seed label updated for 4.10. Use Sync cycle after major patches.",
+      "Star Strings installer pulls the latest MrKraken release on install/update."
+    ]
+  },
     "version": "1.0.30",
     "title": "StarTracker 1.0.30",
     "date": "2026-07-27",

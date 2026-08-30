@@ -24,9 +24,21 @@
     "relatedTabs": ["guides-commodities", "guides-refinery", "guides-crafting"]
   },
   {
+    "id": "siege-orison",
+    "title": "Siege of Orison (4.10)",
+    "summary": "Alpha 4.10 brings instanced Siege of Orison: coordinated FPS assaults on Nine Tails platforms above Crusader with up to four players per instance.",
+    "tips": [
+      "Accept Siege contracts from Northrock Security at Orison or via mobiGlas when the event is active.",
+      "Instances are separate from the open shard. Matchmake or party up before launching.",
+      "Recco Battaglia and Wikelo loops from 4.9 still apply alongside the new siege content.",
+      "Session Missions and Rewards tabs log contracts and payouts when Game.log records them."
+    ],
+    "relatedTabs": ["missions", "rewards", "guides-reputation", "guides-fleet"]
+  },
+  {
     "id": "battaglia",
     "title": "Support the Miners (Recco Battaglia)",
-    "summary": "Alpha 4.9 Frontier Tensions introduces Recco Battaglia contracts — prospecting, mining support, recovery, salvage, and investigation work that builds People's Alliance standing in Nyx.",
+    "summary": "Frontier Tensions Recco Battaglia contracts: prospecting, mining support, recovery, salvage, and investigation work that builds People's Alliance standing in Nyx.",
     "tips": [
       "Accept Recco Battaglia / Support the Miners contracts from your mobiGlas.",
       "Rewards and standing unlock further opportunities; larger ship rewards continue into later patches.",

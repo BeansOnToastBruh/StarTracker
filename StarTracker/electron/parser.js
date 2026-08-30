@@ -12,7 +12,7 @@ const PATTERNS = {
     /\[Notice\].*CActor::Kill: '(?<victim>[^']+)' \[\d+\] in zone '(?<zone>[^']+)' killed by '(?<killer>[^']+)' \[\d+\] using '(?<weapon>[^']+)'(?: \[Class [^\]]+\])? with damage type '(?<damageType>[^']+)'/,
   quantum:
     /\[Notice\].*Transitioning from zone (?<fromZone>[\w_-]+) in (?<fromSystem>[\w_-]+) to zone (?<toZone>[\w_-]+) in (?<toSystem>[\w_-]+)/,
-  /** Alpha 4.9+ — old zone-transition QT lines are gone; arrival notices remain. */
+  /** Alpha 4.9+ (still valid in 4.10): old zone-transition QT lines are gone; arrival notices remain. */
   quantumArrived:
     /\[Notice\].*<Quantum Drive Arrived - Arrived at Final Destination>.*?\| (?:NOT AUTH \| )?(?<shipKey>[A-Za-z0-9_]+)\[(?<entityId>\d+)\]\|CSCItemNavigation::OnQuantumDriveArrived/,
   locationInventory:

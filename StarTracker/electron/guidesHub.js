@@ -11,6 +11,12 @@ const {
 
 const RSI_STACKED_PATCH_PAGES = [
   {
+    wikiId: 21293,
+    versionRe: /^4\.10(?:\.\d+)?$/,
+    majorVersion: "4.10",
+    url: "https://robertsspaceindustries.com/en/comm-link/Patch-Notes/21293-Star-Citizen-Alpha-410",
+  },
+  {
     wikiId: 21245,
     versionRe: /^4\.9(?:\.\d+)?$/,
     majorVersion: "4.9",

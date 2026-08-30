@@ -197,9 +197,9 @@ function estimateAuecFromMission(mission, standingName) {
           : "wiki_datamine";
     const note =
       src === "local_datamine"
-        ? "Estimated from known defend/ambush contract data (4.8–4.9). Not confirmed in Game.log."
+        ? "Estimated from known defend/ambush contract data (4.8–4.10). Not confirmed in Game.log."
         : src === "title_heuristic"
-          ? "Estimated from contract title pattern and typical 4.8–4.9 payouts. Not confirmed in Game.log."
+          ? "Estimated from contract title pattern and typical 4.8–4.10 payouts. Not confirmed in Game.log."
           : "Datamined base payout from star-citizen.wiki. Your in-game amount may scale with rep.";
     return {
       auec: roundToNiceAuec(rewardMin),

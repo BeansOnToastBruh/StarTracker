@@ -1,5 +1,7 @@
 const { BrowserWindow } = require("electron");
 
+const RSI_ALPHA_410_URL =
+  "https://robertsspaceindustries.com/en/comm-link/Patch-Notes/21293-Star-Citizen-Alpha-410";
 const RSI_ALPHA_49_URL =
   "https://robertsspaceindustries.com/en/comm-link/Patch-Notes/21245-Star-Citizen-Alpha-49";
 const RSI_ALPHA_48_URL =
@@ -88,6 +90,7 @@ function closeRsiPatchWindow() {
 }
 
 module.exports = {
+  RSI_ALPHA_410_URL,
   RSI_ALPHA_49_URL,
   RSI_ALPHA_48_URL,
   fetchRsiPlainText,
