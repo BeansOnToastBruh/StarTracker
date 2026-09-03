@@ -1,15 +1,13 @@
 const referenceLinks = require("./referenceLinks");
+const fetchUtil = require("./fetchUtil");
 
 const WIKI_BASE = "https://api.star-citizen.wiki/api";
 const cache = new Map();
 const CACHE_MS = 24 * 60 * 60 * 1000;
+const systemsCache = { at: 0, value: null };
 
 async function fetchJson(url) {
-  const res = await fetch(url, {
-    headers: { Accept: "application/json", "User-Agent": "StarTracker/1.0" },
-  });
-  if (!res.ok) throw new Error(`${res.status} ${url}`);
-  return res.json();
+  return fetchUtil.fetchJson(url);
 }
 
 function pickBestLocation(rows, query) {
@@ -76,20 +74,36 @@ async function lookupLocation(name) {
   }
 }
 
+/**
+ * List star systems. Unlike lookupLocation, this used to have no error
+ * handling at all — a network hiccup threw straight out of the IPC handler.
+ * Now it falls back to the last good result (if any) instead of failing
+ * the whole "Starmap" panel over a transient timeout.
+ */
 async function listStarSystems(limit = 12) {
-  const json = await fetchJson(`${WIKI_BASE}/celestial-objects?filter[type]=STAR&page[size]=${limit}`);
-  return (json.data || [])
-    .map((s) => {
-      const name = s.name || s.designation || String(s.code || s.slug || "").split(".").pop() || "System";
-      return {
-        name,
-        slug: s.slug || s.code,
-        designation: s.designation,
-        webUrl: s.web_url?.replace("https://api.star-citizen.wiki", "https://starcitizen.tools") || null,
-        rsiUrl: referenceLinks.rsiStarmapSearch(name),
-      };
-    })
-    .filter((s) => s.name);
+  try {
+    const json = await fetchJson(`${WIKI_BASE}/celestial-objects?filter[type]=STAR&page[size]=${limit}`);
+    const systems = (json.data || [])
+      .map((s) => {
+        const name = s.name || s.designation || String(s.code || s.slug || "").split(".").pop() || "System";
+        return {
+          name,
+          slug: s.slug || s.code,
+          designation: s.designation,
+          webUrl: s.web_url?.replace("https://api.star-citizen.wiki", "https://starcitizen.tools") || null,
+          rsiUrl: referenceLinks.rsiStarmapSearch(name),
+        };
+      })
+      .filter((s) => s.name);
+    systemsCache.at = Date.now();
+    systemsCache.value = systems;
+    return systems;
+  } catch (err) {
+    if (systemsCache.value && Date.now() - systemsCache.at < CACHE_MS) {
+      return systemsCache.value;
+    }
+    throw err;
+  }
 }
 
 module.exports = {

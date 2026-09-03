@@ -1,4 +1,5 @@
 const { formatVehicle, formatWikiItem, combatHeadline } = require("./combatIntelFormat");
+const fetchUtil = require("./fetchUtil");
 
 const WIKI_BASE = "https://api.star-citizen.wiki/api";
 /** Soft gap between wiki pages in a single paged fetch (keep low — we parallelize slot catalogs). */
@@ -18,16 +19,10 @@ const WIKI_ITEM_TYPES = {
   QuantumDrive: "QuantumDrive",
 };
 
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
+const sleep = fetchUtil.sleep;
 
 async function fetchJson(url) {
-  const res = await fetch(url, {
-    headers: { Accept: "application/json", "User-Agent": "StarTracker/1.0" },
-  });
-  if (!res.ok) throw new Error(`${res.status} ${url}`);
-  return res.json();
+  return fetchUtil.fetchJson(url);
 }
 
 function classNameToSlug(className) {

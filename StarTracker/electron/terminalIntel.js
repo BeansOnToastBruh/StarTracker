@@ -1,5 +1,6 @@
 const { getCommoditiesCache, shapeCommodityRow } = require("./guidesHub");
 const { terminalStockScu, terminalDemandScu, parseTerminalStock, parseTerminalDemand } = require("./uexStock");
+const fetchUtil = require("./fetchUtil");
 
 const UEX_BASE = "https://api.uexcorp.space/2.0";
 const terminalCache = new Map();
@@ -10,11 +11,7 @@ function clearTerminalCache() {
 }
 
 async function fetchJson(url) {
-  const res = await fetch(url, {
-    headers: { Accept: "application/json", "User-Agent": "StarTracker/1.0.5" },
-  });
-  if (!res.ok) throw new Error(`${res.status} ${url}`);
-  return res.json();
+  return fetchUtil.fetchJson(url);
 }
 
 function locationLabel(row) {

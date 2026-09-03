@@ -1,5 +1,5 @@
-const fs = require("fs");
-const path = require("path");
+const fetchUtil = require("./fetchUtil");
+const cacheUtil = require("./cacheUtil");
 
 const WIKI_MISSIONS = "https://api.star-citizen.wiki/api/missions";
 const CACHE_FILE = "wikelo-trades-cache-v1.json";
@@ -12,48 +12,26 @@ function init(options = {}) {
   cacheDir = options.cacheDir || null;
 }
 
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
+const sleep = fetchUtil.sleep;
 
 async function fetchJson(url, options = {}) {
-  const retries = options.retries ?? 2;
-  let lastErr = null;
-  for (let i = 0; i <= retries; i += 1) {
-    try {
-      const res = await fetch(url, {
-        headers: { Accept: "application/json", "User-Agent": "StarTracker/1.0" },
-      });
-      if (!res.ok) throw new Error(`${res.status} ${url}`);
-      return await res.json();
-    } catch (err) {
-      lastErr = err;
-      if (i < retries) await sleep(600 * (i + 1));
-    }
-  }
-  throw lastErr;
+  return fetchUtil.fetchJson(url, { retries: options.retries ?? 2 });
 }
 
 function readJsonFile(filePath, fallback) {
-  try {
-    return JSON.parse(fs.readFileSync(filePath, "utf8"));
-  } catch {
-    return fallback;
-  }
+  return cacheUtil.readJsonFile(filePath, fallback);
 }
 
 function writeJsonFile(filePath, data) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+  cacheUtil.writeJsonFile(filePath, data);
 }
 
 function cachePath(name) {
-  return cacheDir ? path.join(cacheDir, name) : null;
+  return cacheUtil.cachePath(cacheDir, name);
 }
 
 function isFresh(entry, ttlMs) {
-  if (!entry?.fetchedAt) return false;
-  return Date.now() - new Date(entry.fetchedAt).getTime() < ttlMs;
+  return cacheUtil.isFresh(entry, ttlMs);
 }
 
 function formatRequirement(order) {

@@ -16,7 +16,9 @@
     "build:win": "npm run dist:win",
     "build:linux": "npm run dist:linux",
     "verify": "node scripts/verify-repo-hygiene.js",
-    "build:catalog": "node scripts/build-catalog-seed.js"
+    "build:catalog": "node scripts/build-catalog-seed.js",
+    "test": "node scripts/run-tests.js",
+    "lint": "npx --yes eslint@^8.57.0 electron renderer scripts --ext .js"
   },
   "build": {
     "appId": "com.startracker.app",

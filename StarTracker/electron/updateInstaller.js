@@ -2,6 +2,34 @@ const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
 
+// Update assets always come from a GitHub release (see updateChecker.js,
+// which only ever returns a release asset's browser_download_url). This
+// mirrors the host allowlist starStringsInstaller.js already applies to its
+// own downloads — the self-updater downloads and *executes* a binary, so it
+// deserves at least the same defense-in-depth, not less.
+const ALLOWED_DOWNLOAD_HOSTS = new Set([
+  "github.com",
+  "www.github.com",
+  "objects.githubusercontent.com",
+  "release-assets.githubusercontent.com",
+]);
+
+function assertSafeUpdateUrl(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error("Invalid download URL");
+  }
+  if (parsed.protocol !== "https:") {
+    throw new Error("Update download must be HTTPS");
+  }
+  if (!ALLOWED_DOWNLOAD_HOSTS.has(parsed.hostname.toLowerCase())) {
+    throw new Error(`Blocked update download host: ${parsed.hostname}`);
+  }
+  return parsed.toString();
+}
+
 function filenameFromUrl(url, platform) {
   try {
     const name = decodeURIComponent(new URL(url).pathname.split("/").pop() || "");
@@ -58,10 +86,13 @@ async function downloadFile(url, destPath, onProgress) {
 }
 
 function launchWindowsInstaller(installerPath) {
+  // No shell: true — installerPath is our own temp-dir path, and running it
+  // through a shell for no reason is an unnecessary (if low-risk, since the
+  // filename comes from a now-allowlisted GitHub URL) place for shell
+  // metacharacters to matter.
   const child = spawn(installerPath, [], {
     detached: true,
     stdio: "ignore",
-    shell: true,
   });
   child.unref();
 }
@@ -86,9 +117,7 @@ function launchLinuxAppImage(appImagePath) {
  */
 async function downloadAndInstallUpdate(opts = {}) {
   const { downloadUrl, platform, onProgress, getTempDir, quitApp } = opts;
-  if (!downloadUrl || !/^https?:\/\//i.test(downloadUrl)) {
-    throw new Error("Invalid download URL");
-  }
+  assertSafeUpdateUrl(downloadUrl);
 
   const { app } = require("electron");
   const plat =

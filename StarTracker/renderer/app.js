@@ -1525,6 +1525,11 @@ function setActiveTab(id) {
     refreshLoadoutPanel().then(() => {
       if (loadoutExpandKey) loadLoadoutCombat(loadoutExpandKey).catch(() => {});
     });
+  } else {
+    // Other session panels (overview/missions/rewards/...) are only fully
+    // rebuilt while active (see renderAllPanels); catch this one up if a
+    // state update arrived while it was hidden.
+    maybeRenderSessionPanel(id);
   }
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     const on = btn.dataset.tab === id;
@@ -6793,24 +6798,102 @@ function initCatalogUi() {
 
 }
 
+// The 11 session tabs whose markup is built straight from {session, rollup}.
+// ("guides-reputation" and "history" are session tabs too, but they render
+// from their own async fetch / archive-list logic, not this pair.)
+const SESSION_PANEL_IDS = [
+  "overview",
+  "missions",
+  "rewards",
+  "blueprints",
+  "fines",
+  "insurance",
+  "shopping",
+  "loadout",
+  "deaths",
+  "kills",
+  "ships",
+];
+
+// renderAllPanels used to rebuild every one of the above panels' innerHTML
+// on every single "state" push from the main process — i.e. on every new
+// Game.log line while a session is being tracked, regardless of which tab
+// (if any) the user was actually looking at. With ~40+ events in a busy
+// session that's a lot of wasted DOM churn on 10 hidden panels per tick.
+// Instead we now fully rebuild only the active tab immediately, bump a
+// version counter, and lazily render any other session panel the moment the
+// user switches to it (see maybeRenderSessionPanel, called from
+// setActiveTab) — so nothing the user looks at is ever stale, but nothing
+// hidden gets rebuilt until it needs to be shown.
+let sessionRenderVersion = 0;
+const sessionPanelRenderedVersion = {};
+let lastRenderSession = null;
+let lastRenderRollup = null;
+
+function renderSessionPanel(tabId, session, rollup) {
+  switch (tabId) {
+    case "overview":
+      setPanelHtml("overview", buildOverview(session));
+      break;
+    case "missions":
+      setPanelHtml("missions", buildMissions(rollup));
+      break;
+    case "rewards":
+      setPanelHtml("rewards", buildRewards(rollup));
+      break;
+    case "blueprints":
+      setPanelHtml("blueprints", buildBlueprints(rollup));
+      break;
+    case "fines":
+      setPanelHtml("fines", buildFines(rollup));
+      break;
+    case "insurance":
+      setPanelHtml("insurance", buildInsurance(rollup));
+      break;
+    case "shopping":
+      setPanelHtml("shopping", buildShopping(rollup));
+      break;
+    case "loadout":
+      setPanelHtml("loadout", buildLoadout(rollup));
+      if (activeTab === "loadout" && loadoutExpandKey && loadoutCombatByKey[loadoutExpandKey] === undefined) {
+        loadLoadoutCombat(loadoutExpandKey).catch(() => {});
+      }
+      break;
+    case "deaths":
+      setPanelHtml("deaths", buildDeaths(rollup));
+      break;
+    case "kills":
+      setPanelHtml("kills", buildKills(rollup));
+      break;
+    case "ships":
+      setPanelHtml("ships", buildShips(rollup));
+      break;
+    default:
+      return;
+  }
+  sessionPanelRenderedVersion[tabId] = sessionRenderVersion;
+}
+
+/** Called from setActiveTab: renders a session panel on demand if it missed a tick while hidden. */
+function maybeRenderSessionPanel(tabId) {
+  if (!SESSION_PANEL_IDS.includes(tabId)) return;
+  if (sessionPanelRenderedVersion[tabId] === sessionRenderVersion) return;
+  renderSessionPanel(tabId, lastRenderSession, lastRenderRollup);
+}
+
 function renderAllPanels(state) {
   const session = archiveViewSession || getViewSession(state);
   const rollup = session?.rollup;
   renderStats(session, state);
-  setPanelHtml("overview", buildOverview(session));
-  setPanelHtml("missions", buildMissions(rollup));
-  setPanelHtml("rewards", buildRewards(rollup));
-  setPanelHtml("blueprints", buildBlueprints(rollup));
-  setPanelHtml("fines", buildFines(rollup));
-  setPanelHtml("insurance", buildInsurance(rollup));
-  setPanelHtml("shopping", buildShopping(rollup));
-  setPanelHtml("loadout", buildLoadout(rollup));
-  if (activeTab === "loadout" && loadoutExpandKey && loadoutCombatByKey[loadoutExpandKey] === undefined) {
-    loadLoadoutCombat(loadoutExpandKey).catch(() => {});
+
+  sessionRenderVersion += 1;
+  lastRenderSession = session;
+  lastRenderRollup = rollup;
+
+  if (SESSION_PANEL_IDS.includes(activeTab)) {
+    renderSessionPanel(activeTab, session, rollup);
   }
-  setPanelHtml("deaths", buildDeaths(rollup));
-  setPanelHtml("kills", buildKills(rollup));
-  setPanelHtml("ships", buildShips(rollup));
+
   if (!archiveViewSession && !logArchiveLoading) {
     setPanelHtml("history", buildHistoryArchives());
   }

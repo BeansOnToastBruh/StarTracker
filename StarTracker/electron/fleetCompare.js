@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const fetchUtil = require("./fetchUtil");
 
 const WIKI_BASE = "https://api.star-citizen.wiki/api";
 const INDEX_TTL_MS = 24 * 60 * 60 * 1000;
@@ -15,16 +16,10 @@ function indexPath() {
   return path.join(cacheDir || "", "fleet-index.json");
 }
 
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
+const sleep = fetchUtil.sleep;
 
 async function fetchJson(url) {
-  const res = await fetch(url, {
-    headers: { Accept: "application/json", "User-Agent": "StarTracker/1.0" },
-  });
-  if (!res.ok) throw new Error(`${res.status} ${url}`);
-  return res.json();
+  return fetchUtil.fetchJson(url);
 }
 
 function compactFleetRow(v) {

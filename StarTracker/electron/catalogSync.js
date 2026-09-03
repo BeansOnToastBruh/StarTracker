@@ -10,33 +10,16 @@ const {
   compactTerminal,
   buildPlacesFromTerminals,
 } = require("./catalogSections");
+const fetchUtil = require("./fetchUtil");
 
 const SYNC_VERSION = 3;
 const WIKI_PAGE_SIZE = 50;
 const FETCH_GAP_MS = 350;
 
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
+const sleep = fetchUtil.sleep;
 
 async function fetchJson(url, options = {}) {
-  const retries = options.retries ?? 2;
-  let lastErr = null;
-  for (let i = 0; i <= retries; i += 1) {
-    try {
-      const res = await fetch(url, {
-        headers: { Accept: "application/json", "User-Agent": "StarTracker/1.0" },
-      });
-      if (!res.ok) {
-        throw new Error(`${res.status} ${url}`);
-      }
-      return await res.json();
-    } catch (err) {
-      lastErr = err;
-      if (i < retries) await sleep(600 * (i + 1));
-    }
-  }
-  throw lastErr;
+  return fetchUtil.fetchJson(url, { retries: options.retries ?? 2 });
 }
 
 async function fetchUexItemsByCategory(categoryId) {

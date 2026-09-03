@@ -1,10 +1,10 @@
-const fs = require("fs");
-const path = require("path");
 const {
   formatWikiItem,
   formatVehicle,
   combatHeadline,
 } = require("./combatIntelFormat");
+const fetchUtil = require("./fetchUtil");
+const cacheUtil = require("./cacheUtil");
 
 const WIKI_BASE = "https://api.star-citizen.wiki/api";
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -20,16 +20,10 @@ function init(options = {}) {
   seedDir = options.seedDir || null;
 }
 
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
+const sleep = fetchUtil.sleep;
 
 async function fetchJson(url) {
-  const res = await fetch(url, {
-    headers: { Accept: "application/json", "User-Agent": "StarTracker/1.0" },
-  });
-  if (!res.ok) throw new Error(`${res.status} ${url}`);
-  return res.json();
+  return fetchUtil.fetchJson(url);
 }
 
 function classNameToSlug(className) {
@@ -39,44 +33,16 @@ function classNameToSlug(className) {
     .replace(/_/g, "-");
 }
 
-function cacheFileKey(kind, id) {
-  const safe = String(id).replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 120);
-  return path.join(cacheDir || "", `${kind}-${safe}.json`);
-}
-
 function readDiskCache(kind, id) {
-  if (!cacheDir) return null;
-  try {
-    const raw = JSON.parse(fs.readFileSync(cacheFileKey(kind, id), "utf8"));
-    if (!raw?.fetchedAt) return null;
-    if (Date.now() - new Date(raw.fetchedAt).getTime() > CACHE_TTL_MS) return null;
-    return raw;
-  } catch {
-    return null;
-  }
+  return cacheUtil.readDiskCache(cacheDir, kind, id, CACHE_TTL_MS);
 }
 
 function writeDiskCache(kind, id, payload) {
-  if (!cacheDir) return;
-  try {
-    fs.mkdirSync(cacheDir, { recursive: true });
-    fs.writeFileSync(
-      cacheFileKey(kind, id),
-      JSON.stringify({ fetchedAt: new Date().toISOString(), ...payload }, null, 2),
-      "utf8"
-    );
-  } catch {
-    /* ignore */
-  }
+  cacheUtil.writeDiskCache(cacheDir, kind, id, payload);
 }
 
 function readSeed(name) {
-  if (!seedDir) return null;
-  try {
-    return JSON.parse(fs.readFileSync(path.join(seedDir, name), "utf8"));
-  } catch {
-    return null;
-  }
+  return cacheUtil.readSeed(seedDir, name);
 }
 
 function wikiLinkForData(data) {
