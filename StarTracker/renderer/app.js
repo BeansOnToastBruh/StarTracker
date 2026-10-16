@@ -705,21 +705,48 @@ function renderInlineDetailRow(colspan, host, key) {
   return `<tr class="inline-detail-row" data-inline-detail-for="${escapeAttr(String(key))}"><td colspan="${colspan}"><div class="inline-detail-panel">${inner}</div></td></tr>`;
 }
 
+let externalToolsCache = null;
+async function getExternalToolsCached() {
+  if (externalToolsCache?.tools) return externalToolsCache;
+  try {
+    externalToolsCache = await window.debrief.combatGetExternalTools();
+  } catch {
+    externalToolsCache = { tools: [] };
+  }
+  return externalToolsCache;
+}
+
 async function fetchCombatProfileHtml(detail, kind) {
-  const key = detail?.className || detail?.slug;
+  const key = detail?.className || detail?.slug || detail?.name;
   if (!key) return "";
   const isVehicle = activeTab === "catalog-ships" || kind === "vehicle";
   try {
     const [data, tools] = await Promise.all([
       isVehicle
-        ? window.debrief.combatGetVehicleProfile({ className: key, slug: detail.slug || key })
-        : window.debrief.combatGetItemProfile({ className: key, slug: detail.slug || key }),
-      window.debrief.combatGetExternalTools(),
+        ? window.debrief.combatGetVehicleProfile({
+            className: detail.className || key,
+            slug: detail.slug || key,
+            name: detail.name || null,
+          })
+        : window.debrief.combatGetItemProfile({
+            className: detail.className || key,
+            slug: detail.slug || key,
+            name: detail.name || null,
+          }),
+      getExternalToolsCached(),
     ]);
     return renderCombatProfilePanel(data, { advancedTools: tools.tools });
   } catch (e) {
     return renderCombatProfilePanel({ ok: false, error: e.message || String(e) });
   }
+}
+
+function renderCatalogTableFromPayload(payload) {
+  if (!payload?.rows) return "";
+  if (payload.mode === "ships") return renderCatalogShipRows(payload.rows);
+  if (payload.mode === "shops") return renderCatalogShopRows(payload.rows);
+  if (payload.mode === "places") return renderCatalogShipServiceRows(payload.rows);
+  return renderCatalogItemRows(payload.rows, payload.tabId);
 }
 
 async function buildCatalogInlineHtml(key, kind) {
@@ -729,31 +756,38 @@ async function buildCatalogInlineHtml(key, kind) {
       : kind === "place"
         ? await window.debrief.catalogPlaceDetail(key)
         : await window.debrief.catalogItemDetail(key);
+  if (!detail) {
+    return `<p class="muted">No catalog detail found for <span class="mono">${escapeHtml(String(key))}</span>.</p>`;
+  }
   const isShip =
     kind === "vehicle" || activeTab === "catalog-ships" || detail?.section === "Ships";
   if (isShip) {
-    const perfHtml = await fetchCombatProfileHtml(detail, "vehicle");
-    const refBar = await fetchReferenceLinkBar(
-      { kind: "ship", name: detail.name, slug: detail.slug, className: detail.className },
-      "Cross-reference"
-    );
+    const [perfHtml, refBar] = await Promise.all([
+      fetchCombatProfileHtml(detail, "vehicle"),
+      fetchReferenceLinkBar(
+        { kind: "ship", name: detail.name, slug: detail.slug, className: detail.className },
+        "Cross-reference"
+      ),
+    ]);
     const listingsHtml = renderCatalogDetail(detail, "item");
     return `${refBar}${perfHtml}${listingsHtml}`;
   }
-  let html = renderCatalogDetail(detail, kind);
-  const refBar = await fetchReferenceLinkBar(
-    {
-      kind: kind === "place" ? "location" : "item",
-      name: detail.name || detail.terminal,
-      slug: detail.slug,
-      className: detail.className,
-    },
-    "Cross-reference"
-  );
-  html = refBar + html;
-  const combatHtml = await fetchCombatProfileHtml(detail, kind);
-  if (combatHtml) html += combatHtml;
-  return html;
+  const listingsHtml = renderCatalogDetail(detail, kind);
+  const [refBar, combatHtml] = await Promise.all([
+    fetchReferenceLinkBar(
+      {
+        kind: kind === "place" ? "location" : "item",
+        name: detail.name || detail.terminal,
+        slug: detail.slug,
+        className: detail.className,
+      },
+      "Cross-reference"
+    ),
+    kind === "shop" || kind === "place"
+      ? Promise.resolve("")
+      : fetchCombatProfileHtml(detail, kind),
+  ]);
+  return `${refBar}${listingsHtml}${combatHtml || ""}`;
 }
 
 async function refreshInlineExpandHost(host) {
@@ -771,15 +805,24 @@ async function refreshInlineExpandHost(host) {
       break;
     }
     case INLINE_HOST.CATALOG:
-      if (activeTab.startsWith("catalog-") && catalogLastPayload) {
-        patchPanelTable(`#panel-${catalogLastPayload.tabId}`, catalogLastPayload.html);
+      if (activeTab.startsWith("catalog-") && catalogLastPayload?.rows) {
+        patchPanelTable(
+          `#panel-${catalogLastPayload.tabId}`,
+          renderCatalogTableFromPayload(catalogLastPayload)
+        );
       } else if (activeTab.startsWith("catalog-")) {
         await loadCatalogTab(activeTab);
       }
       break;
     case INLINE_HOST.COMMODITY:
-      if (activeTab.startsWith("guides-") && guideCommodityLastPayload) {
-        patchPanelTable(`#panel-${guideCommodityLastPayload.tabId}`, guideCommodityLastPayload.tableHtml);
+      if (activeTab.startsWith("guides-") && guideCommodityLastPayload?.rows) {
+        patchPanelTable(
+          `#panel-${guideCommodityLastPayload.tabId}`,
+          renderGuideCommodityRows(
+            guideCommodityLastPayload.rows,
+            guideCommodityLastPayload.tabId
+          )
+        );
       } else if (activeTab.startsWith("guides-")) {
         await loadGuideTab(activeTab);
       }
@@ -3858,6 +3901,7 @@ async function loadCatalogTab(tabId, options = {}) {
   try {
     let result;
     let tableHtml;
+    let mode = "items";
     if (tabId === "catalog-ships") {
       result = await window.debrief.catalogQueryVehicles({
         query: state.query,
@@ -3865,6 +3909,7 @@ async function loadCatalogTab(tabId, options = {}) {
         limit: 60,
         withListingsOnly: true,
       });
+      mode = "ships";
       tableHtml = renderCatalogShipRows(result.rows);
     } else if (tabId === "catalog-shops") {
       result = await window.debrief.catalogQueryShops({
@@ -3872,6 +3917,7 @@ async function loadCatalogTab(tabId, options = {}) {
         offset: state.offset,
         limit: 50,
       });
+      mode = "shops";
       tableHtml = renderCatalogShopRows(result.rows);
     } else if (tabId === "catalog-ship-services") {
       result = await window.debrief.catalogQueryPlaces({
@@ -3879,6 +3925,7 @@ async function loadCatalogTab(tabId, options = {}) {
         offset: state.offset,
         limit: 80,
       });
+      mode = "places";
       tableHtml = renderCatalogShipServiceRows(result.rows);
     } else {
       result = await window.debrief.catalogQueryItems({
@@ -3888,9 +3935,10 @@ async function loadCatalogTab(tabId, options = {}) {
         section: state.section,
         withListingsOnly: true,
       });
+      mode = "items";
       tableHtml = renderCatalogItemRows(result.rows, tabId);
     }
-    catalogLastPayload = { tabId, html: tableHtml };
+    catalogLastPayload = { tabId, mode, rows: result.rows || [], html: tableHtml };
     const pagerHtml = renderCatalogPager(tabId, result);
     if (filterOnly) {
       patchPanelResults(`#panel-${tabId}`, tableHtml, pagerHtml);
@@ -6043,7 +6091,7 @@ async function loadGuideTab(tabId, options = {}) {
       });
       guideCommodityMeta = result.meta;
       const tableHtml = renderGuideCommodityRows(result.rows, tabId);
-      guideCommodityLastPayload = { tabId, tableHtml };
+      guideCommodityLastPayload = { tabId, rows: result.rows || [], tableHtml };
       const pagerHtml = renderGuideCommodityPager(tabId, result);
       if (filterOnly) {
         patchPanelResults(`#panel-${tabId}`, tableHtml, pagerHtml);

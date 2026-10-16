@@ -1,5 +1,16 @@
 [
   {
+    "id": "startracker-1.0.41",
+    "version": "1.0.41",
+    "title": "StarTracker 1.0.41",
+    "date": "2026-10-15",
+    "startrackerNotes": [
+      "Fix catalog / commodity row expand: clicking a row now re-renders the table so DPS and detail panels actually open.",
+      "Faster expand loads: combat wiki fetches no longer sleep after every hit; reference links and combat profiles load in parallel.",
+      "Combat profiles also try item name lookup when class/slug misses."
+    ]
+  },
+  {
     "id": "startracker-1.0.40",
     "version": "1.0.40",
     "title": "StarTracker 1.0.40",

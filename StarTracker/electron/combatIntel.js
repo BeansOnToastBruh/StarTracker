@@ -8,7 +8,7 @@ const cacheUtil = require("./cacheUtil");
 
 const WIKI_BASE = "https://api.star-citizen.wiki/api";
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const FETCH_GAP_MS = 350;
+const FETCH_GAP_MS = 120;
 const VEHICLE_PROFILE_FORMAT_VERSION = 2;
 
 let cacheDir = null;
@@ -125,7 +125,6 @@ async function resolveWikiItem(identifier) {
   const entry = { data: payload };
   memoryCache.set(memKey, entry);
   writeDiskCache("item", id, entry);
-  await sleep(FETCH_GAP_MS);
   return entry;
 }
 
@@ -188,29 +187,64 @@ async function resolveWikiVehicle(identifier) {
   const entry = { data: payload, formatVersion: VEHICLE_PROFILE_FORMAT_VERSION };
   memoryCache.set(memKey, entry);
   writeDiskCache("vehicle", id, entry);
-  await sleep(FETCH_GAP_MS);
   return entry;
 }
 
-async function getItemCombatProfile(options = {}) {
-  const key = options.className || options.slug || options.key;
-  if (!key) return { ok: false, error: "missing identifier" };
+async function resolveWikiItemByName(name) {
+  const q = String(name || "").trim();
+  if (!q) return null;
   try {
-    const entry = await resolveWikiItem(key);
-    if (!entry?.data) return { ok: false, error: "item not found" };
-    return { ok: true, ...entry.data };
+    const json = await fetchJson(
+      `${WIKI_BASE}/items?filter[name]=${encodeURIComponent(q)}&per_page=5`
+    );
+    const rows = json?.data || [];
+    const exact =
+      rows.find((r) => String(r.name || "").toLowerCase() === q.toLowerCase()) ||
+      rows[0];
+    if (!exact?.slug && !exact?.class_name) return null;
+    return resolveWikiItem(exact.class_name || exact.slug);
+  } catch {
+    return null;
+  }
+}
+
+async function getItemCombatProfile(options = {}) {
+  const candidates = [
+    options.className,
+    options.slug,
+    options.key,
+  ].filter((v, i, arr) => v && arr.indexOf(v) === i);
+  if (!candidates.length && !options.name) {
+    return { ok: false, error: "missing identifier" };
+  }
+  try {
+    for (const key of candidates) {
+      const entry = await resolveWikiItem(key);
+      if (entry?.data) return { ok: true, ...entry.data };
+    }
+    if (options.name) {
+      const byName = await resolveWikiItemByName(options.name);
+      if (byName?.data) return { ok: true, ...byName.data };
+    }
+    return { ok: false, error: "item not found" };
   } catch (err) {
     return { ok: false, error: err.message || String(err) };
   }
 }
 
 async function getVehicleCombatProfile(options = {}) {
-  const key = options.className || options.slug || options.key;
-  if (!key) return { ok: false, error: "missing identifier" };
+  const candidates = [
+    options.className,
+    options.slug,
+    options.key,
+  ].filter((v, i, arr) => v && arr.indexOf(v) === i);
+  if (!candidates.length) return { ok: false, error: "missing identifier" };
   try {
-    const entry = await resolveWikiVehicle(key);
-    if (!entry?.data) return { ok: false, error: "vehicle not found" };
-    return { ok: true, ...entry.data };
+    for (const key of candidates) {
+      const entry = await resolveWikiVehicle(key);
+      if (entry?.data) return { ok: true, ...entry.data };
+    }
+    return { ok: false, error: "vehicle not found" };
   } catch (err) {
     return { ok: false, error: err.message || String(err) };
   }
