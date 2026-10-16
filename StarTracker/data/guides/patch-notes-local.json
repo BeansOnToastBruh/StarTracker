@@ -1,5 +1,18 @@
 [
   {
+    "id": "startracker-1.0.40",
+    "version": "1.0.40",
+    "title": "StarTracker 1.0.40",
+    "date": "2026-10-15",
+    "startrackerNotes": [
+      "UEX stock checks prefer fresh reports; stale rows fall back to week averages instead of old spikes.",
+      "Trade/smuggler terminal picks favor stocked + fresh + 4.10.2-tagged terminals before raw cheapest price.",
+      "Stock UI shows freshness, age, game version, and stale warnings per terminal.",
+      "Patch notes keep RSI link cards for 4.10.2 / 4.10.1 even when wiki lag or headless fetch fails.",
+      "Party join tracking deduped so the same invite does not spam the session log."
+    ]
+  },
+  {
     "id": "startracker-1.0.39",
     "version": "1.0.39",
     "title": "StarTracker 1.0.39",

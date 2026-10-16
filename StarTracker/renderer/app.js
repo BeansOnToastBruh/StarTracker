@@ -5521,17 +5521,22 @@ function fmtTerminalBuyStock(terminal) {
 
   const last = terminal.stockScuLast ?? terminal.stockScu;
   const min = terminal.stockScuMin;
+  const display = terminal.stockScu;
   const updated = terminal.stockUpdatedAt;
+  const stale = !!terminal.stockStale;
+  const fresh = !!terminal.stockFresh;
+  const ageH = terminal.stockAgeHours;
+  const ver = terminal.gameVersion;
 
-  if (last == null && min == null) {
+  if (display == null && last == null && min == null) {
     return `<span class="muted">0 / unknown</span><div class="muted small">no UEX buy stock</div>`;
   }
 
   let reportedLine = "";
   if (last != null && min != null && min !== last) {
     reportedLine = `<div class="smuggle-stock-reported"><span class="muted small">UEX saw </span><strong>${formatFleetCell(min)}-${formatFleetCell(last)} SCU</strong></div>`;
-  } else if (last != null) {
-    reportedLine = `<div class="smuggle-stock-reported"><span class="muted small">UEX saw up to </span><strong>${formatFleetCell(last)} SCU</strong></div>`;
+  } else if (display != null) {
+    reportedLine = `<div class="smuggle-stock-reported"><span class="muted small">UEX </span><strong>${formatFleetCell(display)} SCU</strong>${terminal.stockSource === "avg_week" ? `<span class="muted small"> (week avg)</span>` : ""}</div>`;
   } else if (min != null) {
     reportedLine = `<div class="smuggle-stock-reported"><span class="muted small">UEX saw at least </span><strong>${formatFleetCell(min)} SCU</strong></div>`;
   }
@@ -5540,10 +5545,15 @@ function fmtTerminalBuyStock(terminal) {
   if (last != null && min != null && min < last) {
     varianceLine = `<div class="trade-stock-low small">Your shard may be lower. Check the terminal before you buy.</div>`;
   }
+  if (stale) {
+    varianceLine += `<div class="trade-stock-low small">Report is stale${ageH != null ? ` (~${formatFleetCell(ageH)}h old)` : ""}${terminal.stockSource === "avg_week" ? " — using week average" : ""}. Verify in-game.</div>`;
+  } else if (fresh) {
+    varianceLine += `<div class="muted small">Fresh report${ageH != null ? ` (${formatFleetCell(ageH)}h ago)` : ""}.</div>`;
+  }
 
   const timeLine = updated
-    ? `<div class="muted small">Reported ${escapeHtml(fmtDateTime(updated))}</div>`
-    : `<div class="muted small">community snapshot</div>`;
+    ? `<div class="muted small">Reported ${escapeHtml(fmtDateTime(updated))}${ver ? ` · ${escapeHtml(String(ver))}` : ""}</div>`
+    : `<div class="muted small">community snapshot${ver ? ` · ${escapeHtml(String(ver))}` : ""}</div>`;
 
   return `<div class="smuggle-stock-block">${reportedLine}<div class="muted small smuggle-stock-shard">Per-shard, not global</div>${varianceLine}${timeLine}</div>`;
 }

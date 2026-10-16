@@ -947,16 +947,27 @@ function parseLine(line, ctx = {}) {
   const partyM = body.match(PATTERNS.partyAccept);
   if (partyM?.groups) {
     if (!ctx.playerGEID || partyM.groups.geid === ctx.playerGEID) {
-      emit(out, {
-        type: "party",
-        at,
-        summary: "Joined party",
-        detail: {
-          action: "joined",
-          inviteId: partyM.groups.inviteId,
-          geid: partyM.groups.geid,
-        },
-      });
+      const inviteId = partyM.groups.inviteId;
+      if (!ctx.recentPartyInvites) ctx.recentPartyInvites = new Map();
+      const prevPartyAt = ctx.recentPartyInvites.get(inviteId);
+      const partyT = new Date(at).getTime();
+      const partyDup =
+        prevPartyAt &&
+        Number.isFinite(partyT) &&
+        partyT - new Date(prevPartyAt).getTime() < 60_000;
+      if (!partyDup) {
+        ctx.recentPartyInvites.set(inviteId, at);
+        emit(out, {
+          type: "party",
+          at,
+          summary: "Joined party",
+          detail: {
+            action: "joined",
+            inviteId,
+            geid: partyM.groups.geid,
+          },
+        });
+      }
     }
   }
 

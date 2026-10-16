@@ -66,6 +66,31 @@ function main() {
   ]);
   assert.strictEqual(bestBuy.terminal, "Cheap");
 
+  const stockedPreferred = terminalIntel.bestBuyTerminal([
+    sampleTerminal({
+      terminal: "Empty Cheap",
+      sellToYouPrice: 1000,
+      stockScu: 0,
+      haulStockScu: 0,
+      stockFresh: false,
+      stockStale: true,
+    }),
+    sampleTerminal({
+      terminal: "Stocked",
+      sellToYouPrice: 2800,
+      stockScu: 120,
+      haulStockScu: 80,
+      stockFresh: true,
+      stockStale: false,
+      gameVersion: "4.10.2",
+    }),
+  ]);
+  assert.strictEqual(
+    stockedPreferred.terminal,
+    "Stocked",
+    "prefer stocked+fresh terminal over empty cheap"
+  );
+
   const bestSell = terminalIntel.bestSellTerminal([
     sampleTerminal({ buyFromYouPrice: 3200 }),
     sampleTerminal({ buyFromYouPrice: 3600, terminal: "Rich" }),
@@ -131,6 +156,21 @@ function main() {
   assert.strictEqual(golden.stockScu, 4, "exact UEX last buy stock");
   assert.strictEqual(golden.stockScuMin, 3, "exact UEX min buy stock");
   assert.strictEqual(golden.haulStockScu, 3, "haul math uses lower min when below last");
+
+  const staleTs = Math.floor(Date.now() / 1000) - 5 * 24 * 3600;
+  const staleWeek = terminalIntel.shapeTerminalRow({
+    terminal_name: "Stale Outpost",
+    price_buy: 100,
+    scu_buy: 500,
+    scu_buy_min: 10,
+    scu_buy_avg_week: 80,
+    date_modified: staleTs,
+    game_version: "4.10.2",
+  });
+  assert.strictEqual(staleWeek.stockStale, true, "old date_modified marks stock stale");
+  assert.strictEqual(staleWeek.stockScu, 80, "stale rows prefer week average over old last spike");
+  assert.strictEqual(staleWeek.stockSource, "avg_week");
+  assert.strictEqual(staleWeek.gameVersion, "4.10.2");
 
   const hinted = terminalIntel.pickTerminal(
     [

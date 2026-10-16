@@ -1,10 +1,17 @@
 const { getCommoditiesCache, shapeCommodityRow } = require("./guidesHub");
-const { terminalStockScu, terminalDemandScu, parseTerminalStock, parseTerminalDemand } = require("./uexStock");
+const {
+  terminalStockScu,
+  terminalDemandScu,
+  parseTerminalStock,
+  parseTerminalDemand,
+  buyTerminalQuality,
+  sellTerminalQuality,
+} = require("./uexStock");
 const fetchUtil = require("./fetchUtil");
 
 const UEX_BASE = "https://api.uexcorp.space/2.0";
 const terminalCache = new Map();
-const TERMINAL_CACHE_MS = 10 * 60 * 1000;
+const TERMINAL_CACHE_MS = 5 * 60 * 1000;
 
 function clearTerminalCache() {
   terminalCache.clear();
@@ -52,13 +59,22 @@ function shapeTerminalRow(raw) {
     stockScuLast: stock.stockScuLast,
     stockScuMin: stock.stockScuMin,
     stockScuAvg: stock.stockScuAvg,
+    stockScuAvgWeek: stock.stockScuAvgWeek,
     haulStockScu: stock.haulScu,
+    stockSource: stock.stockSource,
+    stockFresh: stock.stockFresh,
+    stockStale: stock.stockStale,
+    stockAgeHours: stock.stockAgeHours,
     demandScu: demand.demandScu,
     demandScuLast: demand.demandScuLast,
     demandScuMin: demand.demandScuMin,
     haulDemandScu: demand.haulDemandScu,
-    statusBuy: raw.status_buy,
-    statusSell: raw.status_sell,
+    demandSource: demand.demandSource,
+    demandFresh: demand.demandFresh,
+    demandStale: demand.demandStale,
+    statusBuy: stock.statusBuy || raw.status_buy,
+    statusSell: demand.statusSell || raw.status_sell,
+    gameVersion: stock.gameVersion || raw.game_version || null,
     stockUpdatedAt: modified,
   };
 }
@@ -159,18 +175,16 @@ function pickTerminal(terminals, hints, mode) {
       const matched = modeRows.filter((t) => terminalMatchesHint(t, h));
       if (!matched.length) continue;
       if (mode === "buy") {
-        // Prefer terminals that actually have reported stock, then cheapest.
+        // Prefer stocked + fresh reports, then cheapest.
         return matched.sort((a, b) => {
-          const stockA = a.stockScu > 0 ? 1 : 0;
-          const stockB = b.stockScu > 0 ? 1 : 0;
-          if (stockB !== stockA) return stockB - stockA;
+          const q = buyTerminalQuality(b) - buyTerminalQuality(a);
+          if (q !== 0) return q;
           return a.sellToYouPrice - b.sellToYouPrice;
         })[0];
       }
       return matched.sort((a, b) => {
-        const demandA = a.demandScu > 0 ? 1 : 0;
-        const demandB = b.demandScu > 0 ? 1 : 0;
-        if (demandB !== demandA) return demandB - demandA;
+        const q = sellTerminalQuality(b) - sellTerminalQuality(a);
+        if (q !== 0) return q;
         return b.buyFromYouPrice - a.buyFromYouPrice;
       })[0];
     }
@@ -232,7 +246,11 @@ function bestBuyTerminal(terminals) {
   return (
     terminals
       .filter((t) => t.sellToYouPrice > 0)
-      .sort((a, b) => a.sellToYouPrice - b.sellToYouPrice)[0] || null
+      .sort((a, b) => {
+        const q = buyTerminalQuality(b) - buyTerminalQuality(a);
+        if (q !== 0) return q;
+        return a.sellToYouPrice - b.sellToYouPrice;
+      })[0] || null
   );
 }
 
@@ -240,7 +258,11 @@ function bestSellTerminal(terminals) {
   return (
     terminals
       .filter((t) => t.buyFromYouPrice > 0)
-      .sort((a, b) => b.buyFromYouPrice - a.buyFromYouPrice)[0] || null
+      .sort((a, b) => {
+        const q = sellTerminalQuality(b) - sellTerminalQuality(a);
+        if (q !== 0) return q;
+        return b.buyFromYouPrice - a.buyFromYouPrice;
+      })[0] || null
   );
 }
 
@@ -286,6 +308,8 @@ function routeFromTerminals(commodity, buyTerminal, sellTerminal, cargoScu) {
     profitPerScu: spread,
     stockLimited: stockCap < cargoCap,
     demandLimited: demandCap < cargoCap,
+    stockStale: !!buyTerminal.stockStale,
+    demandStale: !!sellTerminal.demandStale,
   };
 }
 
@@ -310,7 +334,7 @@ async function getCommodityTradeRoute(commodityId, cargoScu = 128) {
     terminals: terminals.slice(0, 30),
     meta: { fetchedAt: cache.fetchedAt, source: "api.uexcorp.space" },
     disclaimer:
-      "Buy and sell terminals, prices, and SCU stock come from UEX community reports. Stock and demand change in-game. Estimates only.",
+      "Buy and sell terminals, prices, and SCU stock come from UEX community reports. Fresh reports preferred; stale stock falls back to week averages. Always verify in-game.",
   };
 }
 
@@ -361,7 +385,7 @@ async function buildTerminalTradeRoutes(options = {}) {
       source: "api.uexcorp.space",
     },
     disclaimer:
-      "Routes pair best UEX buy and sell terminals with reported stock and demand SCU. Profit is capped by the smallest of cargo, stock, and demand. Estimates only.",
+      "Routes pair UEX buy/sell terminals favoring stocked, fresh, current-patch reports. Profit is capped by cargo, stock, and demand. Always verify in-game.",
   };
 }
 

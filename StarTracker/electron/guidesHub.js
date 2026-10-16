@@ -247,9 +247,13 @@ function compactTerminalPrice(row) {
     Number(row.price_sell_avg) ||
     Number(row.price_sell_avg_week) ||
     0;
-  const { parseTerminalStock, terminalDemandScu } = require("./uexStock");
+  const { parseTerminalStock, parseTerminalDemand } = require("./uexStock");
   const stock = parseTerminalStock(row);
-  const demandScu = terminalDemandScu(row);
+  const demand = parseTerminalDemand(row);
+  const modified =
+    Number(row.date_modified) > 0
+      ? new Date(Number(row.date_modified) * 1000).toISOString()
+      : null;
   return {
     terminal: row.terminal_name || null,
     location: location || null,
@@ -260,7 +264,13 @@ function compactTerminalPrice(row) {
     stockScuLast: stock.stockScuLast,
     stockScuMin: stock.stockScuMin,
     haulStockScu: stock.haulScu,
-    demandScu: Math.round(demandScu * 10) / 10,
+    stockFresh: stock.stockFresh,
+    stockStale: stock.stockStale,
+    stockAgeHours: stock.stockAgeHours,
+    stockUpdatedAt: modified,
+    gameVersion: stock.gameVersion || row.game_version || null,
+    demandScu: Math.round((demand.demandScu || 0) * 10) / 10,
+    demandStale: demand.demandStale,
   };
 }
 
@@ -489,7 +499,37 @@ async function fetchPatchNotesRemote() {
       wikiDetailsById.get(page.wikiId) || null,
       rsiText
     );
-    stackedPatches.push(...pagePatches);
+    if (pagePatches.length) {
+      stackedPatches.push(...pagePatches);
+    } else {
+      // RSI fetch unavailable (headless CI / wiki lag) — keep a link card so the tab isn't empty.
+      const fallback = sanitizePatchNoteEntry({
+        id: `rsi-${page.wikiId}-fallback`,
+        wikiId: page.wikiId,
+        title: `Star Citizen Alpha ${page.majorVersion}`,
+        version: page.majorVersion,
+        date: wikiDetailsById.get(page.wikiId)?.date || null,
+        dateHuman: wikiDetailsById.get(page.wikiId)?.dateHuman || null,
+        channel: "Patch Notes",
+        rsiUrl: page.url,
+        wikiUrl: wikiCommLinkUrl(page.wikiId),
+        headline: `Star Citizen Alpha ${page.majorVersion}`,
+        intro:
+          page.majorVersion === "4.10.2"
+            ? [
+                "RSI Discovery Month, Constellation Mk IV rework, physics networking overhaul, and bug fixes.",
+                "Open the RSI patch notes link for the full LIVE build list.",
+              ]
+            : [
+                "Official RSI patch notes for this LIVE build.",
+                "Open the RSI link below for the full feature and bug-fix list.",
+              ],
+        sections: [],
+        source: "rsi-link",
+        isGamePatch: true,
+      });
+      if (fallback) stackedPatches.push(fallback);
+    }
   }
 
   let merged = stripStackedWikiDuplicates(remote, stackedPatches);
