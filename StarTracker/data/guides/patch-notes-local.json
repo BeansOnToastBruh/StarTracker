@@ -1,5 +1,17 @@
 [
   {
+    "id": "startracker-1.0.39",
+    "version": "1.0.39",
+    "title": "StarTracker 1.0.39",
+    "date": "2026-10-15",
+    "startrackerNotes": [
+      "Bundled mission payout index (1819 wiki missions, 536 with reward_min) for offline contract estimates.",
+      "When a contract UUID has no datamined payout, StarTracker borrows reward_min from same-title wiki variants.",
+      "Title-only payout estimates when Game.log omits contractDefinitionId; UEX contracts as fallback.",
+      "Optional SC Codex API key (config.json scCodexApiKey) for patch-scoped reward_auec_min/max."
+    ]
+  },
+  {
     "id": "startracker-1.0.38",
     "version": "1.0.38",
     "title": "StarTracker 1.0.38",

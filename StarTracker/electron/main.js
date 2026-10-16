@@ -521,6 +521,13 @@ app.whenReady().then(async () => {
     seedDir: GUIDES_SEED_DIR(),
     rsiPlainTextFetcher: (url) => require("./rsiPatchNotes").fetchRsiPlainText(url),
   });
+  {
+    const cfgEarly = loadConfig();
+    require("./contractWiki").init({
+      seedDir: path.join(__dirname, "..", "data", "missions"),
+      scCodexApiKey: cfgEarly.scCodexApiKey || null,
+    });
+  }
   execHangarTimer.init({
     cacheDir: GUIDES_CACHE_DIR(),
     seedDir: GUIDES_SEED_DIR(),

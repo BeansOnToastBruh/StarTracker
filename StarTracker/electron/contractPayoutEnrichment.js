@@ -24,17 +24,19 @@ function missionHasEstimatedAuec(session, missionId) {
 
 function findContractMeta(session, missionId) {
   if (!session?.events || !missionId) return null;
+  let best = null;
   for (let i = session.events.length - 1; i >= 0; i--) {
     const e = session.events[i];
-    if (e.type === "contract" && e.detail?.missionId === missionId && e.detail?.contractDefinitionId) {
-      return {
-        contractDefinitionId: e.detail.contractDefinitionId,
-        title: e.detail.title,
-        faction: e.detail.faction || null,
-      };
-    }
+    if (e.type !== "contract" || e.detail?.missionId !== missionId) continue;
+    const meta = {
+      contractDefinitionId: e.detail.contractDefinitionId || null,
+      title: e.detail.title || null,
+      faction: e.detail.faction || null,
+    };
+    if (meta.contractDefinitionId) return meta;
+    if (!best && meta.title) best = meta;
   }
-  return null;
+  return best;
 }
 
 function trackRepFromReward(event) {
@@ -52,6 +54,7 @@ function buildEstimatedRewardEvent({ at, missionId, contractTitle, estimate }) {
     contractTitle,
     kind: "auec",
     auec: estimate.auec,
+    auecMax: estimate.auecMax || null,
     auecEstimated: true,
     auecConfirmed: false,
     estimateSource: estimate.estimateSource,
@@ -62,12 +65,18 @@ function buildEstimatedRewardEvent({ at, missionId, contractTitle, estimate }) {
     faction: estimate.faction,
     repStanding: estimate.standing,
     wikiUrl: estimate.wikiUrl || null,
+    wikiReputationAmount: estimate.reputationAmount || null,
+    payoutDonorUuid: estimate.payoutDonorUuid || null,
     linkedFromWikiEstimate: true,
   };
+  const range =
+    estimate.auecMax && estimate.auecMax > estimate.auec
+      ? `~${estimate.auec.toLocaleString()}–${estimate.auecMax.toLocaleString()}`
+      : `~${estimate.auec.toLocaleString()}`;
   return {
     type: "reward",
     at,
-    summary: `Estimated: ~${estimate.auec.toLocaleString()} aUEC (not confirmed)`,
+    summary: `Estimated: ${range} aUEC (not confirmed)`,
     detail,
   };
 }
@@ -83,15 +92,15 @@ async function maybeAddEstimatedPayout(session, contractEvent) {
   }
 
   const meta =
-    contractEvent.detail?.contractDefinitionId
+    contractEvent.detail?.contractDefinitionId || contractEvent.detail?.title
       ? {
-          contractDefinitionId: contractEvent.detail.contractDefinitionId,
-          title: contractEvent.detail.title,
+          contractDefinitionId: contractEvent.detail.contractDefinitionId || null,
+          title: contractEvent.detail.title || null,
           faction: contractEvent.detail.faction || null,
         }
       : findContractMeta(session, missionId);
 
-  if (!meta?.contractDefinitionId) return null;
+  if (!meta?.contractDefinitionId && !meta?.title) return null;
 
   const faction = meta.faction;
   const standing = faction ? factionRepStore.standingForRep(factionRepStore.getRep(faction)) : "Neutral";

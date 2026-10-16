@@ -8,7 +8,14 @@ const {
   estimateAuecFromMission,
   roundToNiceAuec,
   STANDING_AUEC_MULT,
+  init: initContractWiki,
+  clearCacheForTests,
+  getSeedStats,
+  missionFromSeedTitle,
+  normalizeTitle,
+  estimatePayoutForContract,
 } = require("../electron/contractWiki");
+const path = require("path");
 const {
   maybeAddEstimatedPayout,
   buildEstimatedRewardEvent,
@@ -118,6 +125,51 @@ assert(estEvent.detail.auecEstimated === true, "Estimated reward flagged");
 assert(estEvent.detail.auec === 42000, "Estimated reward amount");
 assert(/not confirmed/i.test(estEvent.summary), "Summary says not confirmed");
 
-runAsyncTests().then(() => {
-  if (!process.exitCode) console.log("test-contract-wiki-estimate: ok");
-});
+async function runSeedTests() {
+  clearCacheForTests();
+  initContractWiki({
+    seedDir: path.join(__dirname, "..", "data", "missions"),
+  });
+  const stats = getSeedStats();
+  assert(stats.uuidEntries > 1000, `seed loads missions (${stats.uuidEntries})`);
+  assert(
+    normalizeTitle("Contract Complete: A Swift Reprisal [50 Rep]") ===
+      "a swift reprisal",
+    "normalizeTitle strips accept/complete noise"
+  );
+
+  const sibling = missionFromSeedTitle("A Swift Reprisal");
+  assert(
+    sibling && Number(sibling.reward_min) > 0,
+    `seed title sibling finds Swift Reprisal payout (${sibling?.reward_min})`
+  );
+
+  // UUID that often has null reward_min should still resolve via sibling enrichment
+  const nullishUuid = "5916ef35-13d3-4223-8fe3-c399a02290ce";
+  const estimated = await estimatePayoutForContract({
+    contractDefinitionId: nullishUuid,
+    contractTitle: "A Swift Reprisal",
+    standingName: "Neutral",
+  });
+  assert(
+    estimated?.auec > 0,
+    `null-reward UUID estimates via title sibling (${estimated?.auec}, src=${estimated?.estimateSource})`
+  );
+
+  const titleOnly = await estimatePayoutForContract({
+    contractDefinitionId: null,
+    contractTitle: "A Swift Reprisal",
+    standingName: "Neutral",
+  });
+  assert(titleOnly?.auec > 0, `title-only estimate works (${titleOnly?.auec})`);
+}
+
+runAsyncTests()
+  .then(runSeedTests)
+  .then(() => {
+    if (!process.exitCode) console.log("test-contract-wiki-estimate: ok");
+  })
+  .catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+  });

@@ -2164,7 +2164,8 @@ function buildRewards(rollup) {
           badgeClass: isEst ? "entry-warn" : "entry-good",
           title,
           description: isEst
-            ? `Estimated payout from wiki + rep tier. Not confirmed in Game.log.`
+            ? r.estimateNote ||
+              `Estimated payout from wiki / external contract databases. Not confirmed in Game.log.`
             : r.contractTitle
               ? `Payout after completing this contract.`
               : `Reward popup (couldn't match to a specific contract).`,

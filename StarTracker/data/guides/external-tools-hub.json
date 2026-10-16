@@ -1,21 +1,29 @@
 {
-  "updated": "2026-07-28",
+  "updated": "2026-10-15",
   "dataSources": [
     {
       "id": "wiki-scunpacked",
       "name": "Star Citizen Wiki API (SCUnpacked)",
       "url": "https://api.star-citizen.wiki",
-      "description": "Primary in-game datamine: ships, items, blueprints, locations, and starmap data extracted from game files (same lineage as SCUnpacked).",
-      "powers": ["Catalog", "Ship builder", "Fleet compare", "Crafting", "Combat stats", "Patch notes", "Starmap lookups", "Wikelo trades"],
+      "description": "Primary in-game datamine: ships, items, blueprints, locations, missions/contracts with reward_min, and starmap data extracted from game files (same lineage as SCUnpacked).",
+      "powers": ["Catalog", "Ship builder", "Fleet compare", "Crafting", "Combat stats", "Patch notes", "Starmap lookups", "Wikelo trades", "Contract payout estimates"],
       "integrated": true
     },
     {
       "id": "uex",
       "name": "UEX Corp",
       "url": "https://uexcorp.space/",
-      "description": "Live terminal commodity prices, stock SCU, and shop listings.",
-      "powers": ["Market prices", "Trade routes", "Smuggler routes", "Refinery calculator"],
+      "description": "Live terminal commodity prices, stock SCU, shop listings, and a growing contracts payout table.",
+      "powers": ["Market prices", "Trade routes", "Smuggler routes", "Refinery calculator", "Contract payout fallback"],
       "integrated": true
+    },
+    {
+      "id": "sc-codex-api",
+      "name": "SC Codex (public API)",
+      "url": "https://sc-codex.ru/api-docs",
+      "description": "Patch-scoped contract catalog with reward_auec_min/max. Requires a free X-Api-Key from their API-docs form. Set scCodexApiKey in StarTracker config.json to enable.",
+      "powers": ["Optional contract payout enrichment"],
+      "integrated": "optional"
     },
     {
       "id": "star-strings",
