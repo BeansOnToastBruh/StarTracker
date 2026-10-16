@@ -1,5 +1,28 @@
 [
   {
+    "id": "startracker-1.0.38",
+    "version": "1.0.38",
+    "title": "StarTracker 1.0.38",
+    "date": "2026-10-15",
+    "startrackerNotes": [
+      "Alpha 4.10.2 support: RSI Discovery Month patch notes (21351) plus 4.10.1 / 4.10 / 4.9 / 4.8.x.",
+      "Refreshed bundled catalog seed (ships, items, terminals, shops) for 4.10.2 LIVE.",
+      "Exec hangar timer seed updated for 4.10.2-LIVE server 12881860. Use Sync cycle after major patches.",
+      "Game loops: RSI Discovery Month entry covering Centaurus rental and Stanton contract tracks."
+    ]
+  },
+  {
+    "id": "startracker-1.0.37",
+    "version": "1.0.37",
+    "title": "StarTracker 1.0.37",
+    "date": "2026-09-03",
+    "startrackerNotes": [
+      "Shared fetch/cache utilities across intel panels.",
+      "Lazy-loaded session panels for snappier startup.",
+      "MobiGlas theme refresh."
+    ]
+  },
+  {
     "id": "startracker-1.0.36",
     "version": "1.0.36",
     "title": "StarTracker 1.0.36",
@@ -11,6 +34,8 @@
       "Star Strings installer pulls the latest MrKraken release on install/update."
     ]
   },
+  {
+    "id": "startracker-1.0.30",
     "version": "1.0.30",
     "title": "StarTracker 1.0.30",
     "date": "2026-07-27",

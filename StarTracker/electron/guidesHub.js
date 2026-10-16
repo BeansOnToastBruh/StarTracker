@@ -11,8 +11,20 @@ const {
 
 const RSI_STACKED_PATCH_PAGES = [
   {
+    wikiId: 21351,
+    versionRe: /^4\.10\.2$/,
+    majorVersion: "4.10.2",
+    url: "https://robertsspaceindustries.com/en/comm-link/Patch-Notes/21351-Star-Citizen-Alpha-4102",
+  },
+  {
+    wikiId: 21330,
+    versionRe: /^4\.10\.1$/,
+    majorVersion: "4.10.1",
+    url: "https://robertsspaceindustries.com/en/comm-link/Patch-Notes/21330-Star-Citizen-Alpha-4101",
+  },
+  {
     wikiId: 21293,
-    versionRe: /^4\.10(?:\.\d+)?$/,
+    versionRe: /^4\.10$/,
     majorVersion: "4.10",
     url: "https://robertsspaceindustries.com/en/comm-link/Patch-Notes/21293-Star-Citizen-Alpha-410",
   },

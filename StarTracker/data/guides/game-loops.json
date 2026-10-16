@@ -24,6 +24,18 @@
     "relatedTabs": ["guides-commodities", "guides-refinery", "guides-crafting"]
   },
   {
+    "id": "discovery-month",
+    "title": "RSI Discovery Month (4.10.2)",
+    "summary": "Alpha 4.10.2 runs RSI Discovery Month across Stanton: combat, hauling, salvage, and mining contract tracks, plus a Constellation rental offer for the new Mk V Centaurus.",
+    "tips": [
+      "Pick up Discovery Month contracts from your mobiGlas while the event window is live.",
+      "Complete the Constellation Rental Offer track for a short Centaurus + Skylark rental.",
+      "Constellation Mk IV hulls were reworked this patch — refresh catalog if Ship Builder looks stale.",
+      "Session Missions and Rewards tabs log contracts and payouts when Game.log records them."
+    ],
+    "relatedTabs": ["missions", "rewards", "catalog-ships", "guides-fleet"]
+  },
+  {
     "id": "siege-orison",
     "title": "Siege of Orison (4.10)",
     "summary": "Alpha 4.10 brings instanced Siege of Orison: coordinated FPS assaults on Nine Tails platforms above Crusader with up to four players per instance.",
