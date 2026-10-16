@@ -1,14 +1,25 @@
 const factionRepStore = require("./factionRepStore");
 const contractWiki = require("./contractWiki");
 
+const ZERO_MISSION = "00000000-0000-0000-0000-000000000000";
+
+function isConfirmedAuecDetail(detail) {
+  if (!detail || detail.auec == null || detail.auecSuperseded) return false;
+  if (detail.auecEstimated || detail.auecFromAcceptTitle) return false;
+  if (detail.auecConfirmed === false) return false;
+  return true;
+}
+
+function isProvisionalAuecDetail(detail) {
+  if (!detail || detail.auec == null || detail.auecSuperseded) return false;
+  return !!(detail.auecEstimated || detail.auecFromAcceptTitle);
+}
+
 function missionHasConfirmedAuec(session, missionId) {
   if (!missionId || !session?.events) return false;
   for (const e of session.events) {
     if (e.type !== "reward" || e.detail?.missionId !== missionId) continue;
-    if (e.detail?.auec == null || e.detail?.auecEstimated) continue;
-    // Accept-title brackets are provisional; wiki estimates / Awarded lines may still apply.
-    if (e.detail?.auecFromAcceptTitle) continue;
-    return true;
+    if (isConfirmedAuecDetail(e.detail)) return true;
   }
   return false;
 }
@@ -17,9 +28,66 @@ function missionHasEstimatedAuec(session, missionId) {
   if (!missionId || !session?.events) return false;
   for (const e of session.events) {
     if (e.type !== "reward" || e.detail?.missionId !== missionId) continue;
-    if (e.detail?.auec != null && e.detail?.auecEstimated) return true;
+    if (e.detail?.auec != null && e.detail?.auecEstimated && !e.detail?.auecSuperseded) {
+      return true;
+    }
   }
   return false;
+}
+
+function missionHasAcceptTitleAuec(session, missionId) {
+  if (!missionId || !session?.events) return false;
+  for (const e of session.events) {
+    if (e.type !== "reward" || e.detail?.missionId !== missionId) continue;
+    if (
+      e.detail?.auec != null &&
+      e.detail?.auecFromAcceptTitle &&
+      !e.detail?.auecSuperseded
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * When a confirmed Awarded/You've Earned line arrives, drop provisional
+ * accept-title brackets and wiki estimates for the same mission so totals
+ * do not double-count.
+ */
+function supersedeProvisionalAuec(session, missionId) {
+  if (!session?.events || !missionId || missionId === ZERO_MISSION) return 0;
+  let cleared = 0;
+  for (const e of session.events) {
+    if (e.type !== "reward" || e.detail?.missionId !== missionId) continue;
+    if (!isProvisionalAuecDetail(e.detail)) continue;
+    const amt = Number(e.detail.auec) || 0;
+    if (amt > 0 && session.stats) {
+      session.stats.auecEstimated = Math.max(
+        0,
+        (session.stats.auecEstimated || 0) - amt
+      );
+    }
+    e.detail.auecSuperseded = true;
+    e.detail.auecWas = amt;
+    e.detail.auec = null;
+    e.summary = e.detail.auecEstimated
+      ? "Estimated payout replaced by Awarded line"
+      : "Accept-title aUEC replaced by Awarded line";
+    cleared += 1;
+  }
+  return cleared;
+}
+
+/**
+ * Call after pushing a reward event. Confirmed payouts clear provisional ones.
+ */
+function reconcileAuecAfterReward(session, event) {
+  if (!session || event?.type !== "reward") return false;
+  if (!isConfirmedAuecDetail(event.detail)) return false;
+  const missionId = event.detail?.missionId;
+  if (!missionId || missionId === ZERO_MISSION) return false;
+  return supersedeProvisionalAuec(session, missionId) > 0;
 }
 
 function findContractMeta(session, missionId) {
@@ -86,8 +154,12 @@ async function maybeAddEstimatedPayout(session, contractEvent) {
   if (contractEvent.detail?.action !== "completed") return null;
 
   const missionId = contractEvent.detail?.missionId;
-  if (!missionId || missionId === "00000000-0000-0000-0000-000000000000") return null;
-  if (missionHasConfirmedAuec(session, missionId) || missionHasEstimatedAuec(session, missionId)) {
+  if (!missionId || missionId === ZERO_MISSION) return null;
+  if (
+    missionHasConfirmedAuec(session, missionId) ||
+    missionHasEstimatedAuec(session, missionId) ||
+    missionHasAcceptTitleAuec(session, missionId)
+  ) {
     return null;
   }
 
@@ -103,7 +175,9 @@ async function maybeAddEstimatedPayout(session, contractEvent) {
   if (!meta?.contractDefinitionId && !meta?.title) return null;
 
   const faction = meta.faction;
-  const standing = faction ? factionRepStore.standingForRep(factionRepStore.getRep(faction)) : "Neutral";
+  const standing = faction
+    ? factionRepStore.standingForRep(factionRepStore.getRep(faction))
+    : "Neutral";
 
   const estimate = await contractWiki.estimatePayoutForContract({
     contractDefinitionId: meta.contractDefinitionId,
@@ -116,7 +190,8 @@ async function maybeAddEstimatedPayout(session, contractEvent) {
   return buildEstimatedRewardEvent({
     at: contractEvent.at,
     missionId,
-    contractTitle: contractEvent.detail?.title || meta.title || estimate.missionTitle,
+    contractTitle:
+      contractEvent.detail?.title || meta.title || estimate.missionTitle,
     estimate,
   });
 }
@@ -125,5 +200,11 @@ module.exports = {
   maybeAddEstimatedPayout,
   trackRepFromReward,
   missionHasConfirmedAuec,
+  missionHasEstimatedAuec,
+  missionHasAcceptTitleAuec,
   buildEstimatedRewardEvent,
+  reconcileAuecAfterReward,
+  supersedeProvisionalAuec,
+  isConfirmedAuecDetail,
+  isProvisionalAuecDetail,
 };

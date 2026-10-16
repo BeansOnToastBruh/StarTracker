@@ -67,8 +67,12 @@ function bumpStats(session, event) {
       break;
     case "reward":
       s.rewards += 1;
-      if (event.detail?.auec) {
-        if (event.detail.auecEstimated) {
+      if (event.detail?.auec && !event.detail?.auecSuperseded) {
+        const provisional =
+          !!event.detail.auecEstimated ||
+          !!event.detail.auecFromAcceptTitle ||
+          event.detail.auecConfirmed === false;
+        if (provisional) {
           s.auecEstimated = (s.auecEstimated || 0) + event.detail.auec;
         } else {
           s.auecEarned = (s.auecEarned || 0) + event.detail.auec;
@@ -130,6 +134,16 @@ function pushEvent(session, event) {
   }
   bumpStats(session, event);
   session.events.push(event);
+  if (event.type === "reward") {
+    try {
+      require("./contractPayoutEnrichment").reconcileAuecAfterReward(
+        session,
+        event
+      );
+    } catch {
+      /* enrichment optional during early boot */
+    }
+  }
   if (session.events.length > MAX_EVENTS) {
     session.events = session.events.slice(-MAX_EVENTS);
   }
@@ -202,6 +216,16 @@ function importEvents(session, events) {
     }
     bumpStats(session, event);
     session.events.push(event);
+    if (event.type === "reward") {
+      try {
+        require("./contractPayoutEnrichment").reconcileAuecAfterReward(
+          session,
+          event
+        );
+      } catch {
+        /* ignore */
+      }
+    }
   }
   if (session.events.length > IMPORT_MAX_EVENTS) {
     session.events = session.events.slice(-IMPORT_MAX_EVENTS);

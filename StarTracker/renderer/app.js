@@ -1011,6 +1011,19 @@ async function toggleInlineExpand(host, key, meta = {}) {
         scrollShipBuilderExpandIntoView(key);
         // Fill equipment dropdowns without blocking the first paint.
         finishShipBuilderSlotOptions(String(key));
+      } else if (
+        host === INLINE_HOST.CATALOG ||
+        host === INLINE_HOST.COMMODITY ||
+        host === INLINE_HOST.COMBAT ||
+        host === INLINE_HOST.FLEET ||
+        host === INLINE_HOST.TRADE ||
+        host === INLINE_HOST.SMUGGLE ||
+        host === INLINE_HOST.WIKELO ||
+        host === INLINE_HOST.CRAFTING
+      ) {
+        document
+          .querySelector(`tr[data-inline-detail-for="${CSS.escape(String(key))}"]`)
+          ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
       }
     }
   } catch (e) {

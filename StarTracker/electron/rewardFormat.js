@@ -9,8 +9,34 @@ function parseNumber(s) {
 }
 
 function parseAwardedAuec(text) {
-  const m = String(text || "").match(/^Awarded\s+([\d,.]+)\s*aUEC/i);
-  return m ? parseNumber(m[1]) : null;
+  const t = String(text || "").trim();
+  const patterns = [
+    /^Awarded\s+([\d,.]+)\s*aUEC/i,
+    /^Received\s+([\d,.]+)\s*aUEC/i,
+    /^Credits?\s+(?:awarded|earned):\s*([\d,.]+)\s*aUEC/i,
+    /^Payout:\s*([\d,.]+)\s*aUEC/i,
+  ];
+  for (const re of patterns) {
+    const m = t.match(re);
+    if (m) return parseNumber(m[1]);
+  }
+  return null;
+}
+
+function isProvisionalAuecRow(r) {
+  if (!r || r.auec == null || r.auecSuperseded) return false;
+  return !!(
+    r.auecEstimated ||
+    r.auecFromAcceptTitle ||
+    r.auecConfirmed === false
+  );
+}
+
+function isConfirmedAuecRow(r) {
+  if (!r || r.auec == null || r.auecSuperseded) return false;
+  if (r.auecEstimated || r.auecFromAcceptTitle) return false;
+  if (r.auecConfirmed === false) return false;
+  return true;
 }
 
 /**
@@ -23,6 +49,7 @@ function sumAuecPayoutsInText(text) {
   const raw = String(text || "");
   const patterns = [
     /Added notification "Awarded\s+([\d,.]+)\s*aUEC/gi,
+    /Added notification "Received\s+([\d,.]+)\s*aUEC/gi,
     /Added notification "You(?:'ve| have) [Ee]arned:\s*([\d,.]+)\s*aUEC/gi,
     /Added notification "Contract (?:Complete|Accepted):[^"]*\[([\d,.]+)\s*aUEC\s*\]/gi,
   ];
@@ -187,16 +214,19 @@ function parseContractPayoutFromTitle(title) {
 
 function buildRewardDisplayLines(detail) {
   const lines = [];
-  if (detail.auec != null) {
-    const est = !!detail.auecEstimated;
+  if (detail.auec != null && !detail.auecSuperseded) {
+    const provisional =
+      !!detail.auecEstimated ||
+      !!detail.auecFromAcceptTitle ||
+      detail.auecConfirmed === false;
     lines.push({
       key: "auec",
-      label: est ? "Currency (estimated)" : "Currency",
-      value: est
+      label: provisional ? "Currency (provisional)" : "Currency",
+      value: provisional
         ? `~${detail.auec.toLocaleString()} aUEC (not confirmed)`
         : `${detail.auec.toLocaleString()} aUEC`,
     });
-    if (est && detail.estimateNote) {
+    if (detail.auecEstimated && detail.estimateNote) {
       lines.push({
         key: "estimate_note",
         label: "Estimate basis",
@@ -260,12 +290,11 @@ function aggregateRewards(rewardRows) {
   const repByFaction = new Map();
   let itemBundles = 0;
   let itemCount = 0;
+  const ZERO = "00000000-0000-0000-0000-000000000000";
+  const byMission = new Map();
+  const orphans = [];
 
   for (const r of rewardRows) {
-    if (r.auec != null) {
-      if (r.auecEstimated) totalAuecEstimated += r.auec;
-      else totalAuec += r.auec;
-    }
     if (r.rep != null) {
       const f = r.faction || "Unknown faction";
       repByFaction.set(f, (repByFaction.get(f) || 0) + r.rep);
@@ -274,7 +303,46 @@ function aggregateRewards(rewardRows) {
       itemBundles += 1;
       itemCount += r.itemCount;
     }
+    if (r.auec == null || r.auecSuperseded) continue;
+    const mid = r.missionId && r.missionId !== ZERO ? r.missionId : null;
+    if (mid) {
+      if (!byMission.has(mid)) byMission.set(mid, []);
+      byMission.get(mid).push(r);
+    } else {
+      orphans.push(r);
+    }
   }
+
+  function addAuecBucket(r) {
+    if (isConfirmedAuecRow(r)) totalAuec += r.auec;
+    else if (isProvisionalAuecRow(r) || r.auec != null) totalAuecEstimated += r.auec;
+  }
+
+  for (const rows of byMission.values()) {
+    const confirmed = rows.find(isConfirmedAuecRow);
+    if (confirmed) {
+      totalAuec += confirmed.auec;
+      continue;
+    }
+    const accept = rows.find(
+      (r) => r.auecFromAcceptTitle && r.auec != null && !r.auecSuperseded
+    );
+    if (accept) {
+      totalAuecEstimated += accept.auec;
+      continue;
+    }
+    const estimated = rows.find(
+      (r) => r.auecEstimated && r.auec != null && !r.auecSuperseded
+    );
+    if (estimated) {
+      totalAuecEstimated += estimated.auec;
+      continue;
+    }
+    const other = rows.find((r) => r.auec != null && !r.auecSuperseded);
+    if (other) addAuecBucket(other);
+  }
+
+  for (const r of orphans) addAuecBucket(r);
 
   return {
     totalAuec,
@@ -301,4 +369,6 @@ module.exports = {
   stripHudMarkup,
   parseContractPayoutFromTitle,
   finalizeRewardKind,
+  isConfirmedAuecRow,
+  isProvisionalAuecRow,
 };

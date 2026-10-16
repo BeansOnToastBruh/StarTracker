@@ -1254,7 +1254,9 @@ function parseLine(line, ctx = {}) {
           kind: payout.kind,
           auec: payout.auec,
           auecFromAcceptTitle,
-          auecConfirmed: payout.auec != null && !auecFromAcceptTitle,
+          // Title brackets (accept or complete) are provisional — Awarded /
+          // You've Earned HUD lines are the confirmed cash source.
+          auecConfirmed: false,
           auecEstimated: false,
           rep: payout.rep,
           faction: payout.faction,

@@ -1,5 +1,16 @@
 [
   {
+    "id": "startracker-1.0.42",
+    "version": "1.0.42",
+    "title": "StarTracker 1.0.42",
+    "date": "2026-10-15",
+    "startrackerNotes": [
+      "aUEC no longer double-counts: accept-title brackets and wiki estimates are provisional and get replaced when Awarded / You've Earned lines land.",
+      "Session stats and mission rollups pick one payout per mission (confirmed > accept-title > estimate).",
+      "Expand rows across catalog, combat, fleet, trade, smuggle, Wikelo, and crafting scroll the detail into view after load."
+    ]
+  },
+  {
     "id": "startracker-1.0.41",
     "version": "1.0.41",
     "title": "StarTracker 1.0.41",
